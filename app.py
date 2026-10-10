@@ -7,11 +7,13 @@ import time
 import uuid
 from collections import defaultdict, deque
 from contextlib import asynccontextmanager
+from pathlib import Path
 from threading import Lock
 
 from fastapi import FastAPI, Request, Response
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 
 from config import ConfigurationError, get_settings
 from contracts import AgentResult, ChatError, ChatRequest, ChatResponse, ErrorInfo
@@ -84,6 +86,8 @@ async def lifespan(_app: FastAPI):
 
 
 app = FastAPI(title='3820多智能体系统', lifespan=lifespan)
+_WEB_DIR = Path(__file__).with_name('web')
+app.mount('/assets', StaticFiles(directory=_WEB_DIR), name='assets')
 
 
 @app.middleware('http')
@@ -104,7 +108,7 @@ async def protect_and_measure(request: Request, call_next):
         response.headers['X-Request-ID'] = request_id
         return response
 
-    if request.url.path in ('/health', '/favicon.ico'):
+    if request.url.path in ('/', '/health', '/favicon.ico') or request.url.path.startswith('/assets/'):
         return finish(await call_next(request))
     principal, auth_error = _authenticate(request, settings)
     if auth_error:
@@ -161,7 +165,7 @@ def health():
 
 @app.get('/', include_in_schema=False)
 def home():
-    return RedirectResponse('/docs', status_code=302)
+    return FileResponse(_WEB_DIR / 'index.html')
 
 
 @app.get('/favicon.ico', include_in_schema=False)

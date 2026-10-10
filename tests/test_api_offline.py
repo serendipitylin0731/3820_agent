@@ -12,14 +12,26 @@ def test_startup_works_without_model_key(monkeypatch):
         assert client.get('/health').json() == {'status': 'ok'}
 
 
-def test_browser_root_opens_api_docs_without_missing_favicon(monkeypatch):
+def test_browser_root_opens_chat_ui_and_keeps_api_docs(monkeypatch):
     monkeypatch.setattr(api, 'get_settings', lambda: Settings())
     with TestClient(api.app) as client:
-        root = client.get('/', follow_redirects=False)
-        assert root.status_code == 302
-        assert root.headers['location'] == '/docs'
+        root = client.get('/')
+        assert root.status_code == 200
+        assert '战略知识助手' in root.text
+        assert 'id="chat-form"' in root.text
+        assert client.get('/assets/style.css').status_code == 200
+        assert "fetch('/chat'" in client.get('/assets/app.js').text
         assert client.get('/docs').status_code == 200
         assert client.get('/favicon.ico').status_code == 204
+
+
+def test_browser_can_open_ui_before_entering_service_key(monkeypatch):
+    monkeypatch.setattr(api, 'get_settings', lambda: Settings(service_api_key='test-only-key'))
+    with TestClient(api.app) as client:
+        assert client.get('/').status_code == 200
+        assert client.get('/assets/app.js').status_code == 200
+        assert client.post('/chat', json={'question': '1995年GDP是多少？'}).status_code == 401
+        assert client.get('/docs').status_code == 401
 
 
 def test_chat_and_validation_use_shared_contract_without_network(monkeypatch):
