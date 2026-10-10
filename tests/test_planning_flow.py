@@ -100,6 +100,27 @@ def test_planned_airport_date_is_not_used_as_opening_date(monkeypatch):
     assert 'insufficient_evidence' in report
 
 
+def test_split_planning_keeps_the_full_original_question(monkeypatch):
+    from agents import agent_main
+    monkeypatch.setattr(agent_main, 'get_settings',
+                        lambda: Settings(ark_api_key='fake', llm_model='fake'))
+    monkeypatch.setattr(agent_main, 'chat', lambda *_args, **_kwargs: (
+        '[{"type":"planning","question":"正式通航年份"},'
+        '{"type":"planning","question":"与工程的关系"}]'))
+    question = '长乐国际机场哪年正式通航？它与3820工程有什么关系？'
+    tasks = agent_main.split_task(question)
+    assert len(tasks) == 1
+    assert tasks[0]['type'] == 'planning'
+    assert tasks[0]['question'] == question
+
+
+def test_whether_qualitative_goal_achieved_routes_to_evaluation(monkeypatch):
+    from agents import agent_main
+    monkeypatch.setattr(agent_main, 'get_settings', lambda: Settings())
+    tasks = agent_main.split_task('2000年目标是否已经达成？')
+    assert any(task['type'] == 'evaluation' for task in tasks)
+
+
 def test_map_answer_uses_reviewed_labels_when_scan_page_is_retrieved(monkeypatch):
     from agents import agent_planning
     monkeypatch.setattr(agent_planning, 'get_settings', lambda: Settings())

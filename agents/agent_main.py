@@ -52,8 +52,10 @@ def _normalize_tasks(tasks, question):
     local_indicators = [task for task in _local_split(question) if task['type'] == 'indicator']
     tasks = [task for task in tasks if task['type'] != 'indicator']
     conceptual = any(cue in question for cue in ('为什么要区分', '如何区分', '怎样区分'))
-    evaluating = not conceptual and any(cue in question for cue in
-                                        ('评估', '达成率', '完成率', '翻一番', '是否达成', '判定') )
+    evaluating = not conceptual and (any(cue in question for cue in
+                                         ('评估', '达成率', '完成率', '翻一番', '判定'))
+                                     or bool(re.search(r'(?:是否|能否|有没有)[^？?。]*达成|目标[^？?。]*达成',
+                                                       question)))
     if not evaluating:
         tasks = [task for task in tasks if task['type'] != 'evaluation']
     target_only = '目标' in question and not evaluating and '实际' not in question
@@ -81,6 +83,9 @@ def _normalize_tasks(tasks, question):
         tasks = [task for task in tasks if task['type'] != 'spatial']
         if not any(task['type'] == 'planning' for task in tasks):
             tasks.append({'type': 'planning', 'question': question})
+    if any(task['type'] == 'planning' for task in tasks):
+        tasks = [task for task in tasks if task['type'] != 'planning'] + [
+            {'type': 'planning', 'question': question}]
     return tasks or [{'type': 'planning', 'question': question}]
 
 
