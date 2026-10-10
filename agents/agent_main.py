@@ -12,11 +12,11 @@ SPLIT_SYSTEM = '''将问题拆成 JSON 数组。每个对象必须包含 type �
 indicator 必须有 key，可用 gdp、gdp_per_capita、gnp、gnp_per_capita、industry_primary、industry_secondary、industry_tertiary、gross_ia、agriculture_output、industry_output、export_total、urban_income、rural_income；spatial 必须有 keyword，仅用于查询具体空间要素。询问战略空间布局、规划或作用等概括性问题时使用 planning。只输出 JSON，不要 Markdown 围栏。'''
 logger = logging.getLogger('3820_agent')
 KEYWORDS = [('gdp_per_capita','人均地区生产总值'),('gdp_per_capita','人均GDP'),
-            ('gnp_per_capita','人均收入总值'),('gnp_per_capita','人均GNP'),
+            ('gnp_per_capita','人均收入总值'),('gnp_per_capita','人均国民生产总值'),('gnp_per_capita','人均GNP'),
             ('urban_income','城镇居民人均可支配收入'),('rural_income','农村居民人均纯收入'),
             ('gross_ia','工农业总产值'),('industry_output','工业总产值'),
             ('agriculture_output','农业总产值'),('urban_income','城镇收入'),
-            ('rural_income','农村收入'),('gdp','地区生产总值'),('gnp','地区收入总值'),
+            ('rural_income','农村收入'),('gdp','地区生产总值'),('gnp','地区收入总值'),('gnp','国民生产总值'),
             ('gdp','GDP'),('gnp','GNP'),('export_total','出口'),
             ('industry_primary','第一产业'),('industry_secondary','第二产业'),
             ('industry_tertiary','第三产业')]
@@ -43,13 +43,25 @@ def _local_split(question):
 
 
 def _normalize_tasks(tasks, question):
-    """宽泛的战略布局问题需要资料分析，不能误作单个要素名称查询。"""
+    """对模型拆分做领域校验，防止无关问题被误映射为某项指标。"""
+    local_indicators = [task for task in _local_split(question) if task['type'] == 'indicator']
+    tasks = [task for task in tasks if task['type'] != 'indicator']
+    evaluating = any(cue in question for cue in ('评估', '达成率', '完成率', '翻一番', '是否达成'))
+    target_only = '目标' in question and not evaluating and '实际' not in question
+    if target_only:
+        if not any(task['type'] == 'planning' for task in tasks):
+            tasks.append({'type': 'planning', 'question': question})
+    else:
+        tasks.extend(local_indicators)
+    if evaluating:
+        if not any(task['type'] == 'evaluation' for task in tasks):
+            tasks.insert(0, {'type': 'evaluation', 'question': question})
     if '布局' in question and '战略' in question:
         from knowledge.domain import spatial_features
         if not any(item['name'] in question for item in spatial_features()):
-            return [{**task, 'type': 'planning'} if task['type'] == 'spatial' else task
-                    for task in tasks]
-    return tasks
+            tasks = [{**task, 'type': 'planning', 'keyword': None, 'stype': None}
+                     if task['type'] == 'spatial' else task for task in tasks]
+    return tasks or [{'type': 'planning', 'question': question}]
 
 
 def split_task(question):

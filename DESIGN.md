@@ -5,7 +5,7 @@
 ## 配置边界
 
 - [config.py](config.py) 集中读取项目根目录的 `.env` 与进程环境变量；进程环境变量优先。导入模块不读取密钥，也不连接模型。
-- `ARK_API_KEY`、`LLM_MODEL` 用于在线模型调用，`EMBED_MODEL` 用于可选向量索引；缺失时服务仍能用本地规则和已提取的文本检索运行。知识库自动读取指南、`knowledge/data/` 内的 Word/PPT 和 `knowledge/data/public_sources/` 内的网页文本；`PPT_PATH` 仅用于添加目录外的一份 PPT。`SERVICE_API_KEY` 设置后，除 `/health` 外的接口需要 `X-API-Key`。可选 `SERVICE_CLIENTS_JSON` 定义多个客户端及 `chat`、`metrics`、`docs` 权限，调用时还需 `X-Client-ID`；客户端会话在 Checkpoint 中隔离。
+- `ARK_API_KEY`、`LLM_MODEL` 用于在线模型调用，`EMBED_MODEL` 用于可选向量索引；缺失时服务仍能用本地规则和已提取的文本检索运行。知识库自动读取指南、`knowledge/data/` 内的 Word/PPT、`knowledge/data/public_sources/` 内的网页文本和 `knowledge/data/original_3820/` 内的扫描 OCR；`PPT_PATH` 仅用于添加目录外的一份 PPT。`SERVICE_API_KEY` 设置后，除 `/health` 外的接口需要 `X-API-Key`。可选 `SERVICE_CLIENTS_JSON` 定义多个客户端及 `chat`、`metrics`、`docs` 权限，调用时还需 `X-Client-ID`；客户端会话在 Checkpoint 中隔离。
 - `ARK_BASE_URL`、`TOP_K`、`REQUEST_TIMEOUT`、`LOG_LEVEL` 已由调用方使用。`CHECKPOINT_PATH` 配置 SQLite 会话快照；`INDEX_PATH` 指向持久化向量索引；`VECTOR_MAX_DISTANCE` 设置后启用向量检索，并应按当前资料和模型校准。`MAX_BODY_BYTES` 和 `RATE_LIMIT_PER_MINUTE` 控制单实例入口。
 - `get_settings()` 会缓存一次运行配置；修改环境变量后应重启服务。测试可直接调用 `load_settings(environ=..., dotenv_path=...)`，不读取本机密钥。
 
@@ -30,6 +30,7 @@
 - `graph.py` 用 `SubTask` 校验主智能体拆分结果，非法任务不能进入工具层。
 - `app.py` 用 `ChatRequest`、`ChatResponse` 和 `ChatError` 校验 HTTP 边界；旧角色结果经适配后放入 `AgentResult.data`，不会凭空生成来源。
 - `knowledge/knowledge_base.py` 的 `search` 返回 `KnowledgeResult` 和 `KnowledgeHit`；`graph.py` 把角色输出转为 `AgentResult`，来源保持 `verified=false`。
+- 向量检索在距离接近首位时保留一条原件扫描 OCR 命中，同时返回未经修改的原始距离；OCR 页码为平台预览页码。目标问题进入规划检索，不能把指南中的完成值当作原始目标值。
 - 原始资料尚未核验时，示例夹具中的来源均为 `verified=false`。本地夹具只验证接口，不充当历史事实的独立证明。
 
 ## 离线验证

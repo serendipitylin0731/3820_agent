@@ -190,7 +190,7 @@ def chat(req: ChatRequest, request: Request):
     try:
         result = ask(req.question, thread_id=thread_id, request_id=request_id)
         results = {role: _as_agent_result(role, raw) for role, raw in result.get('results', {}).items()}
-        failures = sum(item.status != 'ok' for item in results.values())
+        failures = sum(item.status == 'error' for item in results.values())
         with _lock:
             _agent_errors += sum(item.status == 'error' for item in results.values())
         status = 'error' if not results or failures == len(results) else 'partial' if failures else 'ok'

@@ -48,3 +48,15 @@ def test_internal_error_does_not_expose_exception(monkeypatch, caplog):
     assert ChatError.model_validate(response.json()).error.code == "internal_error"
     assert "private-test-value" not in response.text
     assert "private-test-value" not in caplog.text
+
+
+def test_insufficient_evidence_is_handled_answer_not_service_error(monkeypatch):
+    monkeypatch.setattr(api, 'get_settings', lambda: Settings())
+    monkeypatch.setattr(api, 'ask', lambda question, thread_id, request_id=None: {
+        'answer': '缺少比较对象，无法评估',
+        'results': {'evaluation': {'role': 'evaluation', 'status': 'insufficient_evidence',
+                                   'data': '缺少比较对象，无法评估'}}})
+    with TestClient(api.app) as client:
+        payload = client.post('/chat', json={'question': '2000年目标是否达成？'}).json()
+    assert payload['status'] == 'ok'
+    assert payload['results']['evaluation']['status'] == 'insufficient_evidence'

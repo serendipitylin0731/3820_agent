@@ -13,6 +13,37 @@ def test_model_routes_general_strategic_layout_to_planning(monkeypatch):
     assert [task['type'] for task in tasks] == ['planning']
 
 
+def test_model_indicator_guess_needs_indicator_in_question(monkeypatch):
+    from agents import agent_main
+    monkeypatch.setattr(agent_main, 'get_settings',
+                        lambda: Settings(ark_api_key='fake', llm_model='fake'))
+    monkeypatch.setattr(agent_main, 'chat',
+                        lambda *_args, **_kwargs: '[{"type":"indicator","question":"量子芯片制程",'
+                                                 '"key":"industry_output"}]')
+    assert [task['type'] for task in agent_main.split_task('量子芯片的制程是多少？')] == ['planning']
+
+
+def test_model_cannot_drop_explicit_achievement_request(monkeypatch):
+    from agents import agent_main
+    monkeypatch.setattr(agent_main, 'get_settings',
+                        lambda: Settings(ark_api_key='fake', llm_model='fake'))
+    monkeypatch.setattr(agent_main, 'chat',
+                        lambda *_args, **_kwargs: '[{"type":"indicator","question":"1995年GDP目标达成率",'
+                                                 '"key":"gdp"}]')
+    assert {task['type'] for task in agent_main.split_task('1995年GDP目标达成率是多少？')} == {
+        'indicator', 'evaluation'}
+
+
+def test_target_question_is_not_answered_with_observed_indicator_values(monkeypatch):
+    from agents import agent_main
+    monkeypatch.setattr(agent_main, 'get_settings',
+                        lambda: Settings(ark_api_key='fake', llm_model='fake'))
+    monkeypatch.setattr(agent_main, 'chat',
+                        lambda *_args, **_kwargs: '[{"type":"indicator","question":"1995年GDP目标",'
+                                                 '"key":"gdp"}]')
+    assert [task['type'] for task in agent_main.split_task('1995年GDP目标是多少？')] == ['planning']
+
+
 def test_planning_report_has_sections_and_no_evidence_behavior(monkeypatch):
     from agents import agent_planning
     monkeypatch.setattr(agent_planning, 'get_settings', lambda: Settings())

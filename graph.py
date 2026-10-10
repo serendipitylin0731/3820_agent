@@ -78,7 +78,15 @@ def execute_node(state):
                     sources = []
                 else:
                     value = eval_1995_phase(INDICATOR_DATA)
+                    indicator_keys = {item['key'] for item in state['sub_tasks']
+                                      if item['type'] == 'indicator' and item.get('key') in INDICATOR_DATA}
+                    if indicator_keys:
+                        names = {INDICATOR_DATA[key]['name'] for key in indicator_keys}
+                        value = [row for row in value if row['指标'] in names]
                     sources = [INDICATOR_DATA[key]['source_ref'] for key in ('gnp','gdp','gdp_per_capita','urban_income','rural_income','industry_output')]
+                    if indicator_keys:
+                        sources = [INDICATOR_DATA[key]['source_ref'] for key in indicator_keys
+                                   if INDICATOR_DATA[key]['name'] in {row['指标'] for row in value}]
             else:
                 if state.get('kb_error'):
                     result = AgentResult(role=role, status='error',
