@@ -41,6 +41,10 @@ jobs:
         run: python -m pytest -m offline -q
       - name: Build application
         run: python -m PyInstaller --noconfirm packaging/3820Agent.spec
+      - name: Check high DPI manifest
+        shell: pwsh
+        run: |
+          python -c "from PyInstaller.utils.win32.winmanifest import read_manifest_from_executable; data = read_manifest_from_executable(r'dist\3820Agent\3820Agent.exe'); assert b'PerMonitorV2' in data"
       - name: Executable smoke test
         shell: pwsh
         run: |

@@ -30,6 +30,7 @@ exe = EXE(
     exclude_binaries=True,
     name='3820Agent',
     console=False,
+    manifest=str(root / 'packaging' / '3820Agent.manifest'),
     disable_windowed_traceback=False,
 )
 coll = COLLECT(exe, analysis.binaries, analysis.datas,

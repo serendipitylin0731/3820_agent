@@ -15,6 +15,38 @@ def _message(title: str, message: str):
         print(f'{title}: {message}', file=sys.stderr)
 
 
+def _enable_high_dpi():
+    """Ask Windows for sharp per-monitor rendering before Tk creates a window."""
+    if sys.platform != 'win32':
+        return
+    try:
+        if ctypes.windll.user32.SetProcessDpiAwarenessContext(ctypes.c_void_p(-4)):
+            return
+    except (AttributeError, OSError):
+        pass
+    try:
+        if ctypes.windll.shcore.SetProcessDpiAwareness(2) == 0:
+            return
+    except (AttributeError, OSError):
+        pass
+    try:
+        ctypes.windll.user32.SetProcessDPIAware()
+    except (AttributeError, OSError):
+        pass
+
+
+def _set_tk_scale(root):
+    if sys.platform != 'win32':
+        return
+    try:
+        dpi = ctypes.windll.user32.GetDpiForWindow(root.winfo_id())
+        if dpi > 0:
+            root.tk.call('tk', 'scaling', dpi / 72)
+            root.ui_scale = dpi / 96
+    except (AttributeError, OSError):
+        pass
+
+
 def main():
     smoke = '--smoke-test' in sys.argv
     home = None
@@ -24,10 +56,12 @@ def main():
         logging.basicConfig(filename=home / 'desktop.log', level=logging.INFO,
                             format='%(asctime)s %(levelname)s %(message)s',
                             encoding='utf-8')
+        _enable_high_dpi()
         import tkinter as tk
         from desktop_gui import DesktopApp
 
         root = tk.Tk()
+        _set_tk_scale(root)
         if smoke:
             root.withdraw()
         DesktopApp(root, home)

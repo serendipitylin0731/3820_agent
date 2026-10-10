@@ -68,17 +68,37 @@ def collect_sources(result):
     return sources[:60]
 
 
-def _lines(text, width=72):
-    return max(2, min(120, sum(max(1, (len(line) + width - 1) // width)
-                              for line in text.splitlines()) + 1))
+class AutoHeightText(tk.Text):
+    """Show the complete answer; the surrounding conversation canvas scrolls."""
+
+    def __init__(self, master, **kwargs):
+        super().__init__(master, height=2, **kwargs)
+        self._fit_pending = False
+        self.bind('<Configure>', self._schedule_fit, add='+')
+
+    def _schedule_fit(self, _event=None):
+        if not self._fit_pending:
+            self._fit_pending = True
+            self.after_idle(self._fit)
+
+    def _fit(self):
+        self._fit_pending = False
+        if not self.winfo_exists() or self.winfo_width() <= 1:
+            return
+        result = self.count('1.0', 'end', 'update', 'displaylines')
+        lines = result[0] if isinstance(result, tuple) else result
+        needed = max(2, int(lines or 1) + 1)
+        if int(self.cget('height')) != needed:
+            self.configure(height=needed)
 
 
 def _readonly_text(parent, content, *, bg, fg=INK, font_size=11, padx=12, pady=10):
-    widget = tk.Text(parent, height=_lines(content), wrap='word', bg=bg, fg=fg,
-                     relief='flat', borderwidth=0, padx=padx, pady=pady,
-                     font=('Microsoft YaHei UI', font_size), cursor='arrow')
+    widget = AutoHeightText(parent, wrap='word', bg=bg, fg=fg,
+                            relief='flat', borderwidth=0, padx=padx, pady=pady,
+                            font=('Microsoft YaHei UI', font_size), cursor='arrow')
     widget.insert('1.0', content)
     widget.configure(state='disabled')
+    widget._schedule_fit()
     return widget
 
 
@@ -115,8 +135,11 @@ class DesktopApp:
 
     def _build(self):
         self.root.title('3820 · 战略知识助手')
-        self.root.geometry('1160x780')
-        self.root.minsize(850, 600)
+        scale = getattr(self.root, 'ui_scale', 1.0)
+        width = min(round(1160 * scale), max(760, self.root.winfo_screenwidth() - 80))
+        height = min(round(780 * scale), max(540, self.root.winfo_screenheight() - 80))
+        self.root.geometry(f'{width}x{height}')
+        self.root.minsize(min(round(850 * scale), width), min(round(600 * scale), height))
         self.root.configure(bg=PAPER)
         style = ttk.Style(self.root)
         if 'clam' in style.theme_names():
@@ -125,7 +148,7 @@ class DesktopApp:
 
         shell = tk.Frame(self.root, bg=PAPER)
         shell.pack(fill='both', expand=True)
-        self.sidebar = tk.Frame(shell, bg=SIDEBAR, width=270)
+        self.sidebar = tk.Frame(shell, bg=SIDEBAR, width=round(270 * scale))
         self.sidebar.pack(side='left', fill='y')
         self.sidebar.pack_propagate(False)
         self.main = tk.Frame(shell, bg=PAPER)
@@ -180,7 +203,7 @@ class DesktopApp:
         self._side_button('⚙  豆包 API 设置', self.show_settings).pack(fill='x', padx=20, pady=(0, 7))
         self._side_button('＋  导入资料', self.import_files).pack(fill='x', padx=20, pady=(0, 17))
 
-        topbar = tk.Frame(self.main, bg=PAPER, height=68)
+        topbar = tk.Frame(self.main, bg=PAPER, height=round(68 * scale))
         topbar.pack(fill='x')
         topbar.pack_propagate(False)
         tk.Label(topbar, text='3820  /  知识工作台', bg=PAPER, fg='#567863',
@@ -204,9 +227,9 @@ class DesktopApp:
         self.canvas_window = self.canvas.create_window((0, 0), window=self.messages, anchor='nw')
         self.messages.bind('<Configure>', lambda _e: self.canvas.configure(scrollregion=self.canvas.bbox('all')))
         self.canvas.bind('<Configure>', lambda e: self.canvas.itemconfigure(self.canvas_window, width=e.width))
-        self.canvas.bind('<MouseWheel>', lambda e: self.canvas.yview_scroll(int(-e.delta / 120), 'units'))
-        self.canvas.bind('<Button-4>', lambda _e: self.canvas.yview_scroll(-3, 'units'))
-        self.canvas.bind('<Button-5>', lambda _e: self.canvas.yview_scroll(3, 'units'))
+        self.canvas.bind('<MouseWheel>', self._scroll_messages)
+        self.canvas.bind('<Button-4>', self._scroll_messages)
+        self.canvas.bind('<Button-5>', self._scroll_messages)
 
         composer = tk.Frame(self.chat_page, bg='white', highlightbackground=LINE, highlightthickness=1)
         composer.pack(fill='x', padx=38, pady=(8, 20))
@@ -245,6 +268,17 @@ class DesktopApp:
                          bg='#294b3b', fg='#f0f6ed', activebackground='#37664e',
                          activeforeground='white', relief='flat', bd=0,
                          font=('Microsoft YaHei UI', 10), padx=13, pady=10, cursor='hand2')
+
+    def _scroll_messages(self, event):
+        if getattr(event, 'num', None) == 4:
+            amount = -3
+        elif getattr(event, 'num', None) == 5:
+            amount = 3
+        else:
+            delta = getattr(event, 'delta', 0)
+            amount = (-1 if delta > 0 else 1) * max(1, abs(delta) // 120)
+        self.canvas.yview_scroll(amount, 'units')
+        return 'break'
 
     def _show_welcome(self):
         self.welcome = tk.Frame(self.messages, bg=PAPER)
@@ -297,6 +331,9 @@ class DesktopApp:
         answer = _readonly_text(card, content, bg=SOFT if kind == 'user' else 'white',
                                 font_size=11, padx=18, pady=14)
         answer.pack(fill='x')
+        answer.bind('<MouseWheel>', self._scroll_messages, add='+')
+        answer.bind('<Button-4>', self._scroll_messages, add='+')
+        answer.bind('<Button-5>', self._scroll_messages, add='+')
         if sources:
             panel = tk.Frame(card, bg='white')
             def toggle():
@@ -488,8 +525,9 @@ class DesktopApp:
             current = {}
         dialog = tk.Toplevel(self.root)
         dialog.title('豆包 API 设置')
-        dialog.geometry('500x455')
-        dialog.minsize(460, 430)
+        scale = getattr(self.root, 'ui_scale', 1.0)
+        dialog.geometry(f'{round(500 * scale)}x{round(455 * scale)}')
+        dialog.minsize(round(460 * scale), round(430 * scale))
         dialog.configure(bg=PAPER)
         dialog.transient(self.root)
         dialog.grab_set()
