@@ -5,8 +5,8 @@
 ## 配置边界
 
 - [config.py](config.py) 集中读取项目根目录的 `.env` 与进程环境变量；进程环境变量优先。导入模块不读取密钥，也不连接模型。
-- `ARK_API_KEY`、`LLM_MODEL` 用于在线模型调用，`EMBED_MODEL` 用于可选向量索引；缺失时服务仍能用本地规则和指南文本检索运行。`PPT_PATH` 是可选 PPT 输入路径；不存在时使用仓库内指南 Markdown。`SERVICE_API_KEY` 设置后，除 `/health` 外的接口需要 `X-API-Key`。可选 `SERVICE_CLIENTS_JSON` 定义多个客户端及 `chat`、`metrics`、`docs` 权限，调用时还需 `X-Client-ID`；客户端会话在 Checkpoint 中隔离。
-- `ARK_BASE_URL`、`TOP_K`、`REQUEST_TIMEOUT`、`LOG_LEVEL` 已由调用方使用。`CHECKPOINT_PATH` 配置 SQLite 会话快照；`MAX_BODY_BYTES` 和 `RATE_LIMIT_PER_MINUTE` 控制单实例入口。当前 `.env.example` 中的 `PPT_PATH` 只是指南示例文件名。
+- `ARK_API_KEY`、`LLM_MODEL` 用于在线模型调用，`EMBED_MODEL` 用于可选向量索引；缺失时服务仍能用本地规则和已提取的文本检索运行。知识库自动读取指南、`knowledge/data/` 内的 Word/PPT 和 `knowledge/data/public_sources/` 内的网页文本；`PPT_PATH` 仅用于添加目录外的一份 PPT。`SERVICE_API_KEY` 设置后，除 `/health` 外的接口需要 `X-API-Key`。可选 `SERVICE_CLIENTS_JSON` 定义多个客户端及 `chat`、`metrics`、`docs` 权限，调用时还需 `X-Client-ID`；客户端会话在 Checkpoint 中隔离。
+- `ARK_BASE_URL`、`TOP_K`、`REQUEST_TIMEOUT`、`LOG_LEVEL` 已由调用方使用。`CHECKPOINT_PATH` 配置 SQLite 会话快照；`INDEX_PATH` 指向持久化向量索引；`VECTOR_MAX_DISTANCE` 设置后启用向量检索，并应按当前资料和模型校准。`MAX_BODY_BYTES` 和 `RATE_LIMIT_PER_MINUTE` 控制单实例入口。
 - `get_settings()` 会缓存一次运行配置；修改环境变量后应重启服务。测试可直接调用 `load_settings(environ=..., dotenv_path=...)`，不读取本机密钥。
 
 ## 字段和状态
@@ -34,4 +34,4 @@
 
 ## 离线验证
 
-运行 `python -m pytest -m offline -q`。普通测试也不调用外部服务；需要真实密钥和资料的用例将来使用 `online` 标记，单独运行。
+运行 `python -m pytest -m offline -q`。普通测试不调用外部服务。在线模型与向量索引已在本机演示环境做过手动 smoke test；记录见 [验收记录](docs/验收记录.md)，不纳入普通 CI。
