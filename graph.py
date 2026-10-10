@@ -14,7 +14,8 @@ from agents.agent_planning import run_planning
 from agents.agent_indicator import query_indicator, query_target, INDICATOR_DATA
 from agents.agent_spatial import query_spatial
 from agents.agent_evaluation import eval_1995_phase
-from knowledge.knowledge_base import format_context, search
+from knowledge.knowledge_base import EXACT_ENTITIES, format_context, search
+from knowledge.model_fallback import answer_from_model, needs_model
 from resilience import find_checkpoint, log_event, timeout_error, transient_error
 
 
@@ -63,6 +64,11 @@ def retrieve_node(state):
     for attempt in range(2):
         try:
             found = search(query, top_k=get_settings().top_k)
+            anchors = [term for term in EXACT_ENTITIES if term in state['question']]
+            if anchors and found.hits:
+                relevant = [hit for hit in found.hits if any(term in hit.content for term in anchors)]
+                if relevant:
+                    found = found.model_copy(update={'hits': relevant[:3]})
             log_event('retrieval_finished', state.get('request_id', ''), state.get('thread_id', ''),
                       node='retrieve_node', duration_ms=round((time.monotonic() - started) * 1000, 1))
             return {'kb_context': format_context(found),
@@ -140,7 +146,7 @@ def execute_node(state):
                     result = AgentResult(role=role, status='error', error=ErrorInfo(code='domain_error', message=value['error']))
             elif isinstance(value, dict) and 'insufficient_evidence' in value:
                 result = AgentResult(role=role, status='insufficient_evidence',
-                                     data=value['insufficient_evidence'], sources=sources)
+                                     data=value['insufficient_evidence'], sources=[])
             elif (role == 'planning' or role == 'evaluation') and not sources:
                 result = AgentResult(role=role, status='insufficient_evidence', data=value)
             else:
@@ -170,6 +176,15 @@ def answer_node(state):
     results = dict(state['results'])
     fallback = natural_fallback(state['question'], results)
     answer, theory = compose_answer(state['question'], results, fallback, settings=get_settings())
+    if needs_model(state['question'], results, answer):
+        supplement = answer_from_model(state['question'], settings=get_settings())
+        if supplement:
+            answer, model_result = supplement
+            for item in results.values():
+                if item.get('role') == 'planning':
+                    item['status'] = 'insufficient_evidence'
+                    item['sources'] = []
+            results['model'] = model_result
     if theory:
         results['theory_context'] = AgentResult(
             role='theory', status='ok',

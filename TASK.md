@@ -201,6 +201,8 @@ python -m venv .venv
 
 浏览器打开 `http://127.0.0.1:8000/` 会进入中文问答页面，可直接提问并查看回答和资料来源，不显示内部分析过程或来源核验标签。左侧时间轴保持可见；点击“3820 背景”会在右侧打开带章节目录和来源链接的详细导读，再点“返回问答”即可回到对话。成功返回的问答在当前浏览器的 `localStorage` 中保留最近 30 轮；刷新后自动恢复最近一段对话，左侧可切换历史对话或清空记录。记录不会跨浏览器或设备同步，也不保存网站访问密码。Swagger、ReDoc 和 OpenAPI 页面均不提供。无模型密钥时，`POST /chat` 使用本地任务拆分、可用资料的文本检索和 JSON 指标/空间数据，并以自然语言模板降级回答；配置 `ARK_API_KEY` 和 `LLM_MODEL` 后，豆包 API 会把角色结果组织成自然语言，按问题需要引用[官方理论资料](docs/理论资料.md)，保留关键数值与证据边界。可用 `curl -X POST http://127.0.0.1:8000/chat -H 'Content-Type: application/json' -d '{"question":"2010年GDP是多少？"}'` 检查接口。`/health` 返回健康状态；`/metrics` 返回单实例请求计数和 P95 延迟。配置 `SERVICE_API_KEY` 后，浏览器首页和静态页面仍可打开；只有服务拒绝问答时才会提示填写网站访问密码。该密码与 `ARK_API_KEY` 不同，`/chat`、`/metrics` 等接口继续要求相应凭据。
 
+规划类问题缺少本地直接依据时，对“3820”及福州发展相关提问直接调用豆包模型补充回答，并在正文开头说明这是模型参考回答；该路径不联网搜索，也不提供虚构来源。数值异值、目标达成判据不足及无关问题仍按证据边界处理。修改检索或回答逻辑后运行 `.venv/bin/python -m scripts.evaluate_expanded`，用页面示例和扩展问题检查漏检、误答及模型补充触发情况，完整结果保存在 Git 忽略的 `var/qa_expanded_report.json`。
+
 公开网页用 `.venv/bin/python -m knowledge.fetch_public_sources` 获取；原件扫描 OCR 需先安装 `requirements-ocr.txt`，再执行 `.venv/bin/python -m knowledge.fetch_original_scan`；本地 Word/PPT 放入 `knowledge/data/` 后自动读取。配置 `ARK_API_KEY`、`EMBED_MODEL`，执行 `.venv/bin/python -m knowledge.knowledge_base` 建索引；用固定问答集校准后设置 `VECTOR_MAX_DISTANCE` 才启用向量检索。`PPT_PATH` 只用于添加目录外的一份 PPT。配置 `LLM_MODEL` 后启用在线模型拆分与规划分析。当前本机采用 `doubao-seed-character-260628` 和 `doubao-embedding-vision-251215`，密钥只保存在本地 `.env` 或环境变量中。
 
 当前尚缺扫描出版物档案身份及 13×4 完成值逐项核验、复杂图片逐页人工校正、可靠视频转写、2000/2010 年比较基准、生产权限体系、生产环境压测和 Docker 构建验证。在线模型及向量服务已实际调用，单实例演示压测已通过。SQLite 快照及进程内限流用于单实例开发与演示。指南第 9.3 节的上线清单因此保持未通过状态。
