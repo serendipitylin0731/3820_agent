@@ -9,7 +9,7 @@ from contracts import SubTask
 from llm_client import chat
 
 SPLIT_SYSTEM = '''将问题拆成 JSON 数组。每个对象必须包含 type 和 question，question 是对应子问题；禁止使用 content 字段。type 仅为 planning、indicator、spatial、evaluation。
-indicator 必须有 key，可用 gdp、gdp_per_capita、gnp、gnp_per_capita、industry_primary、industry_secondary、industry_tertiary、gross_ia、agriculture_output、industry_output、export_total、urban_income、rural_income；spatial 必须有 keyword。只输出 JSON，不要 Markdown 围栏。'''
+indicator 必须有 key，可用 gdp、gdp_per_capita、gnp、gnp_per_capita、industry_primary、industry_secondary、industry_tertiary、gross_ia、agriculture_output、industry_output、export_total、urban_income、rural_income；spatial 必须有 keyword，仅用于查询具体空间要素。询问战略空间布局、规划或作用等概括性问题时使用 planning。只输出 JSON，不要 Markdown 围栏。'''
 logger = logging.getLogger('3820_agent')
 KEYWORDS = [('gdp_per_capita','人均地区生产总值'),('gdp_per_capita','人均GDP'),
             ('gnp_per_capita','人均收入总值'),('gnp_per_capita','人均GNP'),
@@ -34,11 +34,21 @@ def _local_split(question):
             tasks.append({'type':'indicator','question':question,'key':key,'years':years or None})
             found.add(key)
             remaining = re.sub(re.escape(label), '', remaining, count=1, flags=re.IGNORECASE)
-    if any(word in question for word in ('空间','港口','机场','园区','元洪','苍霞','侨商','博览会')):
+    if any(word in question for word in ('空间','港口','机场','园区','元洪','苍霞','侨商','博览会')) and not ('布局' in question and '战略' in question):
         match = next((w for w in ('元洪','苍霞','港口','机场','园区','侨商','博览会') if w in question), '空间')
         tasks.append({'type':'spatial','question':question,'keyword':match})
     if not tasks or any(w in question for w in ('规划','路径','背景','战略')):
         tasks.append({'type':'planning','question':question})
+    return tasks
+
+
+def _normalize_tasks(tasks, question):
+    """宽泛的战略布局问题需要资料分析，不能误作单个要素名称查询。"""
+    if '布局' in question and '战略' in question:
+        from knowledge.domain import spatial_features
+        if not any(item['name'] in question for item in spatial_features()):
+            return [{**task, 'type': 'planning'} if task['type'] == 'spatial' else task
+                    for task in tasks]
     return tasks
 
 
@@ -58,10 +68,13 @@ def split_task(question):
                    for item in raw]
             raw = [{key: value for key, value in item.items() if key != 'content'} if
                    isinstance(item, dict) else item for item in raw]
-            return [SubTask.model_validate(item).model_dump(exclude_none=True) for item in raw]
+            tasks = [SubTask.model_validate(item).model_dump(exclude_none=True) for item in raw]
+            return [SubTask.model_validate(item).model_dump(exclude_none=True)
+                    for item in _normalize_tasks(tasks, question)]
         except (ValueError, TypeError, ValidationError, ConfigurationError):
             logger.warning('模型拆分格式无效，改用本地规则')
-    return [SubTask.model_validate(item).model_dump(exclude_none=True) for item in _local_split(question)]
+    return [SubTask.model_validate(item).model_dump(exclude_none=True)
+            for item in _normalize_tasks(_local_split(question), question)]
 
 
 def summarize(question, results):

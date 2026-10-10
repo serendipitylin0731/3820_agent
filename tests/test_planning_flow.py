@@ -2,6 +2,17 @@ from config import Settings
 from contracts import KnowledgeHit, KnowledgeResult, SourceRef
 
 
+def test_model_routes_general_strategic_layout_to_planning(monkeypatch):
+    from agents import agent_main
+    monkeypatch.setattr(agent_main, 'get_settings',
+                        lambda: Settings(ark_api_key='fake', llm_model='fake'))
+    monkeypatch.setattr(agent_main, 'chat',
+                        lambda *_args, **_kwargs: '[{"type":"spatial","question":"战略空间布局",'
+                                                 '"keyword":"城市空间布局"}]')
+    tasks = agent_main.split_task('3820战略工程对城市空间布局有什么安排？')
+    assert [task['type'] for task in tasks] == ['planning']
+
+
 def test_planning_report_has_sections_and_no_evidence_behavior(monkeypatch):
     from agents import agent_planning
     monkeypatch.setattr(agent_planning, 'get_settings', lambda: Settings())
