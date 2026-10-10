@@ -111,7 +111,7 @@ def _as_agent_result(role: str, raw) -> AgentResult:
 def chat(req: ChatRequest, request: Request):
     request_id = request.state.request_id
     try:
-        result = ask(req.question, thread_id=req.thread_id or request_id)
+        result = ask(req.question, thread_id=req.thread_id or request_id, request_id=request_id)
         results = {role: _as_agent_result(role, raw) for role, raw in result.get('results', {}).items()}
         failures = sum(item.status != 'ok' for item in results.values())
         status = 'error' if not results or failures == len(results) else 'partial' if failures else 'ok'

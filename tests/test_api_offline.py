@@ -16,7 +16,7 @@ def test_chat_and_validation_use_shared_contract_without_network(monkeypatch):
     settings = Settings(ark_api_key="test-only-key", llm_model="fake-chat", embed_model="fake-embed")
     monkeypatch.setattr(api, "get_settings", lambda: settings)
     monkeypatch.setattr(
-        api, "ask", lambda question, thread_id: {
+        api, "ask", lambda question, thread_id, request_id=None: {
             "answer": "本地夹具答案",
             "results": {"indicator_1": {"value": 3123.41}},
         },
@@ -38,7 +38,7 @@ def test_internal_error_does_not_expose_exception(monkeypatch, caplog):
     settings = Settings(ark_api_key="test-only-key", llm_model="fake-chat", embed_model="fake-embed")
     monkeypatch.setattr(api, "get_settings", lambda: settings)
 
-    def fail(_question, thread_id):
+    def fail(_question, thread_id, request_id=None):
         raise RuntimeError("private-test-value")
 
     monkeypatch.setattr(api, "ask", fail)

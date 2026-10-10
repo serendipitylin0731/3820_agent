@@ -18,7 +18,7 @@ def test_tool_validation_and_sources():
 def test_authenticated_api_and_limits(monkeypatch):
     settings = Settings(service_api_key='local-secret', rate_limit_per_minute=2, max_body_bytes=1024)
     monkeypatch.setattr(api, 'get_settings', lambda: settings)
-    monkeypatch.setattr(api, 'ask', lambda question, thread_id: {'answer':'ok','results':{'indicator': {'value':1}}})
+    monkeypatch.setattr(api, 'ask', lambda question, thread_id, request_id=None: {'answer':'ok','results':{'indicator': {'value':1}}})
     api._windows.clear()
     with TestClient(api.app) as client:
         assert client.post('/chat', json={'question':'GDP'}).status_code == 401

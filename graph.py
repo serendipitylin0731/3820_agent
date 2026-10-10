@@ -13,6 +13,7 @@ from agents.agent_indicator import query_indicator, INDICATOR_DATA
 from agents.agent_spatial import query_spatial
 from agents.agent_evaluation import eval_1995_phase
 from knowledge.knowledge_base import retrieve_context, search
+from resilience import log_event
 
 
 class TaskState(TypedDict, total=False):
@@ -30,6 +31,8 @@ def parse_node(state):
     if not isinstance(raw, list) or not raw:
         raise ValueError('未生成有效子任务')
     tasks = [SubTask.model_validate(item).model_dump(exclude_none=True) for item in raw]
+    log_event('tasks_parsed', state.get('request_id', ''), state.get('thread_id', ''),
+              node='parse_node')
     return {'sub_tasks': tasks}
 
 
@@ -69,8 +72,13 @@ def execute_node(state):
                 result = AgentResult(role=role, status='insufficient_evidence', data=value)
             else:
                 result = AgentResult(role=role, status='ok', data=value, sources=sources)
-        except Exception:
+        except Exception as exc:
             result = AgentResult(role=role, status='error', error=ErrorInfo(code='agent_error', message='子任务执行失败'))
+            log_event('agent_failed', state.get('request_id', ''), state.get('thread_id', ''),
+                      level='warning', role=role, node='execute_node', error_type=type(exc).__name__)
+        else:
+            log_event('agent_finished', state.get('request_id', ''), state.get('thread_id', ''),
+                      role=role, node='execute_node')
         results[label] = result.model_dump()
     return {'results': results}
 
