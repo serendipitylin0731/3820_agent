@@ -2,6 +2,7 @@ from pathlib import Path
 from zipfile import ZipFile
 
 from pptx import Presentation
+from lxml import html
 
 from config import Settings
 from knowledge import knowledge_base as kb
@@ -68,6 +69,25 @@ def test_ppt_image_ocr_requires_matching_source_and_keeps_slide_number(tmp_path)
     assert chunks[0].source.verified is False
     path.write_bytes(b'new-version')
     assert kb.load_ppt_image_ocr_chunks(path, metadata, tmp_path) == []
+
+
+def test_official_yearbook_extracts_only_fuzhou_row():
+    from knowledge.fetch_public_sources import _fuzhou_2010_yearbook_row
+    page = html.fromstring('<table><tr><td>福州市</td><td>3123.41</td><td>282.73</td>'
+                           '<td>1401.92</td><td>1127.59</td><td>274.33</td><td>1438.76</td></tr>'
+                           '<tr><td>福州市辖区</td><td>1545.23</td></tr></table>')
+    text = _fuzhou_2010_yearbook_row(page)
+    assert '地区生产总值 3123.41' in text
+    assert '第三产业增加值 1438.76' in text
+    assert '1545.23' not in text
+
+
+def test_public_source_decoder_respects_declared_charset():
+    from knowledge.fetch_public_sources import _decode_page
+    for charset, codec in [('utf-8', 'utf-8'), ('gb2312', 'gb18030')]:
+        payload = (f'<html><head><meta charset="{charset}"></head><body>福州市</body></html>'
+                   .encode(codec))
+        assert '福州市' in ''.join(_decode_page(payload).itertext())
 
 
 def test_vision_embedding_uses_multimodal_endpoint_and_query_instruction():
