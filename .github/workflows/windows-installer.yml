@@ -53,6 +53,17 @@ jobs:
           if (-not (Test-Path $compiler)) { $compiler = 'C:\Program Files\Inno Setup 6\ISCC.exe' }
           & $compiler packaging\3820Agent.iss
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Install and smoke test installer
+        shell: pwsh
+        run: |
+          $target = Join-Path $env:RUNNER_TEMP '3820AgentInstall'
+          $installer = (Resolve-Path 'dist\installer\3820Agent-Setup-x64.exe').Path
+          $process = Start-Process -FilePath $installer -ArgumentList "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /DIR=$target" -Wait -PassThru
+          if ($process.ExitCode -ne 0) { exit $process.ExitCode }
+          $installed = Join-Path $target '3820Agent.exe'
+          if (-not (Test-Path $installed)) { throw 'Installed executable missing' }
+          & $installed --smoke-test
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - uses: actions/upload-artifact@v4
         with:
           name: 3820Agent-Windows-x64-Setup

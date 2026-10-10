@@ -1,4 +1,7 @@
+import sys
+
 from fastapi.testclient import TestClient
+import pytest
 
 import app as api
 from config import Settings
@@ -61,6 +64,15 @@ def test_encrypted_config_file_round_trip(tmp_path):
     raw = (tmp_path / 'model_config.dpapi').read_bytes()
     assert b'secret-value' not in raw
     assert read_model_config(tmp_path, decrypt=lambda data: data[::-1]) == config
+
+
+@pytest.mark.skipif(sys.platform != 'win32', reason='Windows DPAPI only')
+def test_windows_dpapi_round_trip(tmp_path):
+    config = {'ARK_API_KEY': 'secret-value', 'LLM_MODEL': 'chat-model',
+              'EMBED_MODEL': '', 'ARK_BASE_URL': 'https://example.com/api/v3'}
+    write_model_config(config, tmp_path)
+    assert b'secret-value' not in (tmp_path / 'model_config.dpapi').read_bytes()
+    assert read_model_config(tmp_path) == config
 
 
 def test_desktop_import_dir_accepts_supported_text_documents(tmp_path, monkeypatch):
