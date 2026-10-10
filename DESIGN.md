@@ -5,8 +5,8 @@
 ## 配置边界
 
 - [config.py](config.py) 集中读取项目根目录的 `.env` 与进程环境变量；进程环境变量优先。导入模块不读取密钥，也不连接模型。
-- `ARK_API_KEY`、`LLM_MODEL`、`EMBED_MODEL` 是在线问答服务启动所需配置；缺失时启动失败并列出缺少的变量名，不显示密钥值。`PPT_PATH` 是当前 PPT 检索器的输入路径，仅在检索时检查；指标等纯数据能力不依赖该文件。
-- `ARK_BASE_URL`、`TOP_K`、`REQUEST_TIMEOUT`、`LOG_LEVEL` 已由调用方使用。`CHECKPOINT_PATH` 已集中声明，持久化 Checkpoint 的实际接入属于 M5。当前的 `.env.example` 中 `PPT_PATH` 只是指南示例文件名，正式资料可采用其他来源；非 PPT 格式的解析器属于 M2。
+- `ARK_API_KEY`、`LLM_MODEL` 用于在线模型调用，`EMBED_MODEL` 用于可选向量索引；缺失时服务仍能用本地规则和指南文本检索运行。`PPT_PATH` 是可选 PPT 输入路径；不存在时使用仓库内指南 Markdown。`SERVICE_API_KEY` 设置后，除 `/health` 外的接口需要 `X-API-Key`。
+- `ARK_BASE_URL`、`TOP_K`、`REQUEST_TIMEOUT`、`LOG_LEVEL` 已由调用方使用。`CHECKPOINT_PATH` 配置 SQLite 会话快照；`MAX_BODY_BYTES` 和 `RATE_LIMIT_PER_MINUTE` 控制单实例入口。当前 `.env.example` 中的 `PPT_PATH` 只是指南示例文件名。
 - `get_settings()` 会缓存一次运行配置；修改环境变量后应重启服务。测试可直接调用 `load_settings(environ=..., dotenv_path=...)`，不读取本机密钥。
 
 ## 字段和状态
@@ -22,16 +22,15 @@
 | `ChatResponse` | `request_id`、`status`、`answer`、`results` | `results` 中每项为 `AgentResult`；整体状态为 `ok`、`partial` 或 `error`。 |
 | `ChatError` | `request_id`、`status`、`error` | `error` 包含机器可读的 `code` 和用户可读的 `message`。 |
 
-`AgentResult.status=ok` 只表示角色执行成功，不表示所有事实已核验。前端必须查看 `sources[].verified`；来源为空时不能宣称已提供可追溯依据。`ErrorInfo.code` 使用小写字母、数字和下划线。当前 HTTP 层使用 `invalid_request`、`agent_error`、`internal_error`；后续角色可以补充更细的错误码。
+`AgentResult.status=ok` 只表示角色执行成功，不表示所有事实已核验。前端必须查看 `sources[].verified`；来源为空时不能宣称已提供可追溯依据。`ErrorInfo.code` 使用小写字母、数字和下划线。当前 HTTP 层使用 `invalid_request`、`unauthorized`、`rate_limited`、`body_too_large`、`internal_error`；后续角色可以补充更细的错误码。
 
 ## 当前代码接入范围
 
 - `graph.py` 用 `SubTask` 校验主智能体拆分结果，非法任务不能进入工具层。
 - `app.py` 用 `ChatRequest`、`ChatResponse` 和 `ChatError` 校验 HTTP 边界；旧角色结果经适配后放入 `AgentResult.data`，不会凭空生成来源。
-- `knowledge/knowledge_base.py` 目前仍返回字符串或元组；B 在 M2 中将检索输出适配为 `KnowledgeResult` 和 `KnowledgeHit`。C 在 M4 中逐步让角色直接返回 `AgentResult`。
+- `knowledge/knowledge_base.py` 的 `search` 返回 `KnowledgeResult` 和 `KnowledgeHit`；`graph.py` 把角色输出转为 `AgentResult`，来源保持 `verified=false`。
 - 原始资料尚未核验时，示例夹具中的来源均为 `verified=false`。本地夹具只验证接口，不充当历史事实的独立证明。
 
 ## 离线验证
 
 运行 `python -m pytest -m offline -q`。普通测试也不调用外部服务；需要真实密钥和资料的用例将来使用 `online` 标记，单独运行。
-

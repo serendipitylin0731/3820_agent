@@ -55,7 +55,8 @@ DESIGN.md
 requirements.txt
 .python-version
 .gitignore
-docs/
+docs/*.docx
+docs/media/
 tests/
 pytest.ini
 knowledge/data/
