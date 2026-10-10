@@ -3,6 +3,7 @@
 from openai import OpenAI
 
 from config import Settings, get_settings
+from resilience import call_llm_safe
 
 
 def get_client(settings: Settings | None = None) -> OpenAI:
@@ -18,10 +19,4 @@ def chat(messages, temperature=0.3, *, settings: Settings | None = None, client=
     settings = settings or get_settings()
     model = settings.require_chat_model()
     active_client = client if client is not None else get_client(settings)
-    resp = active_client.chat.completions.create(
-        model=model,
-        messages=messages,
-        temperature=temperature,
-        timeout=settings.request_timeout,
-    )
-    return resp.choices[0].message.content
+    return call_llm_safe(active_client, model, messages, settings.request_timeout, temperature)

@@ -20,16 +20,23 @@ def load_markdown(path=GUIDE):
     lines = path.read_text(encoding='utf-8').splitlines()
     chunks, heading, block, start = [], '', [], 1
     in_code = False
+    started = False
     def flush():
         if not block:
             return
         content = '\n'.join(block).strip()
         if content:
-            source = SourceRef(source_file=str(path), page_or_slide=f'L{start}',
+            display_path = str(path.relative_to(GUIDE.parent.parent)) if path.is_relative_to(GUIDE.parent.parent) else path.name
+            source = SourceRef(source_file=display_path, page_or_slide=f'L{start}',
                                section=heading or None, data_version=_version(path), verified=False)
             chunks.append(KnowledgeHit(chunk_id=f'{path.name}:{start}', content=content, source=source))
         block.clear()
     for line_no, line in enumerate(lines, 1):
+        if not started:
+            if re.match(r'^# 1\b', line):
+                started = True
+            else:
+                continue
         if line.lstrip().startswith(('```', '~~~')):
             in_code = not in_code
             continue
@@ -87,7 +94,7 @@ def _tokens(text):
     return set(chars + [chars[i] + chars[i+1] for i in range(len(chars)-1)])
 
 
-def search(query, *, chunks=None, top_k=5, min_score=0.03):
+def search(query, *, chunks=None, top_k=5, min_score=0.35):
     if top_k < 1 or not query.strip():
         return KnowledgeResult(status='insufficient_evidence')
     chunks = get_knowledge_base() if chunks is None else chunks

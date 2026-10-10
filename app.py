@@ -18,6 +18,7 @@ from graph import ask
 logger = logging.getLogger('3820_agent')
 _counters = defaultdict(int)
 _windows = defaultdict(deque)
+_latencies = deque(maxlen=1000)
 _lock = Lock()
 
 
@@ -41,6 +42,7 @@ app = FastAPI(title='3820多智能体系统', lifespan=lifespan)
 async def protect_and_measure(request: Request, call_next):
     started = time.monotonic()
     request_id = str(uuid.uuid4())
+    request.state.request_id = request_id
     settings = get_settings()
     if request.url.path == '/health':
         return await call_next(request)
@@ -71,6 +73,7 @@ async def protect_and_measure(request: Request, call_next):
     duration = time.monotonic() - started
     with _lock:
         _counters[f'{request.url.path}:{response.status_code}'] += 1
+        _latencies.append(duration * 1000)
     logger.info('request_id=%s path=%s status=%s duration_ms=%.1f',
                 request_id, request.url.path, response.status_code, duration * 1000)
     response.headers['X-Request-ID'] = request_id
@@ -78,8 +81,8 @@ async def protect_and_measure(request: Request, call_next):
 
 
 @app.exception_handler(RequestValidationError)
-async def invalid_request(_request: Request, _exc: RequestValidationError):
-    return _error(422, 'invalid_request', '请求字段缺失或格式无效')
+async def invalid_request(request: Request, _exc: RequestValidationError):
+    return _error(422, 'invalid_request', '请求字段缺失或格式无效', request.state.request_id)
 
 
 @app.get('/health')
@@ -90,7 +93,9 @@ def health():
 @app.get('/metrics')
 def metrics():
     with _lock:
-        return {'requests': dict(_counters)}
+        ordered = sorted(_latencies)
+        p95 = ordered[min(len(ordered) - 1, int(len(ordered) * .95))] if ordered else None
+        return {'requests': dict(_counters), 'p95_ms': p95}
 
 
 def _as_agent_result(role: str, raw) -> AgentResult:
@@ -103,8 +108,8 @@ def _as_agent_result(role: str, raw) -> AgentResult:
 
 
 @app.post('/chat', response_model=ChatResponse)
-def chat(req: ChatRequest):
-    request_id = str(uuid.uuid4())
+def chat(req: ChatRequest, request: Request):
+    request_id = request.state.request_id
     try:
         result = ask(req.question, thread_id=req.thread_id or request_id)
         results = {role: _as_agent_result(role, raw) for role, raw in result.get('results', {}).items()}
