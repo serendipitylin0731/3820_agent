@@ -13,7 +13,7 @@ from agents.agent_indicator import query_indicator, INDICATOR_DATA
 from agents.agent_spatial import query_spatial
 from agents.agent_evaluation import eval_1995_phase
 from knowledge.knowledge_base import format_context, search
-from resilience import log_event, transient_error
+from resilience import find_checkpoint, log_event, transient_error
 
 
 class TaskState(TypedDict, total=False):
@@ -132,7 +132,35 @@ def get_graph():
 
 def ask(question, thread_id, request_id=None):
     config = {'configurable': {'thread_id': thread_id}}
-    return get_graph().invoke({'question': question, 'thread_id': thread_id,
+    graph = get_graph()
+    snapshot = graph.get_state(config)
+    if snapshot.next:
+        if snapshot.values.get('question') != question:
+            raise ValueError('会话有未完成任务，请先恢复该会话')
+        return graph.invoke(None, config)
+    return graph.invoke({'question': question, 'thread_id': thread_id,
                                'request_id': request_id or thread_id, 'sub_tasks': [],
                                'kb_context': '', 'kb_sources': [], 'kb_error': None,
                                'results': {}, 'errors': [], 'answer': ''}, config)
+
+
+def resume(thread_id, checkpoint_id=None):
+    """显式恢复未完成快照；已完成的快照仅返回现有值。"""
+    graph = get_graph()
+    config = {'configurable': {'thread_id': thread_id}}
+    snapshot = find_checkpoint(graph, thread_id, checkpoint_id) if checkpoint_id else graph.get_state(config)
+    if snapshot is None or not snapshot.values:
+        raise ValueError('未找到会话快照')
+    if not snapshot.next:
+        return snapshot.values
+    return graph.invoke(None, snapshot.config)
+
+
+if __name__ == '__main__':
+    import argparse
+    import json
+    parser = argparse.ArgumentParser(description='恢复已保存的会话快照')
+    parser.add_argument('thread_id')
+    parser.add_argument('--checkpoint-id')
+    args = parser.parse_args()
+    print(json.dumps(resume(args.thread_id, args.checkpoint_id), ensure_ascii=False, default=str))

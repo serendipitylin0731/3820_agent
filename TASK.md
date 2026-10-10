@@ -201,3 +201,5 @@ python -m venv .venv
 接入真实向量服务时，配置 `ARK_API_KEY`、`EMBED_MODEL`，执行 `.venv/bin/python -m knowledge.knowledge_base` 建索引；用固定问答集校准后设置 `VECTOR_MAX_DISTANCE` 才启用向量检索。`PPT_PATH` 可指向另行提供的原始 PPT；文本和表格会与指南一起检索。配置 `LLM_MODEL` 后可启用在线模型拆分与规划分析。相关密钥只保存在本地 `.env` 或环境变量中。
 
 当前尚缺原始资料与逐项核验、在线模型实际调用、图片 OCR、2000/2010 年比较基准、生产权限体系、压测结果和 Docker 构建验证。SQLite 快照及进程内限流用于单实例开发与演示。指南第 9.3 节的上线清单因此保持未通过状态。
+
+异常中断后的会话可通过 `.venv/bin/python -m graph <thread_id>` 从最新未完成快照续跑；加 `--checkpoint-id <id>` 可指定历史快照。已完成快照只返回既有结果，不会再次调用工具。多实例部署需要替换当前单机 SQLite Saver 并验证并发恢复。
