@@ -23,3 +23,14 @@ def test_incomparable_basis_is_separate():
     result = compare_sources('gdp', [2010], baseline, [other])
     assert result['incomparable'] == [other]
     assert result['conflicts'] == []
+
+
+def test_official_yearbook_alternative_is_preserved_in_answer():
+    from agents.agent_main import summarize
+    result = agent_indicator.query_indicator('gdp', [2010])
+    assert result['values'][2010] == 3123.41
+    assert any(item['value'] == 3242.65 for item in result['incomparable'])
+    answer = summarize('2010年GDP是多少？', {'indicator': {
+        'status': 'ok', 'data': result, 'sources': [result['source']]}})
+    assert '3123.41' in answer and '3242.65' in answer
+    assert '口径/版本待核对' in answer

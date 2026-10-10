@@ -100,6 +100,12 @@ def summarize(question, results):
         elif role.startswith('indicator') and isinstance(data, dict):
             values = '、'.join(f'{year} 年 {value} {data["unit"]}' for year, value in data['values'].items())
             content = f'{data["name"]}：{values}'
+            if data.get('conflicts') or data.get('incomparable'):
+                alternatives = [item['other'] for item in data.get('conflicts', [])]
+                alternatives.extend(data.get('incomparable', []))
+                content += '；另有待核对的来源值：' + '、'.join(
+                    f'{item["year"]} 年 {item["value"]} {item["unit"]}（{item["source_ref"]["source_file"]}，口径/版本待核对）'
+                    for item in alternatives)
         elif role.startswith('spatial') and isinstance(data, list):
             content = '；'.join(f'{item["name"]}：{item["note"]}' for item in data)
         elif role.startswith('evaluation') and isinstance(data, list):
