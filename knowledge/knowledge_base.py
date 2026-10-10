@@ -3,14 +3,22 @@ import hashlib
 import json
 import re
 from collections import Counter
+from concurrent.futures import ThreadPoolExecutor
 from functools import lru_cache
 from pathlib import Path
 from threading import Lock
+from xml.etree import ElementTree
+from zipfile import ZipFile
 
 from contracts import KnowledgeHit, KnowledgeResult, SourceRef
 from config import Settings, get_settings
+from resilience import transient_error
+from tenacity import Retrying, retry_if_exception, stop_after_attempt, wait_exponential
 
 GUIDE = Path(__file__).resolve().parent.parent / 'docs' / '基于3820战略工程内容的多智能体系统搭建指南.md'
+DATA_DIR = Path(__file__).resolve().parent / 'data'
+WORD_NS = '{http://schemas.openxmlformats.org/wordprocessingml/2006/main}'
+EMBEDDING_SCHEMA = 2
 _retrieval_counts = Counter()
 _retrieval_lock = Lock()
 
@@ -100,25 +108,120 @@ def load_ppt_text(path):
 
 def load_ppt_chunks(path):
     path = Path(path)
-    return [KnowledgeHit(chunk_id=f'{path.name}:{n}', content=text,
-                         source=SourceRef(source_file=path.name, page_or_slide=n,
-                                          data_version=_version(path), verified=False))
-            for n, text in enumerate(load_ppt_text(path), 1)]
+    from pptx import Presentation
+    version = _version(path)
+    chunks = []
+    for n, slide in enumerate(Presentation(path).slides, 1):
+        texts = []
+        for shape in slide.shapes:
+            if getattr(shape, 'has_text_frame', False) and shape.text_frame.text.strip():
+                texts.append(shape.text_frame.text.strip())
+            if getattr(shape, 'has_table', False):
+                texts.extend(' | '.join(cell.text.strip() for cell in row.cells)
+                             for row in shape.table.rows)
+        content = '\n'.join(texts).strip()
+        if content:
+            chunks.append(KnowledgeHit(chunk_id=f'{path.name}:slide:{n}', content=content,
+                                       source=SourceRef(source_file=_display_path(path), page_or_slide=n,
+                                                        data_version=version, verified=False)))
+    return chunks
+
+
+def _display_path(path):
+    path = Path(path)
+    root = GUIDE.parent.parent
+    return str(path.relative_to(root)) if path.is_relative_to(root) else path.name
+
+
+def load_word_chunks(path):
+    """读取 OOXML Word 的段落和表格；按文件内容识别，不依赖 .docx 后缀。"""
+    path = Path(path)
+    with ZipFile(path) as archive:
+        root = ElementTree.fromstring(archive.read('word/document.xml'))
+    body = root.find(f'{WORD_NS}body')
+    if body is None:
+        return []
+    version = _version(path)
+    chunks = []
+    paragraph_no = 0
+    for element in body:
+        if element.tag == f'{WORD_NS}p':
+            paragraph_no += 1
+            content = ''.join(node.text or '' for node in element.iter(f'{WORD_NS}t')).strip()
+        elif element.tag == f'{WORD_NS}tbl':
+            rows = []
+            for row in element.iter(f'{WORD_NS}tr'):
+                cells = [''.join(t.text or '' for t in cell.iter(f'{WORD_NS}t')).strip()
+                         for cell in row.iter(f'{WORD_NS}tc')]
+                if any(cells):
+                    rows.append(' | '.join(cells))
+            content = '\n'.join(rows).strip()
+            paragraph_no += 1
+        else:
+            continue
+        if content:
+            chunks.append(KnowledgeHit(chunk_id=f'{path.name}:paragraph:{paragraph_no}', content=content,
+                                       source=SourceRef(source_file=_display_path(path),
+                                                        page_or_slide=f'段落{paragraph_no}',
+                                                        data_version=version, verified=False)))
+    return chunks
+
+
+def load_public_text_chunks(path, metadata):
+    path = Path(path)
+    content = path.read_text(encoding='utf-8')
+    version = _version(path)
+    chunks = []
+    for n, paragraph in enumerate(content.split('\n\n'), 1):
+        paragraph = paragraph.strip()
+        if paragraph:
+            chunks.append(KnowledgeHit(chunk_id=f'{path.stem}:paragraph:{n}', content=paragraph,
+                                       source=SourceRef(source_file=metadata.get('url', _display_path(path)),
+                                                        page_or_slide=f'段落{n}', section=metadata.get('title'),
+                                                        data_version=version, verified=False)))
+    return chunks
+
+
+def _source_paths(settings):
+    files = [path for path in DATA_DIR.iterdir() if path.is_file() and path.suffix.lower() in
+             {'.ppt', '.pptx', '.doc', '.docx'}] if DATA_DIR.is_dir() else []
+    if settings.ppt_path and settings.ppt_path.is_file():
+        files.append(settings.ppt_path)
+    # 两份演示文稿的 29 页文字完全重复；保留页码齐全的 PPTX。
+    names = {path.name for path in files}
+    if '3820视频.pptx' in names:
+        files = [path for path in files if path.name != '3820PPT+视频.ppt']
+    public_dir = DATA_DIR / 'public_sources'
+    if public_dir.is_dir():
+        files.extend(public_dir.glob('*.txt'))
+        if (public_dir / 'manifest.json').is_file():
+            files.append(public_dir / 'manifest.json')
+    return tuple(sorted({path.resolve() for path in files}, key=str))
 
 
 def get_knowledge_base():
     settings = get_settings()
-    ppt = settings.ppt_path if settings.ppt_path and settings.ppt_path.is_file() else None
-    return _load_knowledge_base(_version(GUIDE), str(ppt) if ppt else None,
-                                _version(ppt) if ppt else None)
+    paths = _source_paths(settings)
+    signatures = tuple((str(path), path.stat().st_size, path.stat().st_mtime_ns) for path in paths)
+    return _load_knowledge_base(_version(GUIDE), signatures)
 
 
 @lru_cache(maxsize=4)
-def _load_knowledge_base(_guide_version, ppt_path, _ppt_version):
-    guide_hits = load_markdown(GUIDE)
-    if ppt_path:
-        return guide_hits + load_ppt_chunks(ppt_path)
-    return guide_hits
+def _load_knowledge_base(_guide_version, signatures):
+    hits = load_markdown(GUIDE)
+    public_dir = DATA_DIR / 'public_sources'
+    manifest_path = public_dir / 'manifest.json'
+    metadata = ({item['id']: item for item in json.loads(manifest_path.read_text(encoding='utf-8'))}
+                if manifest_path.is_file() else {})
+    for name, _, _ in signatures:
+        path = Path(name)
+        if path.suffix.lower() in {'.ppt', '.pptx'}:
+            hits.extend(load_ppt_chunks(path))
+        elif path.suffix.lower() in {'.doc', '.docx'}:
+            hits.extend(load_word_chunks(path))
+        elif path.suffix.lower() == '.txt':
+            hits.extend(load_public_text_chunks(path, metadata.get(path.stem, {})))
+    return hits
 
 
 def _tokens(text):
@@ -171,10 +274,35 @@ def get_client(settings: Settings | None = None):
                   timeout=settings.request_timeout)
 
 
-def embed_texts(texts, *, settings: Settings | None = None, client=None):
+def embed_texts(texts, *, settings: Settings | None = None, client=None, role='document'):
     settings = settings or get_settings()
     active_client = client or get_client(settings)
-    response = active_client.embeddings.create(model=settings.require_embed_model(), input=texts,
+    model = settings.require_embed_model()
+    if model.startswith('doubao-embedding-vision-'):
+        if role not in {'document', 'query'}:
+            raise ValueError('向量角色必须是 document 或 query')
+        instructions = ('Target_modality: text.\nInstruction:从资料中检索能回答问题的内容\nQuery:'
+                        if role == 'query' else
+                        'Target_modality: text.\nInstruction:为中文资料建立可供问答检索的索引\nQuery:')
+        def embed_one(item):
+            body = {'model': model, 'input': [{'type': 'text', 'text': item}],
+                    'encoding_format': 'float'}
+            if model >= 'doubao-embedding-vision-251215':
+                body['instructions'] = instructions
+            for attempt in Retrying(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, max=8),
+                                    retry=retry_if_exception(transient_error), reraise=True):
+                with attempt:
+                    response = active_client.post('/embeddings/multimodal', cast_to=dict, body=body,
+                                                  options={'timeout': settings.request_timeout})
+            embedding = response.get('data', {}).get('embedding')
+            if not isinstance(embedding, list) or not embedding:
+                raise ValueError('向量服务未返回稠密向量')
+            return embedding
+        if len(texts) < 2:
+            return [embed_one(item) for item in texts]
+        with ThreadPoolExecutor(max_workers=min(4, len(texts))) as executor:
+            return list(executor.map(embed_one, texts))
+    response = active_client.embeddings.create(model=model, input=texts,
                                                timeout=settings.request_timeout)
     return [item.embedding for item in response.data]
 
@@ -196,7 +324,7 @@ def retrieve(index, chunks, query, top_k=5):
     if index is None or not chunks or not index.ntotal or top_k <= 0:
         return []
     top_k = min(top_k, index.ntotal, len(chunks))
-    vector = np.asarray(embed_texts([query]), dtype='float32')
+    vector = np.asarray(embed_texts([query], role='query'), dtype='float32')
     if vector.ndim != 2 or vector.shape[1] != index.d:
         raise ValueError('查询向量维度与索引不一致')
     distances, ids = index.search(vector, top_k)
@@ -212,7 +340,7 @@ def rebuild_vector_store(directory=None):
     import faiss
     directory = Path(directory); directory.mkdir(parents=True, exist_ok=True)
     faiss.write_index(index, str(directory / 'index.faiss'))
-    metadata = {'model': settings.require_embed_model(),
+    metadata = {'model': settings.require_embed_model(), 'embedding_schema': EMBEDDING_SCHEMA,
                 'hits': [hit.model_dump() for hit in hits]}
     (directory / 'metadata.json').write_text(json.dumps(metadata, ensure_ascii=False), encoding='utf-8')
     return len(hits)
@@ -227,12 +355,14 @@ def vector_search(query, *, top_k=5, max_distance, directory=None):
     metadata = json.loads((directory / 'metadata.json').read_text(encoding='utf-8'))
     current = get_knowledge_base()
     saved = [KnowledgeHit.model_validate(item) for item in metadata['hits']]
-    if metadata['model'] != settings.require_embed_model() or [h.model_dump() for h in saved] != [h.model_dump() for h in current]:
+    if (metadata['model'] != settings.require_embed_model() or
+            metadata.get('embedding_schema') != EMBEDDING_SCHEMA or
+            [h.model_dump() for h in saved] != [h.model_dump() for h in current]):
         raise ValueError('资料或向量模型已变化，请重建索引')
     index = faiss.read_index(str(directory / 'index.faiss'))
     if index.ntotal != len(saved):
         raise ValueError('索引和来源映射数量不一致')
-    vector = np.asarray(embed_texts([query]), dtype='float32')
+    vector = np.asarray(embed_texts([query], role='query'), dtype='float32')
     if vector.ndim != 2 or vector.shape[1] != index.d:
         raise ValueError('查询向量维度与索引不一致')
     distances, ids = index.search(vector, min(top_k, index.ntotal))

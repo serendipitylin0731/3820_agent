@@ -27,6 +27,17 @@ def test_offline_default_split_without_key(monkeypatch):
     assert tasks[0]['key'] == 'gdp'
 
 
+def test_online_split_accepts_content_alias_and_falls_back_on_invalid(monkeypatch):
+    from agents import agent_main
+    monkeypatch.setattr(agent_main, 'get_settings',
+                        lambda: Settings(ark_api_key='test-only-key', llm_model='fake-model'))
+    monkeypatch.setattr(agent_main, 'chat',
+                        lambda *_args, **_kwargs: '[{"type":"planning","content":"三阶段目标"}]')
+    assert agent_main.split_task('三阶段目标')[0]['question'] == '三阶段目标'
+    monkeypatch.setattr(agent_main, 'chat', lambda *_args, **_kwargs: '无效响应')
+    assert agent_main.split_task('2010年GDP是多少？')[0]['key'] == 'gdp'
+
+
 def test_mixed_metrics_and_qualitative_goal(monkeypatch):
     from agents import agent_main
     import graph

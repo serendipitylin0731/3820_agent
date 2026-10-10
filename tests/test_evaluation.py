@@ -12,7 +12,7 @@ def test_kb_retrieve(monkeypatch):
     pytest.importorskip('openai')
     pytest.importorskip('pptx')
     from knowledge import knowledge_base
-    monkeypatch.setattr(knowledge_base, 'embed_texts', lambda texts: [[0.0, 0.0] for _ in texts])
+    monkeypatch.setattr(knowledge_base, 'embed_texts', lambda texts, **kwargs: [[0.0, 0.0] for _ in texts])
     chunks = ['1995年翻一番目标']
     index = knowledge_base.build_index(chunks)
     hits = knowledge_base.retrieve(index, chunks, '1995年翻一番目标')

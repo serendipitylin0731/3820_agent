@@ -6,7 +6,9 @@ from tools.tools import call_tool
 import app as api
 
 
-def test_tool_validation_and_sources():
+def test_tool_validation_and_sources(monkeypatch):
+    from knowledge import knowledge_base
+    monkeypatch.setattr(knowledge_base, 'get_settings', lambda: Settings())
     indicator = call_tool('query_indicator', {'key':'gdp','years':[2010]})
     assert indicator['data']['values'][2010] == 3123.41
     assert indicator['sources'][0]['verified'] is False

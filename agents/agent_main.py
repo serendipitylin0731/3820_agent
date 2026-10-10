@@ -1,13 +1,16 @@
 """问题拆分与可追溯汇总。"""
 import json
+import logging
 import re
 
+from pydantic import ValidationError
 from config import ConfigurationError, get_settings
 from contracts import SubTask
 from llm_client import chat
 
-SPLIT_SYSTEM = '''将问题拆成 JSON 数组。type 仅为 planning、indicator、spatial、evaluation。
-indicator 必须有 key，可用 gdp、gdp_per_capita、gnp、gnp_per_capita、industry_primary、industry_secondary、industry_tertiary、gross_ia、agriculture_output、industry_output、export_total、urban_income、rural_income；spatial 必须有 keyword。只输出 JSON。'''
+SPLIT_SYSTEM = '''将问题拆成 JSON 数组。每个对象必须包含 type 和 question，question 是对应子问题；禁止使用 content 字段。type 仅为 planning、indicator、spatial、evaluation。
+indicator 必须有 key，可用 gdp、gdp_per_capita、gnp、gnp_per_capita、industry_primary、industry_secondary、industry_tertiary、gross_ia、agriculture_output、industry_output、export_total、urban_income、rural_income；spatial 必须有 keyword。只输出 JSON，不要 Markdown 围栏。'''
+logger = logging.getLogger('3820_agent')
 KEYWORDS = [('gdp_per_capita','人均地区生产总值'),('gdp_per_capita','人均GDP'),
             ('gnp_per_capita','人均收入总值'),('gnp_per_capita','人均GNP'),
             ('urban_income','城镇居民人均可支配收入'),('rural_income','农村居民人均纯收入'),
@@ -43,13 +46,21 @@ def split_task(question):
     settings = get_settings()
     if settings.ark_api_key and settings.llm_model:
         try:
-            raw = json.loads(chat([{'role':'system','content':SPLIT_SYSTEM},
-                                   {'role':'user','content':question}], temperature=0))
+            response = chat([{'role':'system','content':SPLIT_SYSTEM},
+                             {'role':'user','content':question}], temperature=0).strip()
+            if response.startswith('```'):
+                response = re.sub(r'^```(?:json)?\s*|\s*```$', '', response, flags=re.IGNORECASE)
+            raw = json.loads(response)
             if not isinstance(raw, list) or not raw:
                 raise ValueError('模型未返回任务数组')
+            raw = [{**item, 'question': item.get('question', item.get('content'))} if
+                   isinstance(item, dict) and 'question' not in item and 'content' in item else item
+                   for item in raw]
+            raw = [{key: value for key, value in item.items() if key != 'content'} if
+                   isinstance(item, dict) else item for item in raw]
             return [SubTask.model_validate(item).model_dump(exclude_none=True) for item in raw]
-        except (ValueError, ConfigurationError) as exc:
-            raise ValueError('模型输出的子任务格式无效') from exc
+        except (ValueError, TypeError, ValidationError, ConfigurationError):
+            logger.warning('模型拆分格式无效，改用本地规则')
     return [SubTask.model_validate(item).model_dump(exclude_none=True) for item in _local_split(question)]
 
 
