@@ -5,7 +5,7 @@ COPY requirements.lock .
 RUN pip install --no-cache-dir -r requirements.lock
 COPY app.py graph.py llm_client.py resilience.py config.py contracts.py ./
 COPY agents/ ./agents/
-COPY knowledge/__init__.py knowledge/knowledge_base.py knowledge/domain.py knowledge/indicators.json knowledge/spatial.json knowledge/entities.json ./knowledge/
+COPY knowledge/__init__.py knowledge/knowledge_base.py knowledge/domain.py knowledge/indicators.json knowledge/spatial.json knowledge/entities.json knowledge/observations.json ./knowledge/
 COPY docs/*.md ./docs/
 COPY tools/ ./tools/
 RUN mkdir -p ./knowledge/data

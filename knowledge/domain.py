@@ -61,3 +61,36 @@ def record_conflicts(records):
         identity = (record['key'], record['year'], record['basis'])
         groups.setdefault(identity, []).append(record)
     return [group for group in groups.values() if len({r['value'] for r in group}) > 1]
+
+
+def extra_observations():
+    """另一个来源的值单独保存；不得覆盖指南基线。"""
+    from pydantic import BaseModel, ConfigDict, ValidationError
+
+    class Observation(BaseModel):
+        model_config = ConfigDict(extra='forbid')
+        key: str
+        year: int
+        value: float
+        unit: str
+        basis: str
+        source_ref: SourceRef
+
+    path = ROOT / 'observations.json'
+    records = json.loads(path.read_text(encoding='utf-8'))['records']
+    return [Observation.model_validate(item).model_dump() for item in records]
+
+
+def compare_sources(key, years, baseline, observations=None):
+    """按键/年保留异值来源；不同统计口径直接标记不可比。"""
+    observations = extra_observations() if observations is None else observations
+    relevant = [item for item in observations if item['key'] == key and item['year'] in years]
+    conflicts, incomparable = [], []
+    for item in relevant:
+        base_value = baseline['values'][item['year']]
+        if item['unit'] != baseline['unit'] or item['basis'] != baseline['basis']:
+            incomparable.append(item)
+        elif item['value'] != base_value:
+            conflicts.append({'year':item['year'], 'baseline_value':base_value,
+                              'baseline_source':baseline['source_ref'], 'other':item})
+    return {'conflicts':conflicts, 'incomparable':incomparable}
