@@ -97,6 +97,10 @@ def _tokens(text):
 def search(query, *, chunks=None, top_k=5, min_score=0.35):
     if top_k < 1 or not query.strip():
         return KnowledgeResult(status='insufficient_evidence')
+    settings = get_settings()
+    if chunks is None and settings.vector_max_distance is not None and (settings.index_path / 'index.faiss').is_file():
+        return vector_search(query, top_k=top_k, max_distance=settings.vector_max_distance,
+                             directory=settings.index_path)
     chunks = get_knowledge_base() if chunks is None else chunks
     query_tokens = _tokens(query)
     ranked = []
@@ -176,3 +180,45 @@ def load_index(directory):
     if index.ntotal != len(chunks):
         raise ValueError('索引与元数据不匹配')
     return index, chunks
+
+
+def rebuild_vector_store(directory=None):
+    """基于当前资料生成向量索引和完整来源映射。"""
+    settings = get_settings()
+    hits = get_knowledge_base()
+    index = build_index([hit.content for hit in hits])
+    directory = directory or settings.index_path
+    import faiss
+    directory = Path(directory); directory.mkdir(parents=True, exist_ok=True)
+    faiss.write_index(index, str(directory / 'index.faiss'))
+    metadata = {'model': settings.require_embed_model(),
+                'hits': [hit.model_dump() for hit in hits]}
+    (directory / 'metadata.json').write_text(json.dumps(metadata, ensure_ascii=False), encoding='utf-8')
+    return len(hits)
+
+
+def vector_search(query, *, top_k=5, max_distance, directory=None):
+    """索引版本、模型和片段位置必须与当前资料一致。"""
+    import faiss
+    import numpy as np
+    settings = get_settings()
+    directory = Path(directory or settings.index_path)
+    metadata = json.loads((directory / 'metadata.json').read_text(encoding='utf-8'))
+    current = get_knowledge_base()
+    saved = [KnowledgeHit.model_validate(item) for item in metadata['hits']]
+    if metadata['model'] != settings.require_embed_model() or [h.model_dump() for h in saved] != [h.model_dump() for h in current]:
+        raise ValueError('资料或向量模型已变化，请重建索引')
+    index = faiss.read_index(str(directory / 'index.faiss'))
+    if index.ntotal != len(saved):
+        raise ValueError('索引和来源映射数量不一致')
+    vector = np.asarray(embed_texts([query]), dtype='float32')
+    if vector.ndim != 2 or vector.shape[1] != index.d:
+        raise ValueError('查询向量维度与索引不一致')
+    distances, ids = index.search(vector, min(top_k, index.ntotal))
+    hits = [saved[i].model_copy(update={'score': float(distances[0][j]), 'score_kind':'l2_distance'})
+            for j, i in enumerate(ids[0]) if i >= 0 and distances[0][j] <= max_distance]
+    return KnowledgeResult(status='ok', hits=hits) if hits else KnowledgeResult(status='insufficient_evidence')
+
+
+if __name__ == '__main__':
+    print(f'索引片段数：{rebuild_vector_store()}')

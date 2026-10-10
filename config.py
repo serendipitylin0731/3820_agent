@@ -25,6 +25,8 @@ class Settings(BaseModel):
     top_k: int = Field(default=5, ge=1, le=100)
     request_timeout: float = Field(default=30.0, gt=0, le=300)
     checkpoint_path: Path = Path("var/checkpoints.sqlite3")
+    index_path: Path = Path("var/knowledge_index")
+    vector_max_distance: float | None = Field(default=None, ge=0)
     log_level: str = "INFO"
     service_api_key: SecretStr | None = None
     max_body_bytes: int = Field(default=16384, ge=1024, le=1048576)
@@ -92,6 +94,8 @@ _ENV_FIELDS = {
     "TOP_K": "top_k",
     "REQUEST_TIMEOUT": "request_timeout",
     "CHECKPOINT_PATH": "checkpoint_path",
+    "INDEX_PATH": "index_path",
+    "VECTOR_MAX_DISTANCE": "vector_max_distance",
     "LOG_LEVEL": "log_level",
     "SERVICE_API_KEY": "service_api_key",
     "MAX_BODY_BYTES": "max_body_bytes",
