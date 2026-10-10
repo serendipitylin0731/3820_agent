@@ -20,9 +20,16 @@ def test_browser_root_opens_chat_ui_without_api_docs(monkeypatch):
         assert '战略知识助手' in root.text
         assert 'id="chat-form"' in root.text
         assert '3820 背景' in root.text
+        assert 'id="background-document"' in root.text
+        assert 'id="history-list"' in root.text
+        assert 'aria-controls="background-timeline"' not in root.text
         assert '接口文档' not in root.text
         assert client.get('/assets/style.css').status_code == 200
-        assert "fetch('/chat'" in client.get('/assets/app.js').text
+        frontend = client.get('/assets/app.js').text
+        assert "fetch('/chat'" in frontend
+        assert '分析过程' not in frontend
+        assert '待独立核验' not in frontend
+        assert client.get('/assets/history_store.js').status_code == 200
         assert client.get('/assets/logo.svg').status_code == 200
         assert client.get('/docs').status_code == 404
         assert client.get('/redoc').status_code == 404

@@ -6,6 +6,7 @@
   <meta name="theme-color" content="#18342c">
   <title>3820 · 战略知识助手</title>
   <link rel="stylesheet" href="/assets/style.css">
+  <script src="/assets/history_store.js" defer></script>
   <script src="/assets/app.js" defer></script>
 </head>
 <body>
@@ -19,7 +20,7 @@
       <div class="sidebar-section-label">工作台</div>
       <button class="nav-item active" type="button" id="new-chat"><span class="nav-icon" aria-hidden="true">✦</span> 新建对话 <span class="nav-arrow" aria-hidden="true">↗</span></button>
       <div class="timeline-wrap">
-        <button class="background-toggle" id="background-toggle" type="button" aria-controls="background-timeline" aria-expanded="true"><span>3820 背景</span><span class="toggle-arrow" aria-hidden="true">⌄</span></button>
+        <button class="background-toggle" id="background-toggle" type="button" aria-controls="background-document"><span>3820 背景</span><span class="toggle-arrow" aria-hidden="true">↗</span></button>
         <ol class="timeline" id="background-timeline">
           <li><time>1990</time><strong>规划基期</strong><p>以这一年的主要指标作为三年目标的比较起点。</p></li>
           <li><time>1992</time><strong>战略形成</strong><p>广泛调研、论证后，《福州市20年经济社会发展战略设想》于 11 月审议通过。</p></li>
@@ -29,6 +30,13 @@
         </ol>
         <a class="timeline-source" href="https://fgw.fuzhou.gov.cn/fgwzwgk/fzgggz/jjyx/202403/t20240328_4799823.htm" target="_blank" rel="noopener noreferrer">查看福州市发改委资料 ↗</a>
       </div>
+
+      <section class="history-panel" aria-labelledby="history-title">
+        <div class="history-heading"><h2 id="history-title">历史对话</h2><button id="clear-history" type="button" hidden>清空</button></div>
+        <p class="history-empty" id="history-empty">暂无记录</p>
+        <div class="history-list" id="history-list" aria-label="保存的对话"></div>
+        <p class="history-note">保存在当前浏览器，最多 30 轮问答</p>
+      </section>
 
       <div class="sidebar-bottom">
         <div class="source-note"><span class="source-dot" aria-hidden="true"></span><span>依据已收录资料作答<br><small>历史数据请核对来源与口径</small></span></div>
@@ -46,7 +54,7 @@
           <img class="welcome-emblem" src="/assets/logo.svg" alt="" width="51" height="51">
           <div class="welcome-kicker">福州 · 1992—2010</div>
           <h1>从资料出发，<br><em>读懂“3820”。</em></h1>
-          <p>围绕战略规划、经济指标、空间布局与实施成效提问。回答会标出参与分析的智能体，以及可追溯的资料来源。</p>
+          <p>围绕战略规划、经济指标、空间布局与实施成效提问。回答会附上可追溯的资料来源。</p>
           <div class="suggestions" aria-label="试试这样提问">
             <button type="button" data-question="3820工程分为哪三个阶段？各阶段的主要目标是什么？"><span class="suggestion-category">战略规划</span><span>三个阶段分别要做什么？</span><span class="suggestion-arrow" aria-hidden="true">↗</span></button>
             <button type="button" data-question="2010年福州GDP是多少？为什么不同资料中的数值不同？"><span class="suggestion-category">指标查询</span><span>2010 年 GDP 的来源差异</span><span class="suggestion-arrow" aria-hidden="true">↗</span></button>
@@ -57,13 +65,68 @@
         <div id="messages"></div>
       </div>
 
-      <div class="composer-wrap">
+      <article class="background-document" id="background-document" aria-labelledby="background-title" hidden>
+        <div class="document-cover">
+          <span class="document-kicker">3820 / 战略背景导读</span>
+          <h1 id="background-title">一张蓝图，<br>从福州走向未来</h1>
+          <p>“3820”是《福州市20年经济社会发展战略设想》的简称。它以三年、八年、二十年为阶段，连接近期发展任务与长期城市愿景。以下按形成过程、阶段目标、战略布局和实施路径展开。</p>
+          <button id="back-to-chat" type="button">返回问答 <span aria-hidden="true">↗</span></button>
+        </div>
+        <nav class="document-toc" aria-label="3820 背景目录">
+          <span>目录</span>
+          <a href="#doc-origin">01 形成背景</a>
+          <a href="#doc-stages">02 三步目标</a>
+          <a href="#doc-layout">03 空间布局</a>
+          <a href="#doc-implementation">04 从规划到实施</a>
+          <a href="#doc-sources">资料依据</a>
+        </nav>
+        <div class="document-body">
+          <section id="doc-origin" class="document-section">
+            <span class="section-index">01 / 形成背景</span>
+            <h2>在改革开放机遇中，先想清楚二十年</h2>
+            <p>20 世纪 90 年代初，福州需要确定面向新世纪的发展方向。1992 年，围绕城市发展的基础、条件与目标开展调查研究、征求意见和反复论证；《福州市20年经济社会发展战略设想》于当年 11 月审议通过。</p>
+            <p>这份规划由“发展基础和条件”“战略设想与目标”“战略步骤”“战略布局”“战略重点和措施”五部分组成。它既回答未来要达到什么水平，也安排怎样分阶段推进。</p>
+          </section>
+          <section id="doc-stages" class="document-section">
+            <span class="section-index">02 / 三步目标</span>
+            <h2>“3、8、20”对应三个时间节点</h2>
+            <div class="stage-grid">
+              <div><span>1995</span><strong>三年起步</strong><p>以 1990 年为比较基期，主要指标力争翻一番，提前实现小康目标。</p></div>
+              <div><span>2000</span><strong>八年追赶</strong><p>力争全市城乡各项人均水平等主要指标达到国内先进城市的发展水平。</p></div>
+              <div><span>2010</span><strong>二十年远景</strong><p>力争达到或接近亚洲中等发达国家或地区当时的平均发展水平。</p></div>
+            </div>
+            <p>这些是规划提出时的目标。要判断具体指标是否完成，需要把目标表、完成值、统计年份及口径逐项对齐；定性目标还需要明确比较对象和判据。</p>
+          </section>
+          <section id="doc-layout" class="document-section">
+            <span class="section-index">03 / 空间布局</span>
+            <h2>把城市发展放到江海之间</h2>
+            <p>规划提出开发形成闽江口金三角经济圈，并以建设现代化国际城市为战略目标。相关访谈还回顾了“沿江向海、东进南下”的城市发展思路：以福州的江海条件组织港口、产业与城市空间。</p>
+            <blockquote>读空间布局时，可以把“闽江口金三角”视为战略设想中的发展区域，再结合原件地图、具体项目和不同年代的行政区划理解，避免把后来的地名直接套回 1992 年。</blockquote>
+          </section>
+          <section id="doc-implementation" class="document-section">
+            <span class="section-index">04 / 从规划到实施</span>
+            <h2>用连续的行动落实长远设想</h2>
+            <p>战略设想不只列出增长目标，也提出基础设施、产业发展、开放合作、城乡协调和社会事业等重点。福州市政府公开访谈将基础设施建设、重点产业培育及持续落实视为推进规划的重要环节。</p>
+            <p>因此，理解“3820”时，既要看三阶段时间表，也要看目标、布局和具体措施如何衔接。对于“是否达成”的提问，本平台会尽量引用可定位的资料；资料不足时会直接说明缺少哪些证据。</p>
+          </section>
+          <section id="doc-sources" class="document-section document-sources">
+            <span class="section-index">资料依据</span>
+            <h2>继续阅读</h2>
+            <ul>
+              <li><a href="https://fgw.fuzhou.gov.cn/fgwzwgk/fzgggz/jjyx/202403/t20240328_4799823.htm" target="_blank" rel="noopener noreferrer">福州市发展和改革委员会：3820 战略工程资料 ↗</a></li>
+              <li><a href="https://www.fuzhou.gov.cn/zfxxgkzl/sjcj/zz/xjpzfz/xjpzfzcfsl/202012/t20201203_3698098.htm" target="_blank" rel="noopener noreferrer">福州市政府网站：《习近平在福州》采访实录相关篇目 ↗</a></li>
+            </ul>
+          </section>
+        </div>
+      </article>
+
+      <div class="composer-wrap" id="composer-wrap">
         <form class="composer" id="chat-form">
           <label class="sr-only" for="question">输入关于 3820 工程的问题</label>
           <textarea id="question" name="question" rows="1" maxlength="4000" placeholder="输入关于“3820”工程的问题…" required></textarea>
           <div class="composer-bottom"><span>Enter 发送 · Shift + Enter 换行</span><button type="submit" id="send" aria-label="发送问题">发送 <span aria-hidden="true">↗</span></button></div>
         </form>
-        <p class="footer-note">回答基于当前知识库。目标、完成值和统计口径可能存在差异，请查看引用与核验状态。</p>
+        <p class="footer-note">回答基于当前知识库。目标、完成值和统计口径可能存在差异，请结合资料来源阅读。</p>
       </div>
     </main>
   </div>

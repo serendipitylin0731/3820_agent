@@ -8,7 +8,16 @@
   const welcome = document.querySelector('#welcome');
   const settingsDialog = document.querySelector('#settings-dialog');
   const backgroundToggle = document.querySelector('#background-toggle');
-  const backgroundTimeline = document.querySelector('#background-timeline');
+  const backgroundDocument = document.querySelector('#background-document');
+  const conversation = document.querySelector('#conversation');
+  const composer = document.querySelector('#composer-wrap');
+  const historyList = document.querySelector('#history-list');
+  const historyEmpty = document.querySelector('#history-empty');
+  const clearHistory = document.querySelector('#clear-history');
+  const historyStore = window.ChatHistory;
+  let storage;
+  try { storage = window.localStorage; } catch (_) { storage = null; }
+  let savedTurns = historyStore.load(storage);
   let threadId = crypto.randomUUID();
   let busy = false;
   let serviceKey = '';
@@ -73,37 +82,21 @@
         main.append(sourceLink(source.source_file));
         const position = [source.section, source.page_or_slide, source.data_version].filter(value => value !== null && value !== undefined && value !== '').join(' · ');
         if (position) main.append(make('div', 'source-meta', position));
-        item.append(main, make('span', `badge${source.verified ? '' : ' unverified'}`, source.verified ? '已核验' : '待独立核验'));
+        item.append(main);
         list.append(item);
       }
       section.append(list);
       body.append(section);
     }
 
-    const entries = Object.entries(results || {});
-    if (entries.length) {
-      const section = make('details', 'agents');
-      section.append(make('summary', '', `分析过程 · ${entries.length}`));
-      const list = make('ul', 'agent-list');
-      const roles = { planning: '规划', indicator: '指标', spatial: '空间', evaluation: '评估', theory: '理论资料' };
-      const states = { ok: '完成', insufficient_evidence: '依据不足', error: '执行异常' };
-      for (const [name, result] of entries) {
-        const item = make('li');
-        const role = result.role || name.split('_')[0];
-        item.append(make('span', '', role === 'theory' ? '理论参照' : `${roles[role] || role}智能体`), make('span', `badge${result.status === 'ok' ? '' : result.status === 'error' ? ' error' : ' partial'}`, states[result.status] || result.status));
-        list.append(item);
-      }
-      section.append(list);
-      body.append(section);
-    }
   }
 
-  function renderAnswer(container, payload, error) {
+  function renderAnswer(container, payload, error, scroll = true) {
     container.body.replaceChildren();
     const answer = error || payload.answer || '没有收到可显示的答案。';
     container.body.append(make('p', 'answer', answer));
-    if (payload.status === 'partial') container.body.append(make('p', 'message-warning', '部分智能体未完成，请结合下方执行状态和来源查看。'));
-    if (payload.status === 'error' && !error) container.body.append(make('p', 'message-warning', '智能体执行未完成，请稍后重试。'));
+    if (payload.status === 'partial') container.body.append(make('p', 'message-warning', '回答部分内容暂不可用，请结合资料来源阅读或稍后重试。'));
+    if (payload.status === 'error' && !error) container.body.append(make('p', 'message-warning', '回答生成未完成，请稍后重试。'));
     if (!error) addDetails(container.body, payload.results);
 
     const actions = make('div', 'message-actions');
@@ -120,6 +113,58 @@
     actions.append(copy);
     if (payload.request_id) actions.append(make('span', 'request-id', `请求 ID：${payload.request_id}`));
     container.body.append(actions);
+    if (scroll) scrollToLatest();
+  }
+
+  function showChat() {
+    backgroundDocument.hidden = true;
+    conversation.hidden = false;
+    composer.hidden = false;
+    backgroundToggle.classList.remove('selected');
+    backgroundToggle.removeAttribute('aria-current');
+    document.querySelector('#mobile-background').removeAttribute('aria-current');
+  }
+
+  function showBackground() {
+    backgroundDocument.hidden = false;
+    conversation.hidden = true;
+    composer.hidden = true;
+    backgroundToggle.classList.add('selected');
+    backgroundToggle.setAttribute('aria-current', 'page');
+    document.querySelector('#mobile-background').setAttribute('aria-current', 'page');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function renderHistory() {
+    historyList.replaceChildren();
+    const items = historyStore.conversations(savedTurns);
+    historyEmpty.hidden = items.length > 0;
+    clearHistory.hidden = items.length === 0;
+    for (const item of items) {
+      const button = make('button', 'history-item');
+      button.type = 'button';
+      button.title = item.title;
+      button.setAttribute('aria-label', `打开对话：${item.title}`);
+      button.append(make('span', 'history-item-title', item.title), make('small', '', `${item.count} 轮问答`));
+      if (item.threadId === threadId && backgroundDocument.hidden) button.classList.add('current');
+      button.addEventListener('click', () => restoreConversation(item.threadId));
+      historyList.append(button);
+    }
+  }
+
+  function restoreConversation(id) {
+    if (busy) return;
+    const turns = savedTurns.filter(turn => turn.threadId === id);
+    if (!turns.length) return;
+    threadId = id;
+    messages.replaceChildren();
+    welcome.hidden = true;
+    for (const turn of turns) {
+      newMessage('user', '我的提问').body.append(make('div', '', turn.question));
+      renderAnswer(newMessage('assistant', '知识助手'), turn.payload, undefined, false);
+    }
+    showChat();
+    renderHistory();
     scrollToLatest();
   }
 
@@ -157,6 +202,10 @@
         renderAnswer(answer, payload, message);
       } else {
         renderAnswer(answer, payload);
+        savedTurns = historyStore.saveTurn(storage, savedTurns, {
+          threadId, question, payload, createdAt: new Date().toISOString(),
+        });
+        renderHistory();
       }
     } catch (_) {
       answer.article.classList.remove('loading');
@@ -192,22 +241,24 @@
     messages.replaceChildren();
     welcome.hidden = false;
     questionInput.value = '';
+    showChat();
+    renderHistory();
     questionInput.focus();
   }
   document.querySelector('#new-chat').addEventListener('click', resetChat);
   document.querySelector('#mobile-new-chat').addEventListener('click', resetChat);
-  backgroundToggle.addEventListener('click', () => {
-    const expanded = backgroundToggle.getAttribute('aria-expanded') === 'true';
-    backgroundToggle.setAttribute('aria-expanded', String(!expanded));
-    backgroundTimeline.hidden = expanded;
-  });
-  document.querySelector('#mobile-background').addEventListener('click', () => {
-    document.body.classList.toggle('timeline-open');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+  backgroundToggle.addEventListener('click', showBackground);
+  document.querySelector('#mobile-background').addEventListener('click', showBackground);
+  document.querySelector('#back-to-chat').addEventListener('click', showChat);
+  clearHistory.addEventListener('click', () => {
+    savedTurns = historyStore.clear(storage);
+    resetChat();
   });
   document.querySelector('#settings-form').addEventListener('submit', event => {
     if (event.submitter?.value !== 'save') return;
     clientId = document.querySelector('#client-id').value.trim();
     serviceKey = document.querySelector('#service-key').value;
   });
+  if (savedTurns.length) restoreConversation(savedTurns[savedTurns.length - 1].threadId);
+  else renderHistory();
 })();
