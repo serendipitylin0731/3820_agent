@@ -8,7 +8,15 @@ from llm_client import chat
 
 SPLIT_SYSTEM = '''将问题拆成 JSON 数组。type 仅为 planning、indicator、spatial、evaluation。
 indicator 必须有 key，可用 gdp、gdp_per_capita、gnp、gnp_per_capita、industry_primary、industry_secondary、industry_tertiary、gross_ia、agriculture_output、industry_output、export_total、urban_income、rural_income；spatial 必须有 keyword。只输出 JSON。'''
-KEYWORDS = [('gdp_per_capita','人均GDP'),('gnp_per_capita','人均GNP'),('urban_income','城镇收入'),('rural_income','农村收入'),('industry_output','工业总产值'),('gdp','GDP'),('gnp','GNP'),('export_total','出口'),('industry_primary','第一产业'),('industry_secondary','第二产业'),('industry_tertiary','第三产业')]
+KEYWORDS = [('gdp_per_capita','人均地区生产总值'),('gdp_per_capita','人均GDP'),
+            ('gnp_per_capita','人均收入总值'),('gnp_per_capita','人均GNP'),
+            ('urban_income','城镇居民人均可支配收入'),('rural_income','农村居民人均纯收入'),
+            ('gross_ia','工农业总产值'),('industry_output','工业总产值'),
+            ('agriculture_output','农业总产值'),('urban_income','城镇收入'),
+            ('rural_income','农村收入'),('gdp','地区生产总值'),('gnp','地区收入总值'),
+            ('gdp','GDP'),('gnp','GNP'),('export_total','出口'),
+            ('industry_primary','第一产业'),('industry_secondary','第二产业'),
+            ('industry_tertiary','第三产业')]
 
 
 def _local_split(question):
@@ -16,14 +24,17 @@ def _local_split(question):
     years = [int(y) for y in re.findall(r'(?:1990|1995|2000|2010)', question)]
     if '评估' in question or '达成率' in question or '翻一番' in question or '完成率' in question:
         tasks.append({'type':'evaluation','question':question})
+    remaining = question
+    found = set()
     for key, label in KEYWORDS:
-        if label.lower() in question.lower():
+        if label.lower() in remaining.lower() and key not in found:
             tasks.append({'type':'indicator','question':question,'key':key,'years':years or None})
-            break
+            found.add(key)
+            remaining = re.sub(re.escape(label), '', remaining, count=1, flags=re.IGNORECASE)
     if any(word in question for word in ('空间','港口','机场','园区','元洪','苍霞','侨商','博览会')):
         match = next((w for w in ('元洪','苍霞','港口','机场','园区','侨商','博览会') if w in question), '空间')
         tasks.append({'type':'spatial','question':question,'keyword':match})
-    if not tasks or any(w in question for w in ('规划','路径','背景','目标','战略')):
+    if not tasks or any(w in question for w in ('规划','路径','背景','战略')):
         tasks.append({'type':'planning','question':question})
     return tasks
 

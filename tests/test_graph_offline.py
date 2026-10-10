@@ -25,3 +25,15 @@ def test_offline_default_split_without_key(monkeypatch):
     monkeypatch.setattr(agent_main, 'get_settings', lambda: Settings())
     tasks = agent_main.split_task('2010年 GDP 是多少？')
     assert tasks[0]['key'] == 'gdp'
+
+
+def test_mixed_metrics_and_qualitative_goal(monkeypatch):
+    from agents import agent_main
+    import graph
+    settings = Settings()
+    monkeypatch.setattr(agent_main, 'get_settings', lambda: settings)
+    tasks = agent_main.split_task('1995年GDP和GNP翻一番目标完成情况')
+    assert {'evaluation', 'indicator'} == {item['type'] for item in tasks}
+    assert {item['key'] for item in tasks if item['type'] == 'indicator'} == {'gdp', 'gnp'}
+    value = graph.execute_node({'sub_tasks':[{'type':'evaluation','question':'2000年目标评估'}]})
+    assert value['results']['evaluation']['status'] == 'insufficient_evidence'
