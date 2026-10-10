@@ -13,7 +13,12 @@ def offline_by_default(monkeypatch, request):
     if request.node.get_closest_marker("online"):
         return
 
-    def deny_network(*_args, **_kwargs):
+    original_connect = socket.socket.connect
+
+    def deny_network(sock, address):
+        # Windows asyncio creates its wake-up socket with a localhost socketpair.
+        if isinstance(address, tuple) and address[0] in {'127.0.0.1', '::1'}:
+            return original_connect(sock, address)
         raise AssertionError("离线测试不得建立网络连接")
 
     monkeypatch.setattr(socket.socket, "connect", deny_network)
