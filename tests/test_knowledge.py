@@ -5,6 +5,8 @@ from knowledge.knowledge_base import load_markdown, search
 def test_guide_search_has_line_reference():
     hits = load_markdown()
     assert hits
+    table = next(hit for hit in hits if '| 地区收入总值（GNP）' in hit.content)
+    assert '| 农村居民人均纯收入' in table.content
     result = search('三阶段目标 翻一番', chunks=hits)
     assert result.status == 'ok'
     assert result.hits[0].source.page_or_slide.startswith('L')

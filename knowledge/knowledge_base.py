@@ -21,6 +21,7 @@ def load_markdown(path=GUIDE):
     chunks, heading, block, start = [], '', [], 1
     in_code = False
     started = False
+    table_mode = False
     def flush():
         if not block:
             return
@@ -40,17 +41,24 @@ def load_markdown(path=GUIDE):
         if line.lstrip().startswith(('```', '~~~')):
             in_code = not in_code
             continue
+        if line.startswith('<a id='):
+            continue
         if in_code or line.startswith('# ') and re.match(r'# (?:3|4|5|6|7|8|9|10)\b', line):
             if not in_code and line.startswith('# '):
                 break
             continue
+        is_table_row = line.lstrip().startswith('|')
+        if is_table_row and not table_mode:
+            flush(); table_mode = True
+        elif table_mode and not is_table_row:
+            flush(); table_mode = False
         if re.match(r'^#{1,4} \d', line):
             flush(); heading = line.lstrip('# ').strip(); start = line_no
         if not block:
             start = line_no
         if line.strip():
             block.append(line.strip())
-        if sum(map(len, block)) >= 700:
+        if not table_mode and sum(map(len, block)) >= 700:
             flush()
     flush()
     return chunks
