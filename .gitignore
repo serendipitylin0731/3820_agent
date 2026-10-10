@@ -4,6 +4,9 @@
 knowledge/data/*
 !knowledge/data/.gitkeep
 var/
+dist/
+build/
+*.spec.bak
 
 .venv/
 venv/

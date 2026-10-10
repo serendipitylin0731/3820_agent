@@ -1,5 +1,25 @@
 # 基于“3820”战略工程内容的多智能体系统搭建指南
 
+## Windows 安装版
+
+Windows 10/11（x64）用户可以下载 `3820Agent-Setup-x64.exe`，双击安装后从开始菜单启动 **3820 战略知识助手**。安装版自带 Python 服务和界面，不需要用户安装 Python、运行命令或编辑 `.env`。它在本机 `127.0.0.1:3820` 启动服务，并在独立窗口中打开应用；关闭窗口后服务退出。窗口依赖 Microsoft Edge WebView2 Runtime。下载位置是仓库 [Windows installer 工作流](https://github.com/serendipitylin0731/3820_agent/actions/workflows/windows-installer.yml) 的最新成功运行记录中的 `3820Agent-Windows-x64-Setup` 构建产物。
+
+首次打开时，应用会提示配置豆包 API。到火山方舟控制台复制当前账号的 **API Key** 和已开通的**对话模型 ID**，粘贴进设置窗口并保存；向量模型 ID 可选，只有建立向量索引时才使用。默认 API 地址是 `https://ark.cn-beijing.volces.com/api/v3`。以后可以从左下角的 **豆包 API 设置** 修改。API Key 不会放进安装包或浏览器存储，而是由 Windows DPAPI 加密后存放在当前用户的 `%APPDATA%\3820Agent\model_config.dpapi`。请勿将这个文件复制给其他 Windows 用户；他们应在自己的应用中输入密钥。
+
+安装版包含项目指南与结构化指标数据，可立即阅读背景和提问。仓库未提交的原始 PPT、Word、视频及大型扫描件**不包含在公开安装包**中。如果要在自己的电脑上补充资料，可把 UTF-8 `.txt`、`.docx`、`.pptx` 文件复制到设置窗口显示的个人资料目录 `%APPDATA%\3820Agent\knowledge\data`，新问题会自动检索这些资料。此目录不解析视频和旧版二进制 `.doc`、`.ppt`。本地向量索引与后端会话快照保存在同一用户目录；当前对话界面的最近 30 轮问答保存在该窗口的持久化浏览器存储中。卸载应用不会自动删除个人资料和密钥。
+
+维护者需要重新生成安装包时，在 Windows x64 + Python 3.11 上运行：
+
+```powershell
+python -m pip install -r requirements-desktop.txt
+python -m pytest -m offline -q
+python -m PyInstaller --noconfirm packaging/3820Agent.spec
+.\dist\3820Agent\3820Agent.exe --smoke-test
+& 'C:\Program Files (x86)\Inno Setup 6\ISCC.exe' packaging\3820Agent.iss
+```
+
+最终文件位于 `dist\installer\3820Agent-Setup-x64.exe`。仓库中的 [Windows 构建工作流](.github/workflows/windows-installer.yml) 会在 Windows runner 上执行离线测试、可执行文件冒烟测试和安装包生成，并提供可下载的构建产物；构建不需要开发者的 API Key。PyInstaller 需要在 Windows 上运行才能生成 Windows 可执行文件。
+
 <a id="current-implementation"></a>
 
 ## 当前实现与运行（2026-10-11）

@@ -1,0 +1,59 @@
+name: Windows installer
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/windows-installer.yml'
+      - 'packaging/**'
+      - 'requirements*.txt'
+      - 'desktop.py'
+      - 'desktop_runtime.py'
+      - 'app.py'
+      - 'config.py'
+      - 'graph.py'
+      - 'web/**'
+      - 'knowledge/**'
+      - 'agents/**'
+      - 'docs/基于3820战略工程内容的多智能体系统搭建指南.md'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-2022
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          architecture: x64
+      - name: Install dependencies
+        run: python -m pip install -r requirements-desktop.txt
+      - name: Offline tests
+        run: python -m pytest -m offline -q
+      - name: Build application
+        run: python -m PyInstaller --noconfirm packaging/3820Agent.spec
+      - name: Executable smoke test
+        run: .\dist\3820Agent\3820Agent.exe --smoke-test
+      - name: Install Inno Setup compiler
+        shell: pwsh
+        run: |
+          if (-not (Test-Path 'C:\Program Files (x86)\Inno Setup 6\ISCC.exe')) {
+            choco install innosetup --no-progress -y
+          }
+      - name: Build installer
+        shell: pwsh
+        run: |
+          $compiler = 'C:\Program Files (x86)\Inno Setup 6\ISCC.exe'
+          if (-not (Test-Path $compiler)) { $compiler = 'C:\Program Files\Inno Setup 6\ISCC.exe' }
+          & $compiler packaging\3820Agent.iss
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: 3820Agent-Windows-x64-Setup
+          path: dist/installer/3820Agent-Setup-x64.exe
+          if-no-files-found: error
