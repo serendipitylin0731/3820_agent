@@ -6,6 +6,7 @@
   const sendButton = document.querySelector('#send');
   const messages = document.querySelector('#messages');
   const welcome = document.querySelector('#welcome');
+  const suggestions = document.querySelector('#suggestions');
   const settingsDialog = document.querySelector('#settings-dialog');
   const backgroundToggle = document.querySelector('#background-toggle');
   const backgroundDocument = document.querySelector('#background-document');
@@ -22,6 +23,66 @@
   let busy = false;
   let serviceKey = '';
   let clientId = '';
+
+  const exampleQuestions = [
+    { category: '战略规划', label: '三个阶段分别要做什么？', question: '3820工程分为哪三个阶段？各阶段的主要目标是什么？' },
+    { category: '战略规划', label: '为什么要制定二十年规划？', question: '福州为什么在1992年制定二十年经济社会发展战略设想？' },
+    { category: '战略规划', label: '“3820”三个数字怎么理解？', question: '“3820”中的3年、8年、20年分别从哪一年算起？' },
+    { category: '战略规划', label: '1995 年的主要目标是什么？', question: '3820工程第一阶段到1995年的主要目标和发展重点是什么？' },
+    { category: '指标查询', label: '1995 年福州 GDP 是多少？', question: '指南记录的1995年福州地区生产总值是多少？请说明来源。' },
+    { category: '指标查询', label: '1990—1995 年 GDP 增长多少？', question: '按指南中的1990年和1995年GDP，增长率是多少？请列出计算依据。' },
+    { category: '指标查询', label: 'GDP 与 GNP 目标有什么区别？', question: '1995年GDP翻番推算目标与原件目标表中的GNP目标有什么区别？' },
+    { category: '指标查询', label: '2010 年 GDP 的来源差异', question: '2010年福州GDP是多少？为什么不同资料中的数值不同？' },
+    { category: '空间布局', label: '闽江口经济圈如何布局？', question: '原件怎样描述闽江口金三角经济圈的战略布局？' },
+    { category: '空间布局', label: '投资示意图包含哪些区域？', question: '福州市闽江口金三角经济圈投资示意图中有哪些主要区域？' },
+    { category: '空间布局', label: '开发区与老市区各起什么作用？', question: '3820工程的战略布局中，福州经济技术开发区和老市区分别承担什么作用？' },
+    { category: '空间布局', label: '为什么强调沿江向海？', question: '3820工程为什么重视闽江口和海洋方向的发展？' },
+    { category: '实施路径', label: '“海上福州”如何落地？', question: '“海上福州”与3820工程是什么关系？规划了哪些海洋发展方向？' },
+    { category: '实施路径', label: '机场建设与战略有何关系？', question: '长乐国际机场建设如何服务于3820工程的对外开放目标？' },
+    { category: '实施路径', label: '规划提出哪些基础设施重点？', question: '3820工程在机场、港口、公路等基础设施方面提出了哪些重点？' },
+    { category: '实施路径', label: '如何推动产业与开放？', question: '3820工程如何通过开发区、招商和侨资推动产业发展？' },
+    { category: '成效评估', label: '1995 年 GDP 目标达成率', question: '按指南的翻番演示算法，1995年福州GDP目标达成率是多少？' },
+    { category: '成效评估', label: '2000 年目标能否判断达成？', question: '2000年定性目标是否达成？现有资料足以评估吗？' },
+    { category: '成效评估', label: '2010 年 GDP 增长率能直接算吗？', question: '2010年GDP有不同版本时，能直接计算与1990年的增长率吗？' },
+    { category: '成效评估', label: '目标表与完成值如何比较？', question: '评估3820工程目标时，为什么要区分当年目标表和后来的完成值？' },
+    { category: '理论与方法', label: '调查研究为何重要？', question: '3820工程的编制过程怎样体现调查研究和群众参与？' },
+    { category: '理论与方法', label: '怎样理解长期规划的方法？', question: '如何从分阶段目标和战略布局理解3820工程的长期规划方法？' },
+    { category: '理论与方法', label: '马克思主义如何帮助理解规划？', question: '怎样用马克思主义的方法分析3820工程的调查研究和分阶段发展？' },
+    { category: '理论与方法', label: '如何区分当年规划和后来理论？', question: '用习近平新时代中国特色社会主义思想理解3820工程时，怎样区分后来的分析视角与1992年规划原文？' },
+  ];
+  let previousQuestions = [];
+
+  function renderSuggestions() {
+    const categories = new Map();
+    for (const example of exampleQuestions) {
+      if (!categories.has(example.category)) categories.set(example.category, []);
+      categories.get(example.category).push(example);
+    }
+    const names = [...categories.keys()];
+    for (let index = names.length - 1; index > 0; index -= 1) {
+      const randomIndex = Math.floor(Math.random() * (index + 1));
+      [names[index], names[randomIndex]] = [names[randomIndex], names[index]];
+    }
+    const chosen = names.slice(0, 4).map(name => {
+      const group = categories.get(name);
+      return group[Math.floor(Math.random() * group.length)];
+    });
+    if (previousQuestions.length && chosen.every(example => previousQuestions.includes(example.question))) {
+      chosen[0] = categories.get(chosen[0].category).find(example => !previousQuestions.includes(example.question)) || chosen[0];
+    }
+    previousQuestions = chosen.map(example => example.question);
+    suggestions.replaceChildren();
+    for (const example of chosen) {
+      const button = make('button');
+      button.type = 'button';
+      button.dataset.question = example.question;
+      const arrow = make('span', 'suggestion-arrow', '↗');
+      arrow.setAttribute('aria-hidden', 'true');
+      button.append(make('span', 'suggestion-category', example.category), make('span', '', example.label), arrow);
+      button.addEventListener('click', () => sendQuestion(example.question));
+      suggestions.append(button);
+    }
+  }
 
   function make(tag, className, text) {
     const element = document.createElement(tag);
@@ -232,15 +293,13 @@
     questionInput.style.height = 'auto';
     questionInput.style.height = `${Math.min(questionInput.scrollHeight, 180)}px`;
   });
-  document.querySelectorAll('[data-question]').forEach(button => {
-    button.addEventListener('click', () => sendQuestion(button.dataset.question));
-  });
   function resetChat() {
     if (busy) return;
     threadId = crypto.randomUUID();
     messages.replaceChildren();
     welcome.hidden = false;
     questionInput.value = '';
+    renderSuggestions();
     showChat();
     renderHistory();
     questionInput.focus();
@@ -250,6 +309,7 @@
   backgroundToggle.addEventListener('click', showBackground);
   document.querySelector('#mobile-background').addEventListener('click', showBackground);
   document.querySelector('#back-to-chat').addEventListener('click', showChat);
+  document.querySelector('#refresh-suggestions').addEventListener('click', renderSuggestions);
   clearHistory.addEventListener('click', () => {
     savedTurns = historyStore.clear(storage);
     resetChat();
@@ -259,6 +319,7 @@
     clientId = document.querySelector('#client-id').value.trim();
     serviceKey = document.querySelector('#service-key').value;
   });
+  renderSuggestions();
   if (savedTurns.length) restoreConversation(savedTurns[savedTurns.length - 1].threadId);
   else renderHistory();
 })();
