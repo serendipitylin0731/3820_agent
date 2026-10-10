@@ -76,7 +76,7 @@ def load_ppt_text(path):
 def load_ppt_chunks(path):
     path = Path(path)
     return [KnowledgeHit(chunk_id=f'{path.name}:{n}', content=text,
-                         source=SourceRef(source_file=str(path), page_or_slide=n,
+                         source=SourceRef(source_file=path.name, page_or_slide=n,
                                           data_version=_version(path), verified=False))
             for n, text in enumerate(load_ppt_text(path), 1)]
 
@@ -84,9 +84,10 @@ def load_ppt_chunks(path):
 @lru_cache(maxsize=1)
 def get_knowledge_base():
     settings = get_settings()
+    guide_hits = load_markdown()
     if settings.ppt_path and settings.ppt_path.is_file():
-        return load_ppt_chunks(settings.ppt_path)
-    return load_markdown()
+        return guide_hits + load_ppt_chunks(settings.ppt_path)
+    return guide_hits
 
 
 def _tokens(text):
@@ -161,25 +162,6 @@ def retrieve(index, chunks, query, top_k=5):
         raise ValueError('查询向量维度与索引不一致')
     distances, ids = index.search(vector, top_k)
     return [(chunks[i], float(distances[0][j])) for j, i in enumerate(ids[0]) if 0 <= i < len(chunks)]
-
-
-def save_index(index, chunks, directory):
-    import faiss
-    directory = Path(directory); directory.mkdir(parents=True, exist_ok=True)
-    if index.ntotal != len(chunks):
-        raise ValueError('向量数量与片段数量不一致')
-    faiss.write_index(index, str(directory / 'index.faiss'))
-    (directory / 'metadata.json').write_text(json.dumps({'chunks': chunks}, ensure_ascii=False), encoding='utf-8')
-
-
-def load_index(directory):
-    import faiss
-    directory = Path(directory)
-    chunks = json.loads((directory / 'metadata.json').read_text(encoding='utf-8'))['chunks']
-    index = faiss.read_index(str(directory / 'index.faiss'))
-    if index.ntotal != len(chunks):
-        raise ValueError('索引与元数据不匹配')
-    return index, chunks
 
 
 def rebuild_vector_store(directory=None):

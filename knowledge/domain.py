@@ -36,10 +36,22 @@ def spatial_features():
     if len(raw) != 7:
         raise ValueError('空间要素必须恰有 7 项')
     for item in raw:
-        if not item.get('name') or not item.get('type'):
+        if not item.get('name') or not item.get('type') or not item.get('period') or not isinstance(item.get('related_paths'), list):
             raise ValueError('空间要素名称或类型为空')
         SourceRef.model_validate(item['source_ref'])
     return raw
+
+
+@lru_cache(maxsize=1)
+def knowledge_model():
+    model = json.loads((ROOT / 'entities.json').read_text(encoding='utf-8'))
+    expected = {'阶段目标', '指标体系', '空间要素', '实施路径', '效果评估'}
+    if set(model['entity_types']) != expected or any(
+        relation['from'] not in expected or relation['to'] not in expected
+        for relation in model['relations']
+    ):
+        raise ValueError('知识实体或关系结构无效')
+    return model
 
 
 def record_conflicts(records):

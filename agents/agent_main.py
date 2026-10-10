@@ -37,15 +37,30 @@ def split_task(question):
             if not isinstance(raw, list) or not raw:
                 raise ValueError('模型未返回任务数组')
             return [SubTask.model_validate(item).model_dump(exclude_none=True) for item in raw]
-        except (ValueError, ConfigurationError):
-            pass
+        except (ValueError, ConfigurationError) as exc:
+            raise ValueError('模型输出的子任务格式无效') from exc
     return [SubTask.model_validate(item).model_dump(exclude_none=True) for item in _local_split(question)]
 
 
 def summarize(question, results):
     parts = [f'问题：{question}']
     for role, result in results.items():
-        status = result.get('status', 'ok') if isinstance(result, dict) else 'ok'
-        data = result.get('data') if isinstance(result, dict) and 'data' in result else result
-        parts.append(f'[{role} / {status}] {data}')
+        status = result.get('status', 'ok')
+        data = result.get('data')
+        sources = result.get('sources', [])
+        if status == 'error':
+            content = result.get('error', {}).get('message', '子任务失败')
+        elif role.startswith('indicator') and isinstance(data, dict):
+            values = '、'.join(f'{year} 年 {value} {data["unit"]}' for year, value in data['values'].items())
+            content = f'{data["name"]}：{values}'
+        elif role.startswith('spatial') and isinstance(data, list):
+            content = '；'.join(f'{item["name"]}：{item["note"]}' for item in data)
+        elif role.startswith('evaluation') and isinstance(data, list):
+            content = '；'.join(f'{row["指标"]}达成率 {row["达成率"]}%' for row in data)
+        else:
+            content = str(data or '依据不足')
+        if sources:
+            content += '（来源：' + '、'.join(dict.fromkeys(
+                f'{src["source_file"]} {src.get("section") or src.get("page_or_slide") or ""}' for src in sources)) + '；' + ('已核验' if all(src['verified'] for src in sources) else '未独立核验') + '）'
+        parts.append(f'[{role} / {status}] {content}')
     return '\n'.join(parts)

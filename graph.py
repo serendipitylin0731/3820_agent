@@ -50,7 +50,9 @@ def execute_node(state):
                 value = query_spatial(task['keyword'], task.get('stype'))
                 sources = [item['source_ref'] for item in value] if isinstance(value, list) else []
             elif role == 'evaluation':
-                if '1995' not in task['question'] and '翻一番' not in task['question']:
+                if any(year in task['question'] for year in ('2000', '2010')) or (
+                    '1995' not in task['question'] and '翻一番' not in task['question']
+                ):
                     value = '缺少比较对象、年份、口径和判据，无法评估。'
                     sources = []
                 else:

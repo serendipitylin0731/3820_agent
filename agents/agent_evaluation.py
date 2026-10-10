@@ -1,7 +1,7 @@
 # agents/agent_evaluation.py
 def compute_achievement(actual, target, direction='up'):
     # down表示目标为上限：实际值不高于目标即视为达标（100%）
-    if actual is None or target is None or direction not in ('up', 'down'):
+    if actual is None or target is None or direction not in ('up', 'down') or actual < 0:
         return None
     if direction == 'up':
         if target <= 0:
