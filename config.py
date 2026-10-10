@@ -26,8 +26,11 @@ class Settings(BaseModel):
     request_timeout: float = Field(default=30.0, gt=0, le=300)
     checkpoint_path: Path = Path("var/checkpoints.sqlite3")
     log_level: str = "INFO"
+    service_api_key: SecretStr | None = None
+    max_body_bytes: int = Field(default=16384, ge=1024, le=1048576)
+    rate_limit_per_minute: int = Field(default=60, ge=1, le=10000)
 
-    @field_validator("ark_api_key", "llm_model", "embed_model", mode="before")
+    @field_validator("ark_api_key", "llm_model", "embed_model", "service_api_key", mode="before")
     @classmethod
     def empty_or_placeholder_is_missing(cls, value):
         if value is None or not str(value).strip():
@@ -90,6 +93,9 @@ _ENV_FIELDS = {
     "REQUEST_TIMEOUT": "request_timeout",
     "CHECKPOINT_PATH": "checkpoint_path",
     "LOG_LEVEL": "log_level",
+    "SERVICE_API_KEY": "service_api_key",
+    "MAX_BODY_BYTES": "max_body_bytes",
+    "RATE_LIMIT_PER_MINUTE": "rate_limit_per_minute",
 }
 
 

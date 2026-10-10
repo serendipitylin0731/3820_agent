@@ -6,11 +6,10 @@ from config import ConfigurationError, Settings
 from contracts import ChatError, ChatResponse
 
 
-def test_startup_explains_missing_key(monkeypatch):
+def test_startup_works_without_model_key(monkeypatch):
     monkeypatch.setattr(api, "get_settings", lambda: Settings())
-    with pytest.raises(ConfigurationError, match="ARK_API_KEY"):
-        with TestClient(api.app):
-            pass
+    with TestClient(api.app) as client:
+        assert client.get('/health').json() == {'status': 'ok'}
 
 
 def test_chat_and_validation_use_shared_contract_without_network(monkeypatch):
