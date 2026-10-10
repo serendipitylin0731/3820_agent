@@ -16,7 +16,7 @@
 | `SourceRef` | `source_file`、`data_version`、`verified` | `page_or_slide` 与 `section` 可为空；`verified=false` 不能作为已核验事实。 |
 | `KnowledgeHit` | `chunk_id`、`content`、`source` | 分数和 `score_kind` 同时提供；`l2_distance` 越小越近，`similarity` 越大越近。 |
 | `KnowledgeResult` | `status`、`hits` | `ok` 至少有一个片段；`insufficient_evidence` 表示无充分依据；`error` 需要 `ErrorInfo`。 |
-| `SubTask` | `type`、`question` | `type` 仅为 `planning`、`indicator`、`spatial`、`evaluation`；指标任务还需 `key`，空间任务还需 `keyword`。 |
+| `SubTask` | `type`、`question` | `type` 仅为 `planning`、`indicator`、`spatial`、`evaluation`；指标任务还需 `key`，空间任务还需 `keyword`。指标任务的 `growth` 标记增长率计算，`target` 标记目标查询，均由原问题确定。 |
 | `AgentResult` | `role`、`status` | `data` 是角色结果，`sources` 为实际用到的来源；`error` 状态必须给出错误码和说明。 |
 | `ToolResult` | `status` | 三项只读工具统一返回 `data`、`sources` 和错误状态；未知工具名抛出校验错误。 |
 | `ChatRequest` | `question` | 非空白、最多 4000 字符；`thread_id` 可选，最多 128 字符。 |

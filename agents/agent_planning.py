@@ -30,6 +30,14 @@ def _excerpt(context, marker, limit=350):
     return '资料未提及'
 
 
+def _passage(context, marker, limit=650):
+    offset = context.find(marker)
+    if offset < 0:
+        return '资料未提及'
+    end = context.find('\n\n', offset)
+    return context[offset:end if end >= 0 else None].strip()[:limit]
+
+
 def run_planning(question, kb_text):
     if not kb_text or '暂无充分依据' in kb_text:
         return None
@@ -37,7 +45,8 @@ def run_planning(question, kb_text):
     report = PlanningReport(
         background=_excerpt(kb_text, '1992'),
         stage_goals=_excerpt(kb_text, '1995'),
-        implementation_paths=_excerpt(kb_text, '以侨引侨'),
+        implementation_paths=(_passage(kb_text, '四、战略布局') if '布局' in question
+                              else _excerpt(kb_text, '以侨引侨')),
         evidence=kb_text[:1800],
         risks='现有指南及整理数据尚未与原始附件独立核验。',
         suggestions='分析建议：补齐原始资料并逐项核验后，再作进一步判断。',

@@ -59,6 +59,8 @@ class SubTask(ContractModel):
     question: str = Field(min_length=1)
     key: str | None = None
     years: list[int] | None = None
+    growth: bool = False
+    target: bool = False
     keyword: str | None = None
     stype: str | None = None
 

@@ -41,7 +41,17 @@ def test_target_question_is_not_answered_with_observed_indicator_values(monkeypa
     monkeypatch.setattr(agent_main, 'chat',
                         lambda *_args, **_kwargs: '[{"type":"indicator","question":"1995年GDP目标",'
                                                  '"key":"gdp"}]')
-    assert [task['type'] for task in agent_main.split_task('1995年GDP目标是多少？')] == ['planning']
+    tasks = agent_main.split_task('1995年GDP目标是多少？')
+    assert [task['type'] for task in tasks] == ['indicator']
+    assert tasks[0]['target'] is True
+
+
+def test_growth_intent_is_preserved_from_question(monkeypatch):
+    from agents import agent_main
+    monkeypatch.setattr(agent_main, 'get_settings', lambda: Settings())
+    task = agent_main.split_task('1995年比1990年GDP增长率是多少？')[0]
+    assert task['years'] == [1990, 1995]
+    assert task['growth'] is True
 
 
 def test_planning_report_has_sections_and_no_evidence_behavior(monkeypatch):
@@ -100,3 +110,22 @@ def test_retrieval_uses_single_hit_set(monkeypatch):
     assert len(calls) == 1
     assert '1995年翻一番' in result['kb_context']
     assert result['kb_sources'][0]['source_file'] == 'guide.md'
+
+
+def test_layout_retrieval_uses_original_section_and_passage(monkeypatch):
+    import graph
+    from agents import agent_planning
+    queries = []
+    hit = KnowledgeHit(chunk_id='scan-40',
+                       content='四、战略布局\n以福州经济技术开发区为前导，以老市区为依托，建设闽江口金三角经济圈。',
+                       source=SourceRef(source_file='scan', page_or_slide='预览第40页',
+                                        data_version='scan-v1', verified=False))
+    monkeypatch.setattr(graph, 'search', lambda query, **_kw: (
+        queries.append(query) or KnowledgeResult(status='ok', hits=[hit])))
+    monkeypatch.setattr(graph, 'get_settings', lambda: Settings())
+    fetched = graph.retrieve_node({'question':'3820战略工程对城市空间布局有什么安排？'})
+    assert queries == ['福州市20年经济社会发展战略设想 战略布局']
+    monkeypatch.setattr(agent_planning, 'get_settings', lambda: Settings())
+    report = agent_planning.run_planning('3820战略工程对城市空间布局有什么安排？',
+                                         fetched['kb_context'])
+    assert '闽江口金三角经济圈' in report['implementation_paths']

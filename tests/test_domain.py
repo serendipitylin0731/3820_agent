@@ -1,5 +1,5 @@
 from agents.agent_evaluation import eval_1995_phase
-from agents.agent_indicator import INDICATOR_DATA, industry_structure, query_indicator
+from agents.agent_indicator import INDICATOR_DATA, industry_structure, query_indicator, query_target
 from agents.agent_spatial import query_spatial
 from knowledge.domain import indicators, record_conflicts, spatial_features
 
@@ -26,3 +26,10 @@ def test_evaluation_and_conflict():
     records = [{'key':'gdp','year':1995,'basis':'a','value':1},
                {'key':'gdp','year':1995,'basis':'a','value':2}]
     assert record_conflicts(records) == [records]
+
+
+def test_original_gnp_targets_are_not_mislabelled_as_gdp():
+    gnp = query_target('gnp', [2000])
+    assert gnp['target_value'] == 482
+    assert gnp['sources'][0]['page_or_slide'] == '预览第45页'
+    assert 'insufficient_evidence' in query_target('gdp', [2010])

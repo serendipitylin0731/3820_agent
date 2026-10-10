@@ -24,14 +24,16 @@ KEYWORDS = [('gdp_per_capita','人均地区生产总值'),('gdp_per_capita','人
 
 def _local_split(question):
     tasks = []
-    years = [int(y) for y in re.findall(r'(?:1990|1995|2000|2010)', question)]
+    years = sorted({int(y) for y in re.findall(r'(?:1990|1995|2000|2010)', question)})
+    growth = any(term in question for term in ('增长率', '增幅', '增长了多少'))
     if '评估' in question or '达成率' in question or '翻一番' in question or '完成率' in question:
         tasks.append({'type':'evaluation','question':question})
     remaining = question
     found = set()
     for key, label in KEYWORDS:
         if label.lower() in remaining.lower() and key not in found:
-            tasks.append({'type':'indicator','question':question,'key':key,'years':years or None})
+            tasks.append({'type':'indicator','question':question,'key':key,'years':years or None,
+                          'growth':growth})
             found.add(key)
             remaining = re.sub(re.escape(label), '', remaining, count=1, flags=re.IGNORECASE)
     if any(word in question for word in ('空间','港口','机场','园区','元洪','苍霞','侨商','博览会')) and not ('布局' in question and '战略' in question):
@@ -49,7 +51,9 @@ def _normalize_tasks(tasks, question):
     evaluating = any(cue in question for cue in ('评估', '达成率', '完成率', '翻一番', '是否达成'))
     target_only = '目标' in question and not evaluating and '实际' not in question
     if target_only:
-        if not any(task['type'] == 'planning' for task in tasks):
+        if local_indicators:
+            tasks = [{**task, 'target': True, 'growth': False} for task in local_indicators]
+        elif not any(task['type'] == 'planning' for task in tasks):
             tasks.append({'type': 'planning', 'question': question})
     else:
         tasks.extend(local_indicators)
@@ -98,14 +102,20 @@ def summarize(question, results):
         if status == 'error':
             content = result.get('error', {}).get('message', '子任务失败')
         elif role.startswith('indicator') and isinstance(data, dict):
-            values = '、'.join(f'{year} 年 {value} {data["unit"]}' for year, value in data['values'].items())
-            content = f'{data["name"]}：{values}'
-            if data.get('conflicts') or data.get('incomparable'):
-                alternatives = [item['other'] for item in data.get('conflicts', [])]
-                alternatives.extend(data.get('incomparable', []))
-                content += '；另有待核对的来源值：' + '、'.join(
-                    f'{item["year"]} 年 {item["value"]} {item["unit"]}（{item["source_ref"]["source_file"]}，口径/版本待核对）'
-                    for item in alternatives)
+            if 'target_value' in data:
+                content = (f'{data["name"]}：{data["year"]} 年目标 {data["target_value"]} '
+                           f'{data["unit"]}（{data["target_kind"]}）；{data["note"]}')
+            else:
+                values = '、'.join(f'{year} 年 {value} {data["unit"]}' for year, value in data['values'].items())
+                content = f'{data["name"]}：{values}'
+                if 'growth_percent' in data:
+                    content += f'；增长率 {data["growth_percent"]}%（{data["formula"]}）'
+                if data.get('conflicts') or data.get('incomparable'):
+                    alternatives = [item['other'] for item in data.get('conflicts', [])]
+                    alternatives.extend(data.get('incomparable', []))
+                    content += '；另有待核对的来源值：' + '、'.join(
+                        f'{item["year"]} 年 {item["value"]} {item["unit"]}（{item["source_ref"]["source_file"]}，口径/版本待核对）'
+                        for item in alternatives)
         elif role.startswith('spatial') and isinstance(data, list):
             content = '；'.join(f'{item["name"]}：{item["note"]}' for item in data)
         elif role.startswith('evaluation') and isinstance(data, list):
@@ -119,6 +129,8 @@ def summarize(question, results):
             content = str(data or '依据不足')
         if sources:
             content += '（来源：' + '、'.join(dict.fromkeys(
-                f'{src["source_file"]} {src.get("section") or src.get("page_or_slide") or ""}' for src in sources)) + '；' + ('已核验' if all(src['verified'] for src in sources) else '未独立核验') + '）'
+                f'{src["source_file"]} ' + ' '.join(str(part) for part in
+                    (src.get('section'), src.get('page_or_slide')) if part is not None)
+                for src in sources)) + '；' + ('已核验' if all(src['verified'] for src in sources) else '未独立核验') + '）'
         parts.append(f'[{role} / {status}] {content}')
     return '\n'.join(parts)

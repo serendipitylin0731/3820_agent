@@ -9,7 +9,7 @@ from contracts import AgentResult, ErrorInfo, SubTask
 from config import get_settings
 from agents.agent_main import split_task, summarize
 from agents.agent_planning import run_planning
-from agents.agent_indicator import query_indicator, INDICATOR_DATA
+from agents.agent_indicator import query_indicator, query_target, INDICATOR_DATA
 from agents.agent_spatial import query_spatial
 from agents.agent_evaluation import eval_1995_phase
 from knowledge.knowledge_base import format_context, search
@@ -44,9 +44,12 @@ def route_node(state):
 
 
 def retrieve_node(state):
+    query = ('福州市20年经济社会发展战略设想 战略布局'
+             if '布局' in state['question'] and any(term in state['question'] for term in ('3820', '战略'))
+             else state['question'])
     for attempt in range(2):
         try:
-            found = search(state['question'], top_k=get_settings().top_k)
+            found = search(query, top_k=get_settings().top_k)
             return {'kb_context': format_context(found),
                     'kb_sources': [hit.source.model_dump() for hit in found.hits],
                     'kb_error': None}
@@ -65,8 +68,16 @@ def execute_node(state):
         label = f'{role}_{i}' if len(state['sub_tasks']) > 1 else role
         try:
             if role == 'indicator':
-                value = query_indicator(task['key'], task.get('years'))
-                sources = [value['source']] if isinstance(value, dict) and 'source' in value else []
+                if task.get('target'):
+                    value = query_target(task['key'], task.get('years'))
+                    sources = value.get('sources', [])
+                    value = {key: item for key, item in value.items() if key != 'sources'}
+                else:
+                    value = query_indicator(task['key'], task.get('years'), growth=task.get('growth', False))
+                    sources = [value['source']] if isinstance(value, dict) and 'source' in value else []
+                    if isinstance(value, dict):
+                        sources.extend(item['other']['source_ref'] for item in value.get('conflicts', []))
+                        sources.extend(item['source_ref'] for item in value.get('incomparable', []))
             elif role == 'spatial':
                 value = query_spatial(task['keyword'], task.get('stype'))
                 sources = [item['source_ref'] for item in value] if isinstance(value, list) else []
@@ -96,7 +107,17 @@ def execute_node(state):
                 value = run_planning(task['question'], state.get('kb_context', ''))
                 sources = state.get('kb_sources', [])
             if isinstance(value, dict) and 'error' in value:
-                result = AgentResult(role=role, status='error', error=ErrorInfo(code='domain_error', message=value['error']))
+                if value.get('conflicts') or value.get('incomparable'):
+                    alternatives = [item['other'] for item in value['conflicts']]
+                    alternatives.extend(value['incomparable'])
+                    result = AgentResult(role=role, status='insufficient_evidence', data=value['error'],
+                                         sources=[INDICATOR_DATA[task['key']]['source_ref']] +
+                                         [item['source_ref'] for item in alternatives])
+                else:
+                    result = AgentResult(role=role, status='error', error=ErrorInfo(code='domain_error', message=value['error']))
+            elif isinstance(value, dict) and 'insufficient_evidence' in value:
+                result = AgentResult(role=role, status='insufficient_evidence',
+                                     data=value['insufficient_evidence'], sources=sources)
             elif (role == 'planning' or role == 'evaluation') and not sources:
                 result = AgentResult(role=role, status='insufficient_evidence', data=value)
             else:

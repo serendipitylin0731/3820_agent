@@ -1,10 +1,36 @@
 """确定性指标查询与计算。"""
+import json
+from pathlib import Path
 from knowledge.domain import YEARS, indicators, compare_sources
 
 # 兼容现有评估调用；数据只从 JSON 加载。
 INDICATOR_DATA = indicators()
 ALIASES = {'GDP': 'gdp', '地区生产总值': 'gdp', '人均GDP': 'gdp_per_capita',
            'GNP': 'gnp', '城镇收入': 'urban_income', '农村收入': 'rural_income'}
+
+
+def query_target(key, years):
+    """只返回能够定位到目标表或指南明确公式的数值，区分原表和推算。"""
+    targets = json.loads((Path(__file__).parents[1] / 'knowledge' / 'original_targets.json').read_text(encoding='utf-8'))
+    info = indicators().get(key)
+    if info is None or not years or len(years) != 1:
+        return {'insufficient_evidence': '请指定一项已收录指标及单一年份。', 'sources': []}
+    year = years[0]
+    source = targets['source_ref']
+    if key == 'gnp' and str(year) in targets['gnp']:
+        value = targets['gnp'][str(year)]
+        return {'name': info['name'], 'year': year, 'target_value': value, 'unit': '亿元',
+                'target_kind': '原始扫描目标表列值',
+                'note': '该目标与指南完成值的统计口径和价格基准仍待核验。',
+                'sources': [source]}
+    if key == 'gdp' and year == 1995:
+        value = round(info['values'][1990] * 2, 2)
+        return {'name': info['name'], 'year': year, 'target_value': value, 'unit': info['unit'],
+                'target_kind': '按指南翻番公式推算，并非原始目标表列值',
+                'note': '原始扫描目标表未单列 GDP；表中 1995 年国民生产总值（GNP）目标为 221 亿元，两项指标不能混用。',
+                'sources': [info['source_ref'], source]}
+    return {'insufficient_evidence': f'原始扫描目标表未列出 {year} 年{info["name"]}目标，无法给出数值。',
+            'sources': [source]}
 
 
 def query_indicator(key, years=None, *, growth=False):
