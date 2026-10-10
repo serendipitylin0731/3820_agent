@@ -26,6 +26,9 @@ def _local_split(question):
     tasks = []
     years = sorted({int(y) for y in re.findall(r'(?:1990|1995|2000|2010)', question)})
     growth = any(term in question for term in ('增长率', '增幅', '增长了多少'))
+    if any(term in question for term in ('三次产业结构', '三大产业结构', '三次产业构成')):
+        tasks.extend({'type': 'indicator', 'question': question, 'key': key, 'years': years or None}
+                     for key in ('industry_primary', 'industry_secondary', 'industry_tertiary'))
     if '评估' in question or '达成率' in question or '翻一番' in question or '完成率' in question:
         tasks.append({'type':'evaluation','question':question})
     remaining = question
@@ -48,7 +51,11 @@ def _normalize_tasks(tasks, question):
     """对模型拆分做领域校验，防止无关问题被误映射为某项指标。"""
     local_indicators = [task for task in _local_split(question) if task['type'] == 'indicator']
     tasks = [task for task in tasks if task['type'] != 'indicator']
-    evaluating = any(cue in question for cue in ('评估', '达成率', '完成率', '翻一番', '是否达成'))
+    conceptual = any(cue in question for cue in ('为什么要区分', '如何区分', '怎样区分'))
+    evaluating = not conceptual and any(cue in question for cue in
+                                        ('评估', '达成率', '完成率', '翻一番', '是否达成', '判定') )
+    if not evaluating:
+        tasks = [task for task in tasks if task['type'] != 'evaluation']
     target_only = '目标' in question and not evaluating and '实际' not in question
     if target_only:
         if local_indicators:
@@ -68,6 +75,10 @@ def _normalize_tasks(tasks, question):
     if any(term in question for term in ('示意图', '地图', '幻灯片', 'PPT', '图片')):
         tasks = [{**task, 'type': 'planning', 'keyword': None, 'stype': None}
                  if task['type'] == 'spatial' else task for task in tasks]
+        if not any(task['type'] == 'planning' for task in tasks):
+            tasks.append({'type': 'planning', 'question': question})
+    if '机场' in question and not any(term in question for term in ('在哪里', '位置', '位于', '空间')):
+        tasks = [task for task in tasks if task['type'] != 'spatial']
         if not any(task['type'] == 'planning' for task in tasks):
             tasks.append({'type': 'planning', 'question': question})
     return tasks or [{'type': 'planning', 'question': question}]

@@ -213,6 +213,12 @@ def compose_answer(question: str, results: dict, fallback: str, *, settings=None
         if any(item.get('status') == 'ok' and item.get('sources') for item in results.values()) and \
                 any(phrase in draft.answer for phrase in ('现有知识库对此问题依据不足', '知识库暂无相关依据')):
             raise ValueError('错误宣称无依据')
+        if ('长乐国际机场' in question and
+                any(item.get('role') == 'planning' and item.get('status') == 'ok' and
+                    '长乐国际机场' in str(item.get('data', {}).get('implementation_paths', ''))
+                    for item in results.values()) and
+                any(phrase in draft.answer for phrase in ('无法明确', '无法确定', '未收录', '依据不足'))):
+            raise ValueError('忽略了机场原件证据')
         if not theory and any(word in draft.answer for word in ('马克思主义', '习近平新时代中国特色社会主义思想', '新发展理念')):
             raise ValueError('无关理论扩写')
         if draft.used_theory_ids and not any(marker in draft.answer for marker in ('今天的理论视角', '新时代视角', '当代视角', '后来')):

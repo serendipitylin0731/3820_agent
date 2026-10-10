@@ -20,6 +20,7 @@ DATA_DIR = Path(__file__).resolve().parent / 'data'
 WORD_NS = '{http://schemas.openxmlformats.org/wordprocessingml/2006/main}'
 EMBEDDING_SCHEMA = 2
 ORIGINAL_ARTICLE_URL = 'https://article.xuexi.cn/articles/pdf/index.html?art_id=1854475750850039511'
+EXACT_ENTITIES = ('长乐国际机场', '海上福州', '元洪投资区', '福州经济技术开发区')
 _retrieval_counts = Counter()
 _retrieval_lock = Lock()
 
@@ -288,14 +289,68 @@ def _tokens(text):
     return set(chars + [chars[i] + chars[i+1] for i in range(len(chars)-1)])
 
 
+def _exact_entity_hits(query, chunks):
+    """用明确的实体名称补回向量检索可能漏掉的原文段落。"""
+    anchors = [name for name in EXACT_ENTITIES if name in query]
+    if not anchors:
+        return []
+    query_tokens = _tokens(query)
+    found = []
+    for anchor in anchors:
+        candidates = [_expand_interview_hit(hit, chunks) for hit in chunks if anchor in hit.content]
+        if not candidates:
+            continue
+        heading = re.compile(rf'(?m)^\s*(?:福州)?{re.escape(anchor)}\s*$')
+        best = max(candidates, key=lambda hit: (
+            bool(heading.search(hit.content)),
+            hit.source.source_file == ORIGINAL_ARTICLE_URL,
+            len(query_tokens & _tokens(hit.content)) / max(1, len(hit.content) ** 0.5),
+            -hit.content.find(anchor),
+        ))
+        if best.chunk_id not in {item.chunk_id for item in found}:
+            found.append(best.model_copy(update={'score': 1.0, 'score_kind': 'similarity'}))
+    return found
+
+
+def _expand_interview_hit(hit, chunks):
+    """访谈问句和答复常被切成相邻段落，返回时合并供规划分析。"""
+    marker = hit.source.page_or_slide
+    if not isinstance(marker, str) or not marker.startswith('段落') or len(hit.content) > 130:
+        return hit
+    try:
+        number = int(marker.removeprefix('段落'))
+    except ValueError:
+        return hit
+    index = {other.source.page_or_slide: other for other in chunks
+             if other.source.source_file == hit.source.source_file}
+    next_hits = []
+    for current in range(number + 1, number + 9):
+        other = index.get(f'段落{current}')
+        if other is None:
+            break
+        if next_hits and len(other.content) < 130 and any(mark in other.content for mark in ('？', '?')):
+            break
+        next_hits.append(other)
+    if not next_hits:
+        return hit
+    content = '\n'.join([hit.content] + [other.content for other in next_hits])[:3600]
+    source = hit.source.model_copy(update={'page_or_slide': f'段落{number}–{number+len(next_hits)}'})
+    return hit.model_copy(update={'content': content, 'source': source})
+
+
 def search(query, *, chunks=None, top_k=5, min_score=0.35):
     if top_k < 1 or not query.strip():
         _record_retrieval('insufficient_evidence')
         return KnowledgeResult(status='insufficient_evidence')
     settings = get_settings()
     if chunks is None and settings.vector_max_distance is not None and (settings.index_path / 'index.faiss').is_file():
-        result = vector_search(query, top_k=top_k, max_distance=settings.vector_max_distance,
+        vector = vector_search(query, top_k=top_k, max_distance=settings.vector_max_distance,
                                directory=settings.index_path)
+        exact = _exact_entity_hits(query, get_knowledge_base())
+        merged = {hit.chunk_id: hit for hit in [*exact, *vector.hits]}
+        expanded = [_expand_interview_hit(hit, get_knowledge_base()) for hit in list(merged.values())[:top_k]]
+        result = KnowledgeResult(status='ok', hits=expanded) if expanded else \
+            KnowledgeResult(status='insufficient_evidence')
         _record_retrieval(result.status)
         return result
     chunks = get_knowledge_base() if chunks is None else chunks

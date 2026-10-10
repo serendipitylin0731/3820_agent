@@ -66,6 +66,40 @@ def test_picture_question_routes_to_evidence_search(monkeypatch):
     assert [task['type'] for task in tasks] == ['planning']
 
 
+def test_airport_history_uses_planning_instead_of_spatial_lookup(monkeypatch):
+    from agents import agent_main
+    monkeypatch.setattr(agent_main, 'get_settings', lambda: Settings())
+    tasks = agent_main.split_task('长乐国际机场在哪一年正式通航？它与3820工程有什么关系？')
+    assert [task['type'] for task in tasks] == ['planning']
+
+
+def test_model_cannot_add_evaluation_to_plain_indicator_query(monkeypatch):
+    from agents import agent_main
+    monkeypatch.setattr(agent_main, 'get_settings',
+                        lambda: Settings(ark_api_key='fake', llm_model='fake'))
+    monkeypatch.setattr(agent_main, 'chat',
+                        lambda *_args, **_kwargs: '[{"type":"evaluation","question":"1995年GDP是多少？"}]')
+    tasks = agent_main.split_task('1995年GDP是多少？')
+    assert [task['type'] for task in tasks] == ['indicator']
+
+
+def test_three_industry_structure_uses_recorded_percentages(monkeypatch):
+    from agents import agent_main
+    monkeypatch.setattr(agent_main, 'get_settings', lambda: Settings())
+    tasks = agent_main.split_task('2010年福州三次产业结构如何？')
+    assert {task['key'] for task in tasks} == {
+        'industry_primary', 'industry_secondary', 'industry_tertiary'}
+    assert all(task['years'] == [2010] for task in tasks)
+
+
+def test_planned_airport_date_is_not_used_as_opening_date(monkeypatch):
+    from agents import agent_planning
+    monkeypatch.setattr(agent_planning, 'get_settings', lambda: Settings())
+    report = agent_planning.run_planning('长乐国际机场哪年正式通航？',
+                                         '规划称长乐国际机场计划在1996年建成投入使用。')
+    assert 'insufficient_evidence' in report
+
+
 def test_map_answer_uses_reviewed_labels_when_scan_page_is_retrieved(monkeypatch):
     from agents import agent_planning
     monkeypatch.setattr(agent_planning, 'get_settings', lambda: Settings())
