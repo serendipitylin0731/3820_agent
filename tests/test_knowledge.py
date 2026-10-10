@@ -17,3 +17,19 @@ def test_no_evidence():
     hit = KnowledgeHit(chunk_id='1', content='港口', source=SourceRef(
         source_file='x', data_version='v1', verified=False))
     assert search('量子芯片', chunks=[hit], min_score=0.5).status == 'insufficient_evidence'
+
+
+def test_changed_source_reloads_chunks(monkeypatch, tmp_path):
+    from config import Settings
+    from knowledge import knowledge_base as kb
+    guide = tmp_path / 'guide.md'
+    guide.write_text('# 1 概述\n旧内容\n', encoding='utf-8')
+    monkeypatch.setattr(kb, 'GUIDE', guide)
+    monkeypatch.setattr(kb, 'get_settings', lambda: Settings())
+    kb._load_knowledge_base.cache_clear()
+    old = kb.get_knowledge_base()
+    guide.write_text('# 1 概述\n新内容\n', encoding='utf-8')
+    new = kb.get_knowledge_base()
+    assert old[0].source.data_version != new[0].source.data_version
+    assert '新内容' in new[0].content
+    kb._load_knowledge_base.cache_clear()

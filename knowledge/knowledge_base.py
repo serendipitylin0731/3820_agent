@@ -89,12 +89,18 @@ def load_ppt_chunks(path):
             for n, text in enumerate(load_ppt_text(path), 1)]
 
 
-@lru_cache(maxsize=1)
 def get_knowledge_base():
     settings = get_settings()
-    guide_hits = load_markdown()
-    if settings.ppt_path and settings.ppt_path.is_file():
-        return guide_hits + load_ppt_chunks(settings.ppt_path)
+    ppt = settings.ppt_path if settings.ppt_path and settings.ppt_path.is_file() else None
+    return _load_knowledge_base(_version(GUIDE), str(ppt) if ppt else None,
+                                _version(ppt) if ppt else None)
+
+
+@lru_cache(maxsize=4)
+def _load_knowledge_base(_guide_version, ppt_path, _ppt_version):
+    guide_hits = load_markdown(GUIDE)
+    if ppt_path:
+        return guide_hits + load_ppt_chunks(ppt_path)
     return guide_hits
 
 
