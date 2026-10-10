@@ -199,7 +199,7 @@ python -m venv .venv
 .venv/bin/python -m uvicorn app:app --host 127.0.0.1 --port 8000
 ~~~
 
-无模型密钥时，`POST /chat` 使用本地任务拆分、可用资料的文本检索和 JSON 指标/空间数据。可用 `curl -X POST http://127.0.0.1:8000/chat -H 'Content-Type: application/json' -d '{"question":"2010年GDP是多少？"}'` 检查接口。`/health` 返回健康状态；`/metrics` 返回单实例请求计数和 P95 延迟。配置 `SERVICE_API_KEY` 后，除 `/health` 外的请求需附 `X-API-Key`。
+浏览器打开 `http://127.0.0.1:8000/` 会转到 `/docs` 交互式接口页。无模型密钥时，`POST /chat` 使用本地任务拆分、可用资料的文本检索和 JSON 指标/空间数据。可用 `curl -X POST http://127.0.0.1:8000/chat -H 'Content-Type: application/json' -d '{"question":"2010年GDP是多少？"}'` 检查接口。`/health` 返回健康状态；`/metrics` 返回单实例请求计数和 P95 延迟。配置 `SERVICE_API_KEY` 后，除 `/health`、`/favicon.ico` 外的请求需附 `X-API-Key`。
 
 公开网页用 `.venv/bin/python -m knowledge.fetch_public_sources` 获取；原件扫描 OCR 需先安装 `requirements-ocr.txt`，再执行 `.venv/bin/python -m knowledge.fetch_original_scan`；本地 Word/PPT 放入 `knowledge/data/` 后自动读取。配置 `ARK_API_KEY`、`EMBED_MODEL`，执行 `.venv/bin/python -m knowledge.knowledge_base` 建索引；用固定问答集校准后设置 `VECTOR_MAX_DISTANCE` 才启用向量检索。`PPT_PATH` 只用于添加目录外的一份 PPT。配置 `LLM_MODEL` 后启用在线模型拆分与规划分析。当前本机采用 `doubao-seed-character-260628` 和 `doubao-embedding-vision-251215`，密钥只保存在本地 `.env` 或环境变量中。
 

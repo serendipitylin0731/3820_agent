@@ -12,6 +12,16 @@ def test_startup_works_without_model_key(monkeypatch):
         assert client.get('/health').json() == {'status': 'ok'}
 
 
+def test_browser_root_opens_api_docs_without_missing_favicon(monkeypatch):
+    monkeypatch.setattr(api, 'get_settings', lambda: Settings())
+    with TestClient(api.app) as client:
+        root = client.get('/', follow_redirects=False)
+        assert root.status_code == 302
+        assert root.headers['location'] == '/docs'
+        assert client.get('/docs').status_code == 200
+        assert client.get('/favicon.ico').status_code == 204
+
+
 def test_chat_and_validation_use_shared_contract_without_network(monkeypatch):
     settings = Settings(ark_api_key="test-only-key", llm_model="fake-chat", embed_model="fake-embed")
     monkeypatch.setattr(api, "get_settings", lambda: settings)
