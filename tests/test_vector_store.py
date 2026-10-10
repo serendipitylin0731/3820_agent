@@ -17,3 +17,16 @@ def test_rebuild_search_and_stale_mapping(monkeypatch, tmp_path):
     monkeypatch.setattr(kb, 'get_knowledge_base', lambda: sample[:1])
     with pytest.raises(ValueError, match='重建索引'):
         kb.vector_search('问题', max_distance=0.1)
+
+
+def test_close_primary_source_is_kept_with_raw_distance():
+    from contracts import KnowledgeHit, SourceRef
+    def hit(label, source, score):
+        return KnowledgeHit(chunk_id=label, content=label, score=score, score_kind='l2_distance',
+                            source=SourceRef(source_file=source, data_version='v1', verified=False))
+    candidates = [hit('a', 'secondary', 0.70), hit('b', 'other', 0.75),
+                  hit('original', kb.ORIGINAL_ARTICLE_URL, 0.85)]
+    chosen = kb._prefer_primary_source(candidates, 2)
+    assert [item.chunk_id for item in chosen] == ['original', 'a']
+    assert chosen[0].score == 0.85
+    assert [item.chunk_id for item in kb._prefer_primary_source(candidates[:-1], 2)] == ['a', 'b']

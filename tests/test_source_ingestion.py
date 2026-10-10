@@ -42,6 +42,15 @@ def test_duplicate_deck_is_excluded(tmp_path, monkeypatch):
     assert [path.name for path in paths] == ['3820视频.pptx']
 
 
+def test_scan_ocr_page_retains_preview_page_and_unverified_status(tmp_path):
+    path = tmp_path / 'page_0037.txt'
+    path.write_text('1995 年主要指标翻一番', encoding='utf-8')
+    chunks = kb.load_scan_page_chunk(path, {'article_url': 'https://example.test/original'})
+    assert chunks[0].source.page_or_slide == '预览第37页'
+    assert chunks[0].source.source_file == 'https://example.test/original'
+    assert chunks[0].source.verified is False
+
+
 def test_vision_embedding_uses_multimodal_endpoint_and_query_instruction():
     class Client:
         def __init__(self):

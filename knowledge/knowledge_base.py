@@ -19,6 +19,7 @@ GUIDE = Path(__file__).resolve().parent.parent / 'docs' / '基于3820战略工�
 DATA_DIR = Path(__file__).resolve().parent / 'data'
 WORD_NS = '{http://schemas.openxmlformats.org/wordprocessingml/2006/main}'
 EMBEDDING_SCHEMA = 2
+ORIGINAL_ARTICLE_URL = 'https://article.xuexi.cn/articles/pdf/index.html?art_id=1854475750850039511'
 _retrieval_counts = Counter()
 _retrieval_lock = Lock()
 
@@ -182,6 +183,18 @@ def load_public_text_chunks(path, metadata):
     return chunks
 
 
+def load_scan_page_chunk(path, metadata):
+    """OCR 页与扫描预览的实际页码绑定；识别文本不能自动视为核验事实。"""
+    path = Path(path)
+    content = path.read_text(encoding='utf-8').strip()
+    if not content:
+        return []
+    page = int(path.stem.split('_')[-1])
+    source = SourceRef(source_file=metadata['article_url'], page_or_slide=f'预览第{page}页',
+                       section='原始扫描件 OCR', data_version=_version(path), verified=False)
+    return [KnowledgeHit(chunk_id=f'original_3820:page:{page}', content=content, source=source)]
+
+
 def _source_paths(settings):
     files = [path for path in DATA_DIR.iterdir() if path.is_file() and path.suffix.lower() in
              {'.ppt', '.pptx', '.doc', '.docx'}] if DATA_DIR.is_dir() else []
@@ -196,6 +209,12 @@ def _source_paths(settings):
         files.extend(public_dir.glob('*.txt'))
         if (public_dir / 'manifest.json').is_file():
             files.append(public_dir / 'manifest.json')
+    scan_dir = DATA_DIR / 'original_3820'
+    if scan_dir.is_dir():
+        files.extend((scan_dir / 'pages').glob('page_*.txt'))
+        for name in ('manifest.json', 'catalog.json'):
+            if (scan_dir / name).is_file():
+                files.append(scan_dir / name)
     return tuple(sorted({path.resolve() for path in files}, key=str))
 
 
@@ -213,12 +232,19 @@ def _load_knowledge_base(_guide_version, signatures):
     manifest_path = public_dir / 'manifest.json'
     metadata = ({item['id']: item for item in json.loads(manifest_path.read_text(encoding='utf-8'))}
                 if manifest_path.is_file() else {})
+    scan_dir = DATA_DIR / 'original_3820'
+    scan_manifest = scan_dir / 'manifest.json'
+    scan_metadata = (json.loads(scan_manifest.read_text(encoding='utf-8'))
+                     if scan_manifest.is_file() else None)
     for name, _, _ in signatures:
         path = Path(name)
         if path.suffix.lower() in {'.ppt', '.pptx'}:
             hits.extend(load_ppt_chunks(path))
         elif path.suffix.lower() in {'.doc', '.docx'}:
             hits.extend(load_word_chunks(path))
+        elif path.suffix.lower() == '.txt' and path.parent == scan_dir / 'pages':
+            if scan_metadata:
+                hits.extend(load_scan_page_chunk(path, scan_metadata))
         elif path.suffix.lower() == '.txt':
             hits.extend(load_public_text_chunks(path, metadata.get(path.stem, {})))
     return hits
@@ -365,10 +391,23 @@ def vector_search(query, *, top_k=5, max_distance, directory=None):
     vector = np.asarray(embed_texts([query], role='query'), dtype='float32')
     if vector.ndim != 2 or vector.shape[1] != index.d:
         raise ValueError('查询向量维度与索引不一致')
-    distances, ids = index.search(vector, min(top_k, index.ntotal))
-    hits = [saved[i].model_copy(update={'score': float(distances[0][j]), 'score_kind':'l2_distance'})
-            for j, i in enumerate(ids[0]) if i >= 0 and distances[0][j] <= max_distance]
+    distances, ids = index.search(vector, min(max(top_k * 6, top_k), index.ntotal))
+    candidates = [saved[i].model_copy(update={'score': float(distances[0][j]), 'score_kind':'l2_distance'})
+                  for j, i in enumerate(ids[0]) if i >= 0 and distances[0][j] <= max_distance]
+    hits = _prefer_primary_source(candidates, top_k)
     return KnowledgeResult(status='ok', hits=hits) if hits else KnowledgeResult(status='insufficient_evidence')
+
+
+def _prefer_primary_source(candidates, top_k):
+    """当原件相关性接近首位时，至少保留一条原件；分数仍显示原始距离。"""
+    if not candidates or top_k < 1:
+        return []
+    nearest = candidates[0].score
+    primary = next((hit for hit in candidates
+                    if hit.source.source_file == ORIGINAL_ARTICLE_URL and hit.score <= nearest + 0.2), None)
+    if primary is None:
+        return candidates[:top_k]
+    return [primary] + [hit for hit in candidates if hit.chunk_id != primary.chunk_id][:top_k - 1]
 
 
 if __name__ == '__main__':
