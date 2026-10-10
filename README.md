@@ -1,6 +1,73 @@
-# 基于“3820”战略工程内容的
+# 基于“3820”战略工程内容的多智能体系统搭建指南
 
-# 多智能体系统搭建指南
+<a id="current-implementation"></a>
+
+## 当前实现与运行（2026-10-11）
+
+本节说明仓库中**已经实现的程序**。下方保留原指南的完整转写，供核对需求和设计；其中的代码片段是原指南示例，实际运行以本节和仓库文件为准。
+
+### 第一步：准备 Python 与依赖
+
+在项目根目录使用 Python 3.11 创建环境并安装已锁定的依赖：
+
+```bash
+python3.11 -m venv .venv
+.venv/bin/python -m pip install -r requirements.lock
+```
+
+当前机器已有 `.venv` 时直接使用即可。`requirements.txt` 是宽松版本说明，可复现运行请使用 `requirements.lock`。
+
+### 第二步：配置豆包 API
+
+复制样例并编辑本机 `.env`：
+
+```bash
+cp .env.example .env
+```
+
+至少填写以下三项，其中 API Key 从火山方舟控制台获取，模型 ID 必须是当前账号已开通的 ID。本机已验证过的示例是：
+
+```dotenv
+ARK_API_KEY=在本机填写实际密钥
+LLM_MODEL=doubao-seed-character-260628
+EMBED_MODEL=doubao-embedding-vision-251215
+```
+
+不要把真实密钥写进 README 或提交 `.env`。未配置模型时，服务仍可离线启动，但只能使用规则拆分、现有文本检索和模板回答；模型补充功能需要 `ARK_API_KEY` 与 `LLM_MODEL`。网站访问密码 `SERVICE_API_KEY` 是可选项，与豆包密钥不是同一个值。
+
+### 第三步：准备知识库
+
+程序读取原指南、`knowledge/data/` 中的 Word/PPT、已提取的 PPT 图片文字、公开资料文字、原件扫描 OCR，以及结构化指标数据。当前工作区已有资料和向量索引；**新克隆的仓库只有 `knowledge/data/.gitkeep`**，需要把有权使用的原始资料重新放入 `knowledge/data/`。资料清单与来源定位见 [资料清单](docs/资料清单.md) 和 [原件核对](docs/原件核对.md)。
+
+需要重建向量索引时，先确认 `.env` 中的 `EMBED_MODEL`，再执行：
+
+```bash
+.venv/bin/python -m knowledge.knowledge_base
+```
+
+索引保存在 `var/knowledge_index/`，不提交到 Git。`.env.example` 中的 `VECTOR_MAX_DISTANCE=1.2` 只是本机当前资料与模型的演示校准值；更换资料或向量模型后应重新校准。新增公开网页和原件扫描的提取命令、PPT 图片 OCR 步骤见 [TASK.md](TASK.md)。视频转写目前没有可靠覆盖。
+
+### 第四步：启动和提问
+
+```bash
+.venv/bin/python -m uvicorn app:app --host 127.0.0.1 --port 8000
+```
+
+打开 <http://127.0.0.1:8000/>。左侧展示“3820”时间线，点击“3820 背景”可在主区域阅读完整导读；页面提供随机示例问题和最近 30 轮本机浏览器对话记录。直接输入自然语言问题即可。服务不提供 `/docs`、`/redoc` 页面，也不在界面展示内部分析过程。可用 `GET /health` 检查服务；如设置了 `SERVICE_API_KEY`，问答时按页面提示填写网站访问密码。
+
+回答优先使用本地资料并列出可点击的来源。长乐国际机场与对外开放的问题可定位到原件扫描预览第 255 页；访谈的问句和相邻答复会一起用于回答。GDP/GNP、三次产业占比等指标走结构化数据，2010 年 GDP 异值保留两个版本，不直接跨口径计算增长率。若规划类问题缺少直接依据，只对“3820”及福州发展相关问题调用已配置的豆包模型补充；回答会明确标成**豆包模型参考回答**，该路径没有网页检索来源。缺少目标达成判据或问题与主题无关时仍说明依据不足。
+
+### 第五步：验证和排查
+
+```bash
+.venv/bin/python -m pytest -m offline -q
+.venv/bin/python -m scripts.evaluate_qa
+.venv/bin/python -m scripts.evaluate_expanded
+```
+
+第一项不需要在线服务；后两项会实际调用豆包与向量服务，要求本机资料、索引和密钥可用。扩展题集包含页面示例和补充问题，完整问答记录写入 Git 忽略的 `var/qa_expanded_report.json`。评测结果见 [问答评测](docs/问答评测.md)；接口与模型补充行为见 [DESIGN.md](DESIGN.md)，实施和部署流程见 [TASK.md](TASK.md)。原件档案身份、全部指标的原始口径、复杂图片 OCR、2000/2010 年定性目标判据及生产部署仍需进一步核验。
+
+---
 
 > 内容来源：“3820”战略工程资料
 
@@ -8,6 +75,7 @@
 <summary><strong>目 录</strong></summary>
 
 <ul>
+  <li><a href="#current-implementation">当前实现与运行</a></li>
   <li><a href="#sec-1">1 概述</a>
     <details>
       <summary>展开下级目录</summary>
