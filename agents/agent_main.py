@@ -1,7 +1,6 @@
 # agents/agent_main.py
 import json
-import os
-from llm_client import chat, client
+from llm_client import chat
 SPLIT_SYSTEM = '''
 你是“3820”战略工程知识系统的总控智能体。
 请把用户问题拆分为若干子任务，子任务类型只能从以下四类中选择：
@@ -15,15 +14,14 @@ SPLIT_SYSTEM = '''
 {"type":"evaluation","question":"1995年翻一番目标完成情况如何？"} ]
 '''
 def split_task(question):
-    resp = client.chat.completions.create(
-        model=os.environ.get('LLM_MODEL', 'doubao-seed-2-1-pro-260628'),
-        messages=[
+    content = chat(
+        [
             {'role': 'system', 'content': SPLIT_SYSTEM},
             {'role': 'user', 'content': question},
         ],
         temperature=0,
     )
-    return json.loads(resp.choices[0].message.content)
+    return json.loads(content)
 def summarize(question, results):
     # 将各专业智能体结果汇总为最终答案（示例为结构化拼接）
     parts = [f'问题：{question}']

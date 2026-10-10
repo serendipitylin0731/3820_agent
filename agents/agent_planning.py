@@ -7,13 +7,10 @@ PLANNING_SYSTEM = '''
 所有关键依据必须来自提供的参考资料片段。
 '''
 def run_planning(question, kb_text):
-    from llm_client import client
-    import os
-    resp = client.chat.completions.create(
-        model=os.environ.get('LLM_MODEL', 'doubao-seed-2-1-pro-260628'),
-        messages=[
+    from llm_client import chat
+    return chat(
+        [
             {'role': 'system', 'content': PLANNING_SYSTEM},
-        {'role': 'user', 'content': '问题：{}\n参考资料：{}'.format(question, kb_text or '无')},
+            {'role': 'user', 'content': '问题：{}\n参考资料：{}'.format(question, kb_text or '无')},
         ],
     )
-    return resp.choices[0].message.content

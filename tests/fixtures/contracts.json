@@ -1,0 +1,56 @@
+{
+  "source": {
+    "source_file": "docs/基于3820战略工程内容的多智能体系统搭建指南.md",
+    "page_or_slide": null,
+    "section": "指标智能体示例",
+    "data_version": "guide-sample-v1",
+    "verified": false
+  },
+  "knowledge_result": {
+    "status": "ok",
+    "hits": [
+      {
+        "chunk_id": "fixture-001",
+        "content": "2010 年 GDP 示例值为 3123.41 亿元。",
+        "source": {
+          "source_file": "docs/基于3820战略工程内容的多智能体系统搭建指南.md",
+          "page_or_slide": null,
+          "section": "指标智能体示例",
+          "data_version": "guide-sample-v1",
+          "verified": false
+        },
+        "score": 0.12,
+        "score_kind": "l2_distance"
+      }
+    ],
+    "error": null
+  },
+  "subtask": {
+    "type": "indicator",
+    "question": "2010 年福州 GDP 是多少？",
+    "key": "gdp",
+    "years": [2010]
+  },
+  "chat_response": {
+    "request_id": "fixture-request-001",
+    "status": "ok",
+    "answer": "指南示例值：3123.41 亿元，尚未按原始资料核验。",
+    "results": {
+      "indicator_1": {
+        "role": "indicator_1",
+        "status": "ok",
+        "data": {"year": 2010, "value": 3123.41, "unit": "亿元"},
+        "sources": [
+          {
+            "source_file": "docs/基于3820战略工程内容的多智能体系统搭建指南.md",
+            "page_or_slide": null,
+            "section": "指标智能体示例",
+            "data_version": "guide-sample-v1",
+            "verified": false
+          }
+        ],
+        "error": null
+      }
+    }
+  }
+}

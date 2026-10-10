@@ -4,7 +4,7 @@
 
 建设一个面向研究者、政策分析者和学习者的“3820知识助手与战略推演平台”。用户通过一个问答入口查询《福州市20年经济社会发展战略设想》的背景、目标、路径、指标、空间布局和实施效果。系统必须给出可追溯的依据；缺少依据时明确说明，不能让模型补造事实或数值。
 
-**当前仓库已填入指南明确给出的示例代码、依赖清单、配置样例和基础数据；它们仍是项目起点，尚未完成本 README 的全部实施与验收步骤。** 原始“3820”演示文稿、真实模型配置、数据核验、生产防护和端到端测试仍待补齐。文末的 Word 和 Markdown 文件只用于追溯，实施时以本 README 的步骤、数据和验收标准为准。
+**当前仓库已有示例代码、统一配置、共享接口草案、离线测试和基础数据；它们仍是项目起点，尚未完成本 README 的全部实施与验收步骤。** 可引用的原始资料、真实模型配置、数据核验、生产防护和在线端到端测试仍待补齐。文末的 Word 和 Markdown 文件只用于追溯，实施时以本 README 的步骤、数据和验收标准为准。
 
 ### 业务范围
 
@@ -23,16 +23,29 @@
 
 **要做的事**
 
-1. 以 Python 3.11 为起点创建虚拟环境，选定并测试一组兼容的依赖版本，生成锁定文件。依赖清单应包括 <code>langgraph</code>、所选持久化 Checkpoint 对应的包（如 SQLite 方案的 <code>langgraph-checkpoint-sqlite</code>）、<code>langchain-core</code>、<code>openai</code>、<code>faiss-cpu</code>、<code>numpy</code>、<code>tenacity</code>、<code>fastapi</code>、<code>uvicorn</code>、<code>python-dotenv</code>、<code>python-pptx</code>、<code>pydantic</code> 和 <code>pytest</code>。安装版本以实际兼容性测试为准。
-2. 建立下面的包结构；所有入口从项目根目录运行，包目录包含 <code>__init__.py</code>。不要把密钥、索引文件或运行日志提交到版本库。
-3. 建立 <code>.env.example</code> 与配置加载模块。密钥必须从环境变量或密钥服务读取。模型 ID 以实际开通的服务为准，不把指南里的示例 ID 当成必然可用的值。
+1. 使用 Python 3.11 创建虚拟环境。<code>requirements.txt</code> 记录直接依赖及允许范围，<code>requirements.lock</code> 固定已验证的完整依赖集合；本地安装和镜像构建都使用锁定文件。直接依赖包括 <code>langgraph</code>、SQLite Checkpoint 对应的 <code>langgraph-checkpoint-sqlite</code>、<code>langchain-core</code>、<code>openai</code>、<code>faiss-cpu</code>、<code>numpy</code>、<code>tenacity</code>、<code>fastapi</code>、<code>uvicorn</code>、<code>python-dotenv</code>、<code>python-pptx</code>、<code>pydantic</code> 和 <code>pytest</code>。变更直接依赖时须在 Python 3.11 环境中重新生成并验证锁定文件。
+2. 以当前项目骨架为起点继续开发；所有入口从项目根目录运行，包目录包含 <code>__init__.py</code>。不要把密钥、索引文件或运行日志提交到版本库。
+3. 使用已有的 <code>.env.example</code> 与 <code>config.py</code>。配置在调用时加载，进程环境变量优先于本地 <code>.env</code>；在线服务缺少密钥或模型 ID 时启动报清晰错误，纯数据模块可以无密钥导入。模型 ID 以实际开通的服务为准，不把指南里的示例 ID 当成必然可用的值。
 
 ~~~text
 .
+├── README.md                 # 项目需求、实施步骤与验收标准
+├── TASK.md                   # 三人协作实施计划与阶段关卡
+├── DESIGN.md                 # 设计文档
 ├── app.py                    # FastAPI 接口与请求校验
 ├── graph.py                  # LangGraph 状态、路由、Checkpoint
+├── config.py                 # 集中配置与启动校验
+├── contracts.py              # 共享输入、来源和结果契约
 ├── llm_client.py             # 模型客户端
 ├── resilience.py             # 重试、降级、日志与恢复
+├── pytest.ini                # 离线与在线测试标记
+├── requirements.txt          # 直接依赖及允许的版本范围
+├── requirements.lock         # Python 3.11 完整依赖版本锁定
+├── .python-version           # 项目 Python 次版本约定
+├── Dockerfile                # 镜像构建文件
+├── .dockerignore             # 镜像构建上下文排除规则
+├── .env.example              # 环境变量样例
+├── .gitignore                # Git 忽略规则
 ├── agents/
 │   ├── __init__.py
 │   ├── agent_main.py         # 拆分、路由意图与汇总
@@ -43,18 +56,24 @@
 ├── knowledge/
 │   ├── __init__.py
 │   ├── knowledge_base.py     # 资料提取、切片、索引和检索
-│   ├── indicators.json       # 经核验的指标数据与来源元数据
-│   ├── spatial.json          # 空间要素与来源元数据
-│   └── data/                 # 原始资料；当前待补齐
+│   ├── indicators.json       # 13 项指标样例数据，尚待原始资料核验
+│   ├── spatial.json          # 空间要素样例数据，尚待原始资料核验
+│   └── data/
+│       └── .gitkeep          # 原始资料目录占位；资料尚未入库
 ├── tools/
 │   ├── __init__.py
 │   └── tools.py              # 工具 schema 和调用分发
-├── tests/                    # 单元、集成与故障测试
-├── requirements.txt
-├── Dockerfile                # 生产镜像构建
-├── .env.example
-└── README.md
+├── tests/
+│   ├── conftest.py           # 默认禁用网络、假客户端和夹具
+│   ├── fixtures/contracts.json
+│   ├── test_api_offline.py
+│   ├── test_config.py
+│   ├── test_contracts.py
+│   └── test_evaluation.py
+└── docs/                     # 下发文档
 ~~~
+
+上图列出当前的项目文件；本地生成的 <code>.env</code>、<code>.venv/</code>、<code>__pycache__/</code> 和 <code>.git/</code> 不属于项目骨架。镜像仅复制运行代码和结构化数据；原始资料应在部署时通过受控卷或存储服务提供，并设置对应的 <code>PPT_PATH</code>。
 
 ~~~dotenv
 ARK_API_KEY=填写实际密钥
@@ -63,15 +82,20 @@ LLM_MODEL=填写已开通的模型ID
 EMBED_MODEL=填写已开通的向量模型ID
 PPT_PATH=knowledge/data/3820视频.pptx
 TOP_K=5
+REQUEST_TIMEOUT=30
+CHECKPOINT_PATH=var/checkpoints.sqlite3
+LOG_LEVEL=INFO
 ~~~
 
-**完成标准：** 虚拟环境可安装锁定依赖；缺少必需配置时启动报清晰错误；仓库和日志中没有真实密钥。
+共享接口字段、错误状态和三人审阅项见 [DESIGN.md](DESIGN.md)；可执行 schema 在 <code>contracts.py</code>。<code>CHECKPOINT_PATH</code> 已进入统一配置，但持久化 Saver 要在第 9 步接入。
+
+**完成标准：** 虚拟环境可安装锁定依赖；缺少必需在线配置时启动报清晰错误；无密钥时可运行离线测试；仓库和日志中没有真实密钥。
 
 ### 第 2 步：准备资料并建立数据溯源
 
 **要做的事**
 
-1. 收集原始“3820”资料放入 <code>knowledge/data/</code>。本仓库目前没有指南中提到的 <code>3820视频.pptx</code>，不得把缺失的 PPT 当成已导入。资料尚未提供时，可以用本 README 的指标表和少量带出处的测试片段开发，但知识库覆盖率与正式上线验收保持“未完成”。
+1. 收集获准引用的原始“3820”资料放入 <code>knowledge/data/</code>。指南中的 <code>3820视频.pptx</code> 是示例输入路径，不是唯一允许的资料；当前提取器只支持 PPT，选用其他格式时须增加对应解析器。本仓库目前没有该示例 PPT，也没有其他已核验的原始资料。资料尚未提供时，可以用本 README 的指标表和带出处的测试片段开发，但知识库覆盖率与正式上线验收保持“未完成”。
 2. 为每条文本片段或结构化记录保存 <code>source_file</code>、<code>page_or_slide</code>、<code>section</code>、<code>data_version</code>、<code>verified</code> 和提取时间。指标还须保存指标名、单位、年份、统计口径；空间要素还须保存类型、时期、关联路径和来源。
 3. 将原始资料与本 README 的数据逐项对照。相同指标有不同数值时保留两个版本并标记冲突，待人工核验后才能作为确定值使用。跨口径或不可比数据不计算增长率。
 4. 对扫描页、图片型图表和复杂图示增加 OCR 或人工录入流程。PowerPoint 文本提取成功不代表图片内容已经进入知识库。
@@ -202,13 +226,16 @@ TOP_K=5
 ~~~json
 {
   "request_id": "服务端生成的唯一 ID",
+  "status": "ok",
   "answer": "汇总答案，包含数值、计算口径及来源",
   "results": {
-    "indicator": {"status": "ok", "data": "...", "sources": ["..."]},
-    "evaluation": {"status": "ok", "data": "...", "sources": ["..."]}
+    "indicator_1": {"role": "indicator_1", "status": "ok", "data": "...", "sources": [], "error": null},
+    "evaluation_2": {"role": "evaluation_2", "status": "ok", "data": "...", "sources": [], "error": null}
   }
 }
 ~~~
+
+上例只展示结构；<code>sources=[]</code> 表示尚未提供可追溯依据，不能把回答称作已核验。完整来源对象和有效示例见 <code>tests/fixtures/contracts.json</code>。
 
 错误响应包含 <code>request_id</code> 和可理解的错误码/说明，不暴露密钥、内部堆栈或原始服务异常。接口需要认证、授权、限流和请求大小限制；不能把没有这些保护的示例服务直接暴露到公网。若以后增加写操作，为写请求增加幂等键、先查后写和补偿日志。
 
@@ -234,17 +261,22 @@ TOP_K=5
 
 ## 本地开发与交付物
 
-上述文件建立后，从项目根目录执行：
+从项目根目录执行。先确认 `python` 指向 Python 3.11；如果通过 Conda 安装，先激活对应环境。
 
 ~~~bash
+python --version             # 应显示 Python 3.11.x
 python -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
-cp .env.example .env
-# 填好 .env 并准备知识资料后：
-pytest -q
+python -m pip install -r requirements.lock
+python -m pytest -m offline -q
+cp -n .env.example .env       # 需要调用在线模型时再填写本地配置
+# 填好实际密钥、模型 ID 后才能启动在线服务：
 uvicorn app:app --host 127.0.0.1 --port 8000
 ~~~
+
+若本机没有 Python 3.11，可先通过 Conda 执行 `conda create -n 3820_agent_py311 python=3.11 pip` 和 `conda activate 3820_agent_py311`，再运行上面的命令。现有测试可离线执行；启动问答服务仍需完成模型配置和知识资料准备。
+
+更新依赖时，在干净的 Python 3.11 环境中安装 `requirements.txt`，运行 `python -m pip check`，再用 `python -m pip freeze --local > requirements.lock` 重新锁定；随后在另一个空白环境中安装锁定文件并运行 `pytest -q`。不要从装有其他项目包的环境直接生成锁定文件。当前锁定文件在 Linux/WSL 的 Python 3.11 环境中验证。
 
 交付时应包含：可运行代码、锁定依赖、环境变量样例、指标与空间要素数据及来源元数据、知识库构建方式、自动化测试和结果、API 示例、部署配置、故障演练记录与上线检查结果。不要将 <code>.env</code>、真实密钥、个人资料或运行生成的索引直接放入版本库。
 

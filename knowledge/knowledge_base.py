@@ -1,19 +1,20 @@
 # knowledge/knowledge_base.py
-import os
 import numpy as np
 import faiss
 from openai import OpenAI
 from pptx import Presentation
-from dotenv import load_dotenv
 from functools import lru_cache
-load_dotenv()
-BASE_URL = os.getenv('ARK_BASE_URL', 'https://ark.cn-beijing.volces.com/api/v3')
-EMBED_MODEL = os.getenv('EMBED_MODEL', 'doubao-embedding-large-text-240915')
-def get_client():
-    api_key = os.getenv('ARK_API_KEY')
-    if not api_key:
-        raise RuntimeError('请先配置ARK_API_KEY')
-    return OpenAI(base_url=BASE_URL, api_key=api_key)
+
+from config import Settings, get_settings
+
+
+def get_client(settings: Settings | None = None):
+    settings = settings or get_settings()
+    return OpenAI(
+        base_url=settings.ark_base_url,
+        api_key=settings.require_api_key(),
+        timeout=settings.request_timeout,
+    )
 def load_ppt_text(path):
     # 按页读取演示文稿文本，每页作为一个知识片段
     prs = Presentation(path)
@@ -33,8 +34,13 @@ def load_ppt_text(path):
         if texts:
             chunks.append(f'[第{idx}页] ' + ' '.join(texts))
     return chunks
-def embed_texts(texts):
-    resp = get_client().embeddings.create(model=EMBED_MODEL, input=texts)
+def embed_texts(texts, *, settings: Settings | None = None, client=None):
+    settings = settings or get_settings()
+    model = settings.require_embed_model()
+    active_client = client if client is not None else get_client(settings)
+    resp = active_client.embeddings.create(
+        model=model, input=texts, timeout=settings.request_timeout,
+    )
     return [item.embedding for item in resp.data]
 def build_index(chunks):
     if not chunks:
@@ -55,19 +61,19 @@ def retrieve(index, chunks, query, top_k=5):
     return [(chunks[i], float(distances[0][j])) for j, i in enumerate(ids[0]) if 0 <= i < len(chunks)]
 @lru_cache(maxsize=1)
 def get_knowledge_base():
-    path = os.getenv('PPT_PATH')
-    if not path:
-        raise RuntimeError('请配置PPT_PATH')
+    path = get_settings().require_source_path()
     chunks = load_ppt_text(path)
     return chunks, build_index(chunks)
-def retrieve_context(query, top_k=5):
+def retrieve_context(query, top_k=None):
+    if top_k is None:
+        top_k = get_settings().top_k
     chunks, index = get_knowledge_base()
     hits = retrieve(index, chunks, query, top_k)
     if not hits:
         return '知识库暂无相关依据。'
     return '\n\n'.join(piece for piece, _distance in hits)
 if __name__ == '__main__':
-    chunks = load_ppt_text(os.environ['PPT_PATH'])
+    chunks = load_ppt_text(get_settings().require_source_path())
     index = build_index(chunks)
     for piece, dist in retrieve(index, chunks, '1995年GDP翻一番目标'):
         print(dist, piece[:60])

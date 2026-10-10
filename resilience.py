@@ -1,6 +1,6 @@
 # resilience.py —— 重试、超时与降级
-import os
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+from config import get_settings
 class ModelAPIError(Exception):
     # 模型调用异常（超时、限流、5xx等）
     pass
@@ -8,7 +8,9 @@ class ModelAPIError(Exception):
        wait=wait_exponential(multiplier=1, max=8),
        retry=retry_if_exception_type((ModelAPIError, TimeoutError)),
        reraise=True)
-def call_llm_safe(client, model, messages, timeout=30):
+def call_llm_safe(client, model, messages, timeout=None):
+    if timeout is None:
+        timeout = get_settings().request_timeout
     try:
         resp = client.chat.completions.create(
             model=model, messages=messages, timeout=timeout,

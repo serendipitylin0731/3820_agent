@@ -2,6 +2,7 @@
 from typing import TypedDict
 from langgraph.graph import StateGraph, START, END
 from langgraph.checkpoint.memory import MemorySaver
+from contracts import SubTask
 from agents.agent_main import split_task, summarize
 from agents.agent_planning import run_planning
 from agents.agent_indicator import query_indicator, INDICATOR_DATA
@@ -15,16 +16,10 @@ class TaskState(TypedDict):
     results: dict        # 各智能体结果
     answer: str          # 最终答案
 def parse_node(state):
-    tasks = split_task(state['question'])
-    if not tasks:
+    raw_tasks = split_task(state['question'])
+    if not isinstance(raw_tasks, list) or not raw_tasks:
         raise ValueError('主智能体未生成有效子任务')
-    for task in tasks:
-        if task.get('type') not in ('planning', 'indicator', 'spatial', 'evaluation'):
-            raise ValueError('子任务type不在允许范围内')
-        if task.get('type') == 'indicator' and not task.get('key'):
-            raise ValueError('指标子任务缺少key字段')
-        if task.get('type') == 'spatial' and not task.get('keyword'):
-            raise ValueError('空间子任务缺少keyword字段')
+    tasks = [SubTask.model_validate(task).model_dump(exclude_none=True) for task in raw_tasks]
     needs_context = any(t.get('type') in ('planning', 'spatial', 'evaluation') for t in tasks)
     kb_context = retrieve_context(state['question']) if needs_context else ''
     return {'sub_tasks': tasks, 'kb_context': kb_context}
@@ -40,7 +35,7 @@ def planning_node(state):
     return {'results': {'planning': run_planning(task['question'], state['kb_context'])}}
 def indicator_node(state):
     task = state['sub_tasks'][0]
-    key = task.get('key', 'gdp')
+    key = task['key']
     years = task.get('years')
     return {'results': {'indicator': query_indicator(key, years)}}
 def spatial_node(state):
@@ -57,7 +52,7 @@ def parallel_node(state):
         if t == 'planning':
             results[f'{t}_{i}'] = run_planning(task['question'], state['kb_context'])
         elif t == 'indicator':
-            results[f'{t}_{i}'] = query_indicator(task.get('key', 'gdp'), task.get('years'))
+            results[f'{t}_{i}'] = query_indicator(task['key'], task.get('years'))
         elif t == 'spatial':
             results[f'{t}_{i}'] = query_spatial(task.get('keyword'), task.get('stype'))
         elif t == 'evaluation':
