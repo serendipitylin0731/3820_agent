@@ -68,6 +68,11 @@ def summarize(question, results):
             content = '；'.join(f'{item["name"]}：{item["note"]}' for item in data)
         elif role.startswith('evaluation') and isinstance(data, list):
             content = '；'.join(f'{row["指标"]}达成率 {row["达成率"]}%' for row in data)
+        elif role.startswith('planning') and isinstance(data, dict):
+            names = [('background', '背景'), ('stage_goals', '阶段目标'),
+                     ('implementation_paths', '路径举措'), ('evidence', '依据'),
+                     ('risks', '风险'), ('suggestions', '建议')]
+            content = '\n'.join(f'{title}：{data.get(key, "资料未提及")}' for key, title in names)
         else:
             content = str(data or '依据不足')
         if sources:

@@ -130,13 +130,16 @@ def search(query, *, chunks=None, top_k=5, min_score=0.35):
     return KnowledgeResult(status='ok', hits=hits) if hits else KnowledgeResult(status='insufficient_evidence')
 
 
-def retrieve_context(query, top_k=None):
-    top_k = top_k or get_settings().top_k
-    result = search(query, top_k=top_k)
+def format_context(result):
     if result.status != 'ok':
         return '知识库暂无充分依据。'
     return '\n\n'.join(f'[{hit.source.section or "资料"} {hit.source.page_or_slide}; '
                        f'verified={str(hit.source.verified).lower()}] {hit.content}' for hit in result.hits)
+
+
+def retrieve_context(query, top_k=None):
+    result = search(query, top_k=top_k or get_settings().top_k)
+    return format_context(result)
 
 
 def get_client(settings: Settings | None = None):

@@ -12,8 +12,8 @@ from agents.agent_planning import run_planning
 from agents.agent_indicator import query_indicator, INDICATOR_DATA
 from agents.agent_spatial import query_spatial
 from agents.agent_evaluation import eval_1995_phase
-from knowledge.knowledge_base import retrieve_context, search
-from resilience import log_event
+from knowledge.knowledge_base import format_context, search
+from resilience import log_event, transient_error
 
 
 class TaskState(TypedDict, total=False):
@@ -22,7 +22,10 @@ class TaskState(TypedDict, total=False):
     thread_id: str
     sub_tasks: list
     kb_context: str
+    kb_sources: list
+    kb_error: str | None
     results: dict
+    errors: list
     answer: str
 
 
@@ -37,7 +40,22 @@ def parse_node(state):
 
 
 def route_node(state):
-    return 'execute_node'
+    return 'retrieve_node' if any(task['type'] == 'planning' for task in state['sub_tasks']) else 'execute_node'
+
+
+def retrieve_node(state):
+    for attempt in range(2):
+        try:
+            found = search(state['question'], top_k=get_settings().top_k)
+            return {'kb_context': format_context(found),
+                    'kb_sources': [hit.source.model_dump() for hit in found.hits],
+                    'kb_error': None}
+        except Exception as exc:
+            if attempt == 0 and transient_error(exc):
+                continue
+            log_event('retrieval_failed', state.get('request_id', ''), state.get('thread_id', ''),
+                      level='warning', node='retrieve_node', error_type=type(exc).__name__)
+            return {'kb_context': '', 'kb_sources': [], 'kb_error': '检索暂不可用'}
 
 
 def execute_node(state):
@@ -62,13 +80,16 @@ def execute_node(state):
                     value = eval_1995_phase(INDICATOR_DATA)
                     sources = [INDICATOR_DATA[key]['source_ref'] for key in ('gnp','gdp','gdp_per_capita','urban_income','rural_income','industry_output')]
             else:
-                found = search(task['question'])
-                context = retrieve_context(task['question']) if found.status == 'ok' else ''
-                value = run_planning(task['question'], context)
-                sources = [hit.source for hit in found.hits]
+                if state.get('kb_error'):
+                    result = AgentResult(role=role, status='error',
+                                         error=ErrorInfo(code='retrieval_error', message=state['kb_error']))
+                    results[label] = result.model_dump()
+                    continue
+                value = run_planning(task['question'], state.get('kb_context', ''))
+                sources = state.get('kb_sources', [])
             if isinstance(value, dict) and 'error' in value:
                 result = AgentResult(role=role, status='error', error=ErrorInfo(code='domain_error', message=value['error']))
-            elif role == 'planning' and not sources or role == 'evaluation' and not sources:
+            elif (role == 'planning' or role == 'evaluation') and not sources:
                 result = AgentResult(role=role, status='insufficient_evidence', data=value)
             else:
                 result = AgentResult(role=role, status='ok', data=value, sources=sources)
@@ -80,7 +101,8 @@ def execute_node(state):
             log_event('agent_finished', state.get('request_id', ''), state.get('thread_id', ''),
                       role=role, node='execute_node')
         results[label] = result.model_dump()
-    return {'results': results}
+    return {'results': results,
+            'errors': [item['error'] for item in results.values() if item.get('error')]}
 
 
 def answer_node(state):
@@ -89,10 +111,13 @@ def answer_node(state):
 
 builder = StateGraph(TaskState)
 builder.add_node('parse_node', parse_node)
+builder.add_node('retrieve_node', retrieve_node)
 builder.add_node('execute_node', execute_node)
 builder.add_node('answer_node', answer_node)
 builder.add_edge(START, 'parse_node')
-builder.add_conditional_edges('parse_node', route_node, {'execute_node':'execute_node'})
+builder.add_conditional_edges('parse_node', route_node,
+                              {'retrieve_node':'retrieve_node', 'execute_node':'execute_node'})
+builder.add_edge('retrieve_node', 'execute_node')
 builder.add_edge('execute_node', 'answer_node')
 builder.add_edge('answer_node', END)
 
@@ -109,4 +134,5 @@ def ask(question, thread_id, request_id=None):
     config = {'configurable': {'thread_id': thread_id}}
     return get_graph().invoke({'question': question, 'thread_id': thread_id,
                                'request_id': request_id or thread_id, 'sub_tasks': [],
-                               'results': {}, 'answer': ''}, config)
+                               'kb_context': '', 'kb_sources': [], 'kb_error': None,
+                               'results': {}, 'errors': [], 'answer': ''}, config)

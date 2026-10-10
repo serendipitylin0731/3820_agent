@@ -48,7 +48,7 @@ def test_graph_rejects_bad_subtask_before_retrieval(monkeypatch):
 
     monkeypatch.setattr(graph, "split_task", lambda _question: [{"type": "indicator", "question": "GDP?"}])
     monkeypatch.setattr(
-        graph, "retrieve_context", lambda _question: pytest.fail("非法子任务不应检索"),
+        graph, "search", lambda _question, **_kwargs: pytest.fail("非法子任务不应检索"),
     )
     with pytest.raises(ValidationError):
         graph.parse_node({"question": "GDP?"})
@@ -62,8 +62,8 @@ def test_graph_routes_with_fake_model_and_retrieval(monkeypatch, fake_retriever)
         lambda _question: [{"type": "planning", "question": "指南中的 GDP 示例是什么？"}],
     )
     monkeypatch.setattr(
-        graph, "retrieve_context",
-        lambda query: fake_retriever(query).hits[0].content,
+        graph, "search",
+        lambda query, **_kwargs: fake_retriever(query),
     )
     monkeypatch.setattr(
         graph, "run_planning",
