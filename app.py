@@ -1,6 +1,8 @@
-"""HTTP 接口；默认离线可运行，配置 SERVICE_API_KEY 后启用请求认证。"""
+"""HTTP 边界：请求契约、按客户端授权、限流与观测。"""
 import hmac
+import json
 import logging
+import re
 import time
 import uuid
 from collections import defaultdict, deque
@@ -11,15 +13,20 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
-from config import get_settings
+from config import ConfigurationError, get_settings
 from contracts import AgentResult, ChatError, ChatRequest, ChatResponse, ErrorInfo
 from graph import ask
+from knowledge.knowledge_base import retrieval_metrics
 
 logger = logging.getLogger('3820_agent')
 _counters = defaultdict(int)
 _windows = defaultdict(deque)
 _latencies = deque(maxlen=1000)
 _lock = Lock()
+_active = 0
+_peak_active = 0
+_agent_errors = 0
+_SCOPES = {'/chat':'chat', '/metrics':'metrics'}
 
 
 def _error(status, code, message, request_id=None):
@@ -28,9 +35,48 @@ def _error(status, code, message, request_id=None):
     return JSONResponse(status_code=status, content=payload.model_dump())
 
 
+def _client_registry(settings):
+    if settings.service_clients_json is None:
+        return {}
+    try:
+        clients = json.loads(settings.service_clients_json.get_secret_value())
+        if not isinstance(clients, dict) or not clients:
+            raise ValueError()
+        for client_id, spec in clients.items():
+            if (not re.fullmatch(r'[A-Za-z0-9_-]{1,64}', client_id)
+                or not isinstance(spec, dict)
+                or not isinstance(spec.get('api_key'), str)
+                or not spec['api_key']
+                or not isinstance(spec.get('scopes'), list)
+                or not set(spec['scopes']) <= {'chat', 'metrics', 'docs'}):
+                raise ValueError()
+        return clients
+    except (ValueError, TypeError, KeyError):
+        raise ConfigurationError('SERVICE_CLIENTS_JSON 格式无效') from None
+
+
+def _authenticate(request, settings):
+    clients = _client_registry(settings)
+    if clients:
+        client_id = request.headers.get('x-client-id', '')
+        spec = clients.get(client_id)
+        key = request.headers.get('x-api-key', '')
+        if spec is None or not hmac.compare_digest(key, spec['api_key']):
+            return None, 401
+        needed = _SCOPES.get(request.url.path, 'docs')
+        return (client_id, None) if needed in spec['scopes'] else (None, 403)
+    if settings.service_api_key:
+        key = request.headers.get('x-api-key', '')
+        if not hmac.compare_digest(key, settings.service_api_key.get_secret_value()):
+            return None, 401
+        return 'default', None
+    return 'anonymous', None
+
+
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     settings = get_settings()
+    _client_registry(settings)
     logging.basicConfig(level=getattr(logging, settings.log_level))
     yield
 
@@ -40,44 +86,65 @@ app = FastAPI(title='3820多智能体系统', lifespan=lifespan)
 
 @app.middleware('http')
 async def protect_and_measure(request: Request, call_next):
+    global _active, _peak_active
     started = time.monotonic()
     request_id = str(uuid.uuid4())
     request.state.request_id = request_id
     settings = get_settings()
+
+    def finish(response):
+        duration = (time.monotonic() - started) * 1000
+        with _lock:
+            _counters[f'{request.url.path}:{response.status_code}'] += 1
+            _latencies.append(duration)
+        logger.info('request_id=%s path=%s status=%s duration_ms=%.1f',
+                    request_id, request.url.path, response.status_code, duration)
+        response.headers['X-Request-ID'] = request_id
+        return response
+
     if request.url.path == '/health':
-        return await call_next(request)
-    if settings.service_api_key:
-        supplied = request.headers.get('x-api-key', '')
-        if not hmac.compare_digest(supplied, settings.service_api_key.get_secret_value()):
-            return _error(401, 'unauthorized', '未授权请求', request_id)
-    if request.headers.get('content-length'):
+        return finish(await call_next(request))
+    principal, auth_error = _authenticate(request, settings)
+    if auth_error:
+        return finish(_error(auth_error, 'unauthorized' if auth_error == 401 else 'forbidden',
+                             '未授权请求', request_id))
+    request.state.principal = principal
+    length = request.headers.get('content-length')
+    if length is not None:
         try:
-            if int(request.headers['content-length']) > settings.max_body_bytes:
-                return _error(413, 'body_too_large', '请求体过大', request_id)
+            if int(length) > settings.max_body_bytes:
+                return finish(_error(413, 'body_too_large', '请求体过大', request_id))
         except ValueError:
-            return _error(400, 'invalid_request', '请求头格式无效', request_id)
+            return finish(_error(400, 'invalid_request', '请求头格式无效', request_id))
     if request.url.path == '/chat':
-        identity = request.headers.get('x-api-key') or (request.client.host if request.client else 'unknown')
+        identity = principal if principal != 'anonymous' else (request.client.host if request.client else 'unknown')
         now = time.monotonic()
         with _lock:
             window = _windows[identity]
             while window and window[0] <= now - 60:
                 window.popleft()
-            if len(window) >= settings.rate_limit_per_minute:
-                return _error(429, 'rate_limited', '请求过于频繁', request_id)
-            window.append(now)
-    body = await request.body()
-    if len(body) > settings.max_body_bytes:
-        return _error(413, 'body_too_large', '请求体过大', request_id)
-    response = await call_next(request)
-    duration = time.monotonic() - started
+            limited = len(window) >= settings.rate_limit_per_minute
+            if not limited:
+                window.append(now)
+        if limited:
+            return finish(_error(429, 'rate_limited', '请求过于频繁', request_id))
+    chunks = []
+    size = 0
+    async for chunk in request.stream():
+        size += len(chunk)
+        if size > settings.max_body_bytes:
+            return finish(_error(413, 'body_too_large', '请求体过大', request_id))
+        chunks.append(chunk)
+    request._body = b''.join(chunks)
     with _lock:
-        _counters[f'{request.url.path}:{response.status_code}'] += 1
-        _latencies.append(duration * 1000)
-    logger.info('request_id=%s path=%s status=%s duration_ms=%.1f',
-                request_id, request.url.path, response.status_code, duration * 1000)
-    response.headers['X-Request-ID'] = request_id
-    return response
+        _active += 1
+        _peak_active = max(_peak_active, _active)
+    try:
+        response = await call_next(request)
+    finally:
+        with _lock:
+            _active -= 1
+    return finish(response)
 
 
 @app.exception_handler(RequestValidationError)
@@ -95,7 +162,14 @@ def metrics():
     with _lock:
         ordered = sorted(_latencies)
         p95 = ordered[min(len(ordered) - 1, int(len(ordered) * .95))] if ordered else None
-        return {'requests': dict(_counters), 'p95_ms': p95}
+        requests = dict(_counters)
+        total = sum(requests.values())
+        failed = sum(count for route, count in requests.items() if int(route.rsplit(':', 1)[1]) >= 500)
+        snapshot = {'requests':requests, 'active':_active, 'peak_active':_peak_active,
+                    'p95_ms':p95, 'http_error_rate':failed / total if total else 0,
+                    'agent_errors':_agent_errors}
+    snapshot['retrieval'] = retrieval_metrics()
+    return snapshot
 
 
 def _as_agent_result(role: str, raw) -> AgentResult:
@@ -109,11 +183,16 @@ def _as_agent_result(role: str, raw) -> AgentResult:
 
 @app.post('/chat', response_model=ChatResponse)
 def chat(req: ChatRequest, request: Request):
+    global _agent_errors
     request_id = request.state.request_id
+    principal = request.state.principal
+    thread_id = f'{principal}:{req.thread_id or request_id}'
     try:
-        result = ask(req.question, thread_id=req.thread_id or request_id, request_id=request_id)
+        result = ask(req.question, thread_id=thread_id, request_id=request_id)
         results = {role: _as_agent_result(role, raw) for role, raw in result.get('results', {}).items()}
         failures = sum(item.status != 'ok' for item in results.values())
+        with _lock:
+            _agent_errors += sum(item.status == 'error' for item in results.values())
         status = 'error' if not results or failures == len(results) else 'partial' if failures else 'ok'
         return ChatResponse(request_id=request_id, status=status,
                             answer=result.get('answer', ''), results=results)

@@ -5,7 +5,7 @@
 ## 配置边界
 
 - [config.py](config.py) 集中读取项目根目录的 `.env` 与进程环境变量；进程环境变量优先。导入模块不读取密钥，也不连接模型。
-- `ARK_API_KEY`、`LLM_MODEL` 用于在线模型调用，`EMBED_MODEL` 用于可选向量索引；缺失时服务仍能用本地规则和指南文本检索运行。`PPT_PATH` 是可选 PPT 输入路径；不存在时使用仓库内指南 Markdown。`SERVICE_API_KEY` 设置后，除 `/health` 外的接口需要 `X-API-Key`。
+- `ARK_API_KEY`、`LLM_MODEL` 用于在线模型调用，`EMBED_MODEL` 用于可选向量索引；缺失时服务仍能用本地规则和指南文本检索运行。`PPT_PATH` 是可选 PPT 输入路径；不存在时使用仓库内指南 Markdown。`SERVICE_API_KEY` 设置后，除 `/health` 外的接口需要 `X-API-Key`。可选 `SERVICE_CLIENTS_JSON` 定义多个客户端及 `chat`、`metrics`、`docs` 权限，调用时还需 `X-Client-ID`；客户端会话在 Checkpoint 中隔离。
 - `ARK_BASE_URL`、`TOP_K`、`REQUEST_TIMEOUT`、`LOG_LEVEL` 已由调用方使用。`CHECKPOINT_PATH` 配置 SQLite 会话快照；`MAX_BODY_BYTES` 和 `RATE_LIMIT_PER_MINUTE` 控制单实例入口。当前 `.env.example` 中的 `PPT_PATH` 只是指南示例文件名。
 - `get_settings()` 会缓存一次运行配置；修改环境变量后应重启服务。测试可直接调用 `load_settings(environ=..., dotenv_path=...)`，不读取本机密钥。
 

@@ -29,10 +29,11 @@ class Settings(BaseModel):
     vector_max_distance: float | None = Field(default=None, ge=0)
     log_level: str = "INFO"
     service_api_key: SecretStr | None = None
+    service_clients_json: SecretStr | None = None
     max_body_bytes: int = Field(default=16384, ge=1024, le=1048576)
     rate_limit_per_minute: int = Field(default=60, ge=1, le=10000)
 
-    @field_validator("ark_api_key", "llm_model", "embed_model", "service_api_key", mode="before")
+    @field_validator("ark_api_key", "llm_model", "embed_model", "service_api_key", "service_clients_json", mode="before")
     @classmethod
     def empty_or_placeholder_is_missing(cls, value):
         if value is None or not str(value).strip():
@@ -98,6 +99,7 @@ _ENV_FIELDS = {
     "VECTOR_MAX_DISTANCE": "vector_max_distance",
     "LOG_LEVEL": "log_level",
     "SERVICE_API_KEY": "service_api_key",
+    "SERVICE_CLIENTS_JSON": "service_clients_json",
     "MAX_BODY_BYTES": "max_body_bytes",
     "RATE_LIMIT_PER_MINUTE": "rate_limit_per_minute",
 }

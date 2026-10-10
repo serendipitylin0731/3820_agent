@@ -2,13 +2,30 @@
 import hashlib
 import json
 import re
+from collections import Counter
 from functools import lru_cache
 from pathlib import Path
+from threading import Lock
 
 from contracts import KnowledgeHit, KnowledgeResult, SourceRef
 from config import Settings, get_settings
 
 GUIDE = Path(__file__).resolve().parent.parent / 'docs' / '基于3820战略工程内容的多智能体系统搭建指南.md'
+_retrieval_counts = Counter()
+_retrieval_lock = Lock()
+
+
+def retrieval_metrics():
+    with _retrieval_lock:
+        return dict(_retrieval_counts)
+
+
+def _record_retrieval(status, low_relevance=False):
+    with _retrieval_lock:
+        _retrieval_counts['requests'] += 1
+        _retrieval_counts[status] += 1
+        if low_relevance:
+            _retrieval_counts['low_relevance'] += 1
 
 
 def _version(path):
@@ -111,11 +128,14 @@ def _tokens(text):
 
 def search(query, *, chunks=None, top_k=5, min_score=0.35):
     if top_k < 1 or not query.strip():
+        _record_retrieval('insufficient_evidence')
         return KnowledgeResult(status='insufficient_evidence')
     settings = get_settings()
     if chunks is None and settings.vector_max_distance is not None and (settings.index_path / 'index.faiss').is_file():
-        return vector_search(query, top_k=top_k, max_distance=settings.vector_max_distance,
-                             directory=settings.index_path)
+        result = vector_search(query, top_k=top_k, max_distance=settings.vector_max_distance,
+                               directory=settings.index_path)
+        _record_retrieval(result.status)
+        return result
     chunks = get_knowledge_base() if chunks is None else chunks
     query_tokens = _tokens(query)
     ranked = []
@@ -127,7 +147,9 @@ def search(query, *, chunks=None, top_k=5, min_score=0.35):
     ranked.sort(key=lambda x: x[0], reverse=True)
     hits = [hit.model_copy(update={'score': round(score, 4), 'score_kind': 'similarity'})
             for score, hit in ranked[:top_k]]
-    return KnowledgeResult(status='ok', hits=hits) if hits else KnowledgeResult(status='insufficient_evidence')
+    result = KnowledgeResult(status='ok', hits=hits) if hits else KnowledgeResult(status='insufficient_evidence')
+    _record_retrieval(result.status, low_relevance=not hits and any(_tokens(query) & _tokens(hit.content) for hit in chunks))
+    return result
 
 
 def format_context(result):

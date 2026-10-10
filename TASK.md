@@ -129,7 +129,7 @@ M1、M3 的本地数据能力已完成基础实现，所有样例仍标记为 <c
 
 
 - [x] 实现 <code>POST /chat</code>。请求含非空 <code>question</code> 和可选 <code>thread_id</code>；响应含 <code>request_id</code>、<code>answer</code>、各角色 <code>results</code> 及来源/状态。非法输入用 Pydantic 校验并给出一致错误码。
-- [ ] 限制问题长度和请求体大小；为对外部署增加身份认证、授权、限流与错误脱敏。服务端错误不能返回内部异常堆栈。
+- [x] 限制问题长度和请求体大小；为对外部署增加身份认证、授权、限流与错误脱敏。服务端错误不能返回内部异常堆栈。多实例部署仍需集中式限流与权限配置。
 - [ ] 让同步/异步处理方式与模型调用方式匹配，避免阻塞事件循环；确认超时可以从请求层传到模型和检索层。
 - [x] 若将来增加写入类工具，再设计幂等键、先查后写和补偿；当前只读问答的 <code>request_id</code> 主要用于追踪，不误称为写入幂等保证。
 
@@ -201,5 +201,7 @@ python -m venv .venv
 接入真实向量服务时，配置 `ARK_API_KEY`、`EMBED_MODEL`，执行 `.venv/bin/python -m knowledge.knowledge_base` 建索引；用固定问答集校准后设置 `VECTOR_MAX_DISTANCE` 才启用向量检索。`PPT_PATH` 可指向另行提供的原始 PPT；文本和表格会与指南一起检索。配置 `LLM_MODEL` 后可启用在线模型拆分与规划分析。相关密钥只保存在本地 `.env` 或环境变量中。
 
 当前尚缺原始资料与逐项核验、在线模型实际调用、图片 OCR、2000/2010 年比较基准、生产权限体系、压测结果和 Docker 构建验证。SQLite 快照及进程内限流用于单实例开发与演示。指南第 9.3 节的上线清单因此保持未通过状态。
+
+可选的 `SERVICE_CLIENTS_JSON` 以客户端 ID 映射 API 密钥和 `chat`、`metrics`、`docs` 权限；调用时同时提供 `X-Client-ID` 与 `X-API-Key`。各客户端的会话 ID 分别命名空间隔离。未配置客户端映射时，仍可使用单个 `SERVICE_API_KEY`。当前限流与指标统计都在单进程内；目标并发、P95 和错误率尚待演示环境压测记录。
 
 异常中断后的会话可通过 `.venv/bin/python -m graph <thread_id>` 从最新未完成快照续跑；加 `--checkpoint-id <id>` 可指定历史快照。已完成快照只返回既有结果，不会再次调用工具。多实例部署需要替换当前单机 SQLite Saver 并验证并发恢复。
