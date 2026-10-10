@@ -18,6 +18,7 @@
 | `KnowledgeResult` | `status`、`hits` | `ok` 至少有一个片段；`insufficient_evidence` 表示无充分依据；`error` 需要 `ErrorInfo`。 |
 | `SubTask` | `type`、`question` | `type` 仅为 `planning`、`indicator`、`spatial`、`evaluation`；指标任务还需 `key`，空间任务还需 `keyword`。 |
 | `AgentResult` | `role`、`status` | `data` 是角色结果，`sources` 为实际用到的来源；`error` 状态必须给出错误码和说明。 |
+| `ToolResult` | `status` | 三项只读工具统一返回 `data`、`sources` 和错误状态；未知工具名抛出校验错误。 |
 | `ChatRequest` | `question` | 非空白、最多 4000 字符；`thread_id` 可选，最多 128 字符。 |
 | `ChatResponse` | `request_id`、`status`、`answer`、`results` | `results` 中每项为 `AgentResult`；整体状态为 `ok`、`partial` 或 `error`。 |
 | `ChatError` | `request_id`、`status`、`error` | `error` 包含机器可读的 `code` 和用户可读的 `message`。 |

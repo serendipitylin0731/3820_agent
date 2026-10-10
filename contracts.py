@@ -96,6 +96,21 @@ class AgentResult(ContractModel):
         return self
 
 
+class ToolResult(ContractModel):
+    status: Literal["ok", "insufficient_evidence", "error"]
+    data: Any = None
+    sources: list[SourceRef] = Field(default_factory=list)
+    error: ErrorInfo | None = None
+
+    @model_validator(mode="after")
+    def consistent_status(self):
+        if self.status == "error" and self.error is None:
+            raise ValueError("工具错误必须有错误信息")
+        if self.status != "error" and self.error is not None:
+            raise ValueError("只有工具错误可以携带错误信息")
+        return self
+
+
 class ChatRequest(ContractModel):
     question: str = Field(min_length=1, max_length=4000)
     thread_id: str | None = Field(default=None, max_length=128)
