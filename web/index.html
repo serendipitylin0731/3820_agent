@@ -12,35 +12,38 @@
   <div class="shell">
     <aside class="sidebar" aria-label="工作区导航">
       <a class="brand" href="/" aria-label="3820 战略知识助手首页">
-        <span class="brand-mark">38<span>20</span></span>
-        <span class="brand-copy"><strong>战略知识助手</strong><small>福州“3820”工程</small></span>
+        <img class="brand-logo" src="/assets/logo.svg" alt="" width="46" height="46">
+        <span class="brand-copy"><strong>3820 · 战略知识助手</strong><small>福州发展战略知识平台</small></span>
       </a>
 
       <div class="sidebar-section-label">工作台</div>
       <button class="nav-item active" type="button" id="new-chat"><span class="nav-icon" aria-hidden="true">✦</span> 新建对话 <span class="nav-arrow" aria-hidden="true">↗</span></button>
-      <a class="nav-item" href="/docs" target="_blank" rel="noopener noreferrer"><span class="nav-icon" aria-hidden="true">⌘</span> 接口文档 <span class="nav-arrow" aria-hidden="true">↗</span></a>
-
-      <div class="sidebar-section-label examples-label">探索主题</div>
-      <button class="topic" type="button" data-question="3820工程分为哪三个阶段？各阶段的主要目标是什么？"><span class="topic-symbol">01</span><span>战略阶段</span></button>
-      <button class="topic" type="button" data-question="1995年GDP目标是多少？与原始目标表中的GNP有什么区别？"><span class="topic-symbol">02</span><span>指标查询</span></button>
-      <button class="topic" type="button" data-question="3820工程的战略空间布局有哪些重点？"><span class="topic-symbol">03</span><span>空间布局</span></button>
-      <button class="topic" type="button" data-question="1995年GDP翻番目标的达成率是多少？"><span class="topic-symbol">04</span><span>成效评估</span></button>
+      <div class="timeline-wrap">
+        <button class="background-toggle" id="background-toggle" type="button" aria-controls="background-timeline" aria-expanded="true"><span>3820 背景</span><span class="toggle-arrow" aria-hidden="true">⌄</span></button>
+        <ol class="timeline" id="background-timeline">
+          <li><time>1990</time><strong>规划基期</strong><p>以这一年的主要指标作为三年目标的比较起点。</p></li>
+          <li><time>1992</time><strong>战略形成</strong><p>广泛调研、论证后，《福州市20年经济社会发展战略设想》于 11 月审议通过。</p></li>
+          <li><time>1995</time><strong>三年 · 起步</strong><p>推动主要指标在 1990 年基础上再翻一番，提前实现小康目标。</p></li>
+          <li><time>2000</time><strong>八年 · 追赶</strong><p>力争城乡主要人均指标达到国内先进城市水平。</p></li>
+          <li><time>2010</time><strong>二十年 · 远景</strong><p>力争达到或接近亚洲中等发达国家或地区当时的平均水平。</p></li>
+        </ol>
+        <a class="timeline-source" href="https://fgw.fuzhou.gov.cn/fgwzwgk/fzgggz/jjyx/202403/t20240328_4799823.htm" target="_blank" rel="noopener noreferrer">查看福州市发改委资料 ↗</a>
+      </div>
 
       <div class="sidebar-bottom">
         <div class="source-note"><span class="source-dot" aria-hidden="true"></span><span>依据已收录资料作答<br><small>历史数据请核对来源与口径</small></span></div>
-        <button class="settings-trigger" id="settings-open" type="button" aria-haspopup="dialog"><span aria-hidden="true">⚙</span> 访问设置</button>
       </div>
     </aside>
 
     <main class="main">
       <header class="topbar">
         <span class="eyebrow">3820 / 知识工作台</span>
-        <div class="topbar-right"><span class="topbar-status"><span class="status-dot" aria-hidden="true"></span> 本地服务</span><button class="mobile-new-chat" id="mobile-new-chat" type="button">新对话</button><button class="mobile-settings" id="mobile-settings-open" type="button">访问设置</button><a href="/docs" target="_blank" rel="noopener noreferrer">API 文档 <span aria-hidden="true">↗</span></a></div>
+        <div class="topbar-right"><span class="topbar-status"><span class="status-dot" aria-hidden="true"></span> 本地服务</span><button class="mobile-new-chat" id="mobile-new-chat" type="button">新对话</button><button class="mobile-background" id="mobile-background" type="button">3820 背景</button></div>
       </header>
 
       <div class="conversation" id="conversation" role="log" aria-label="问答记录" aria-live="polite">
         <section class="welcome" id="welcome">
-          <div class="welcome-emblem" aria-hidden="true"><span>38</span><span>20</span></div>
+          <img class="welcome-emblem" src="/assets/logo.svg" alt="" width="51" height="51">
           <div class="welcome-kicker">福州 · 1992—2010</div>
           <h1>从资料出发，<br><em>读懂“3820”。</em></h1>
           <p>围绕战略规划、经济指标、空间布局与实施成效提问。回答会标出参与分析的智能体，以及可追溯的资料来源。</p>
@@ -67,13 +70,13 @@
 
   <dialog id="settings-dialog" aria-labelledby="settings-title">
     <form method="dialog" id="settings-form">
-      <div class="dialog-head"><div><span class="dialog-kicker">连接设置</span><h2 id="settings-title">服务访问凭据</h2></div><button class="dialog-close" value="cancel" aria-label="关闭" type="submit">×</button></div>
-      <p>只有服务启用了访问鉴权时才需要填写。这里填写的是 <code>SERVICE_API_KEY</code> 或分配给客户端的密钥，请勿填写豆包的 <code>ARK_API_KEY</code>。</p>
+      <div class="dialog-head"><div><span class="dialog-kicker">仅在授权时出现</span><h2 id="settings-title">需要服务访问密码</h2></div><button class="dialog-close" value="cancel" aria-label="关闭" type="submit">×</button></div>
+      <p>这表示服务器启用了访问保护。请填写管理员提供的<strong>网站访问密码</strong>；它与豆包模型的 API 密钥无关。本地演示通常不需要设置。</p>
       <label for="client-id">客户端 ID <span>多客户端模式才需要</span></label>
       <input id="client-id" name="client-id" type="text" autocomplete="off" placeholder="例如 analyst">
-      <label for="service-key">服务访问密钥</label>
-      <input id="service-key" name="service-key" type="password" autocomplete="off" placeholder="未启用鉴权可留空">
-      <div class="dialog-actions"><span>仅在当前页面内存中使用，刷新后需重新填写。</span><button type="submit" value="save">保存设置</button></div>
+      <label for="service-key">网站访问密码</label>
+      <input id="service-key" name="service-key" type="password" autocomplete="off" placeholder="管理员提供的密码">
+      <div class="dialog-actions"><span>密码仅在当前页面使用。保存后可重发刚才的问题。</span><button type="submit" value="save">保存</button></div>
     </form>
   </dialog>
 </body>

@@ -85,7 +85,8 @@ async def lifespan(_app: FastAPI):
     yield
 
 
-app = FastAPI(title='3820多智能体系统', lifespan=lifespan)
+app = FastAPI(title='3820多智能体系统', lifespan=lifespan,
+              docs_url=None, redoc_url=None, openapi_url=None)
 _WEB_DIR = Path(__file__).with_name('web')
 app.mount('/assets', StaticFiles(directory=_WEB_DIR), name='assets')
 

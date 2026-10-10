@@ -6,8 +6,9 @@
   const sendButton = document.querySelector('#send');
   const messages = document.querySelector('#messages');
   const welcome = document.querySelector('#welcome');
-  const conversation = document.querySelector('#conversation');
   const settingsDialog = document.querySelector('#settings-dialog');
+  const backgroundToggle = document.querySelector('#background-toggle');
+  const backgroundTimeline = document.querySelector('#background-timeline');
   let threadId = crypto.randomUUID();
   let busy = false;
   let serviceKey = '';
@@ -82,14 +83,14 @@
     const entries = Object.entries(results || {});
     if (entries.length) {
       const section = make('details', 'agents');
-      section.append(make('summary', '', `智能体执行 · ${entries.length}`));
+      section.append(make('summary', '', `分析过程 · ${entries.length}`));
       const list = make('ul', 'agent-list');
-      const roles = { planning: '规划', indicator: '指标', spatial: '空间', evaluation: '评估' };
+      const roles = { planning: '规划', indicator: '指标', spatial: '空间', evaluation: '评估', theory: '理论资料' };
       const states = { ok: '完成', insufficient_evidence: '依据不足', error: '执行异常' };
       for (const [name, result] of entries) {
         const item = make('li');
         const role = result.role || name.split('_')[0];
-        item.append(make('span', '', `${roles[role] || role}智能体`), make('span', `badge${result.status === 'ok' ? '' : result.status === 'error' ? ' error' : ' partial'}`, states[result.status] || result.status));
+        item.append(make('span', '', role === 'theory' ? '理论参照' : `${roles[role] || role}智能体`), make('span', `badge${result.status === 'ok' ? '' : result.status === 'error' ? ' error' : ' partial'}`, states[result.status] || result.status));
         list.append(item);
       }
       section.append(list);
@@ -134,6 +135,7 @@
     questionInput.value = '';
     questionInput.style.height = '';
     scrollToLatest();
+    let needsAuth = false;
 
     try {
       const headers = { 'Content-Type': 'application/json' };
@@ -147,7 +149,11 @@
       answer.article.classList.remove('loading');
       if (!response.ok) {
         let message = payload.error?.message || `请求失败（HTTP ${response.status}）`;
-        if (response.status === 401 || response.status === 403) message += '。请在左侧“访问设置”填写服务访问凭据。';
+        if (response.status === 401 || response.status === 403) {
+          message = '服务要求访问密码，请填写管理员提供的网站密码后重发问题。';
+          questionInput.value = question;
+          needsAuth = true;
+        }
         renderAnswer(answer, payload, message);
       } else {
         renderAnswer(answer, payload);
@@ -158,7 +164,8 @@
     } finally {
       busy = false;
       sendButton.disabled = false;
-      questionInput.focus();
+      if (needsAuth) settingsDialog.showModal();
+      else questionInput.focus();
     }
   }
 
@@ -189,8 +196,15 @@
   }
   document.querySelector('#new-chat').addEventListener('click', resetChat);
   document.querySelector('#mobile-new-chat').addEventListener('click', resetChat);
-  document.querySelector('#settings-open').addEventListener('click', () => settingsDialog.showModal());
-  document.querySelector('#mobile-settings-open').addEventListener('click', () => settingsDialog.showModal());
+  backgroundToggle.addEventListener('click', () => {
+    const expanded = backgroundToggle.getAttribute('aria-expanded') === 'true';
+    backgroundToggle.setAttribute('aria-expanded', String(!expanded));
+    backgroundTimeline.hidden = expanded;
+  });
+  document.querySelector('#mobile-background').addEventListener('click', () => {
+    document.body.classList.toggle('timeline-open');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
   document.querySelector('#settings-form').addEventListener('submit', event => {
     if (event.submitter?.value !== 'save') return;
     clientId = document.querySelector('#client-id').value.trim();

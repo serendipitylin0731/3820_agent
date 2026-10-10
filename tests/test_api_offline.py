@@ -12,16 +12,21 @@ def test_startup_works_without_model_key(monkeypatch):
         assert client.get('/health').json() == {'status': 'ok'}
 
 
-def test_browser_root_opens_chat_ui_and_keeps_api_docs(monkeypatch):
+def test_browser_root_opens_chat_ui_without_api_docs(monkeypatch):
     monkeypatch.setattr(api, 'get_settings', lambda: Settings())
     with TestClient(api.app) as client:
         root = client.get('/')
         assert root.status_code == 200
         assert '战略知识助手' in root.text
         assert 'id="chat-form"' in root.text
+        assert '3820 背景' in root.text
+        assert '接口文档' not in root.text
         assert client.get('/assets/style.css').status_code == 200
         assert "fetch('/chat'" in client.get('/assets/app.js').text
-        assert client.get('/docs').status_code == 200
+        assert client.get('/assets/logo.svg').status_code == 200
+        assert client.get('/docs').status_code == 404
+        assert client.get('/redoc').status_code == 404
+        assert client.get('/openapi.json').status_code == 404
         assert client.get('/favicon.ico').status_code == 204
 
 
