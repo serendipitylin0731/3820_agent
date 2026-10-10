@@ -9,6 +9,8 @@ on:
       - 'packaging/**'
       - 'requirements*.txt'
       - 'desktop.py'
+      - 'desktop_gui.py'
+      - 'desktop_history.py'
       - 'desktop_runtime.py'
       - 'app.py'
       - 'config.py'
@@ -18,6 +20,7 @@ on:
       - 'agents/**'
       - 'tests/**'
       - 'docs/基于3820战略工程内容的多智能体系统搭建指南.md'
+      - 'docs/3820背景.md'
 
 permissions:
   contents: read
@@ -39,7 +42,14 @@ jobs:
       - name: Build application
         run: python -m PyInstaller --noconfirm packaging/3820Agent.spec
       - name: Executable smoke test
-        run: .\dist\3820Agent\3820Agent.exe --smoke-test
+        shell: pwsh
+        run: |
+          & .\dist\3820Agent\3820Agent.exe --smoke-test
+          if ($LASTEXITCODE -ne 0) {
+            $log = Join-Path $env:APPDATA '3820Agent\desktop.log'
+            if (Test-Path $log) { Get-Content $log -Tail 80 }
+            exit $LASTEXITCODE
+          }
       - name: Install Inno Setup compiler
         shell: pwsh
         run: |
@@ -63,7 +73,11 @@ jobs:
           $installed = Join-Path $target '3820Agent.exe'
           if (-not (Test-Path $installed)) { throw 'Installed executable missing' }
           & $installed --smoke-test
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if ($LASTEXITCODE -ne 0) {
+            $log = Join-Path $env:APPDATA '3820Agent\desktop.log'
+            if (Test-Path $log) { Get-Content $log -Tail 80 }
+            exit $LASTEXITCODE
+          }
       - uses: actions/upload-artifact@v4
         with:
           name: 3820Agent-Windows-x64-Setup

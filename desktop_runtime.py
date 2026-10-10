@@ -109,7 +109,7 @@ def prepare_desktop() -> Path:
     os.environ["AGENT3820_EXTRA_DATA_DIR"] = str(sources)
     os.environ["CHECKPOINT_PATH"] = str(home / "checkpoints.sqlite3")
     os.environ["INDEX_PATH"] = str(home / "knowledge_index")
-    # The desktop edition is a single-user localhost app.
+    # The desktop edition calls the agent directly; no HTTP service is started.
     os.environ.pop("SERVICE_API_KEY", None)
     os.environ.pop("SERVICE_CLIENTS_JSON", None)
     try:
