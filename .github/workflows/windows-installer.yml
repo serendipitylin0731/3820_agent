@@ -16,6 +16,7 @@ on:
       - 'web/**'
       - 'knowledge/**'
       - 'agents/**'
+      - 'tests/**'
       - 'docs/基于3820战略工程内容的多智能体系统搭建指南.md'
 
 permissions:
