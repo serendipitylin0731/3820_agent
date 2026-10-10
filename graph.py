@@ -8,7 +8,8 @@ from langgraph.graph import StateGraph, START, END
 from langgraph.checkpoint.sqlite import SqliteSaver
 from contracts import AgentResult, ErrorInfo, SubTask
 from config import get_settings
-from agents.agent_main import split_task, summarize
+from agents.agent_main import split_task
+from agents.answer_writer import compose_answer, natural_fallback
 from agents.agent_planning import run_planning
 from agents.agent_indicator import query_indicator, query_target, INDICATOR_DATA
 from agents.agent_spatial import query_spatial
@@ -56,6 +57,8 @@ def retrieve_node(state):
     started = time.monotonic()
     query = ('福州市20年经济社会发展战略设想 战略布局'
              if '布局' in state['question'] and any(term in state['question'] for term in ('3820', '战略'))
+             else '福州市20年经济社会发展战略设想 3820工程 调查研究 战略规划'
+             if any(term in state['question'] for term in ('马克思', '习近平新时代', '方法论', '新发展理念'))
              else state['question'])
     for attempt in range(2):
         try:
@@ -164,10 +167,18 @@ def execute_node(state):
 
 def answer_node(state):
     started = time.monotonic()
-    answer = summarize(state['question'], state['results'])
+    results = dict(state['results'])
+    fallback = natural_fallback(state['question'], results)
+    answer, theory = compose_answer(state['question'], results, fallback, settings=get_settings())
+    if theory:
+        results['theory_context'] = AgentResult(
+            role='theory', status='ok',
+            data={'perspective': '当代理论参照，非1992年原始史料', 'used_ids': list(theory)},
+            sources=[item['source'] for item in theory.values()],
+        ).model_dump()
     log_event('answer_finished', state.get('request_id', ''), state.get('thread_id', ''),
               node='answer_node', duration_ms=round((time.monotonic() - started) * 1000, 1))
-    return {'answer': answer}
+    return {'answer': answer, 'results': results}
 
 
 builder = StateGraph(TaskState)

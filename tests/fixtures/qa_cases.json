@@ -86,5 +86,13 @@
     "expected_role_status": "insufficient_evidence",
     "answer_contains": ["依据不足"],
     "source_contains": []
+  },
+  {
+    "id": "theory_interpretation",
+    "question": "从马克思主义实事求是和习近平新时代中国特色社会主义思想的角度，如何理解3820工程的规划方法？",
+    "expected_role": "theory_context",
+    "expected_role_status": "ok",
+    "answer_contains": ["实事求是", "从今天的理论视角看"],
+    "source_contains": ["dl.mof.gov.cn", "he.mof.gov.cn"]
   }
 ]

@@ -54,8 +54,13 @@ def test_graph_rejects_bad_subtask_before_retrieval(monkeypatch):
         graph.parse_node({"question": "GDP?"})
 
 
-def test_graph_routes_with_fake_model_and_retrieval(monkeypatch, fake_retriever):
+def test_graph_routes_with_fake_model_and_retrieval(monkeypatch, fake_retriever, tmp_path):
     import graph
+    from config import Settings
+
+    graph.get_graph.cache_clear()
+    monkeypatch.setattr(graph, 'get_settings',
+                        lambda: Settings(checkpoint_path=tmp_path / 'planning.sqlite3'))
 
     monkeypatch.setattr(
         graph, "split_task",
@@ -72,4 +77,6 @@ def test_graph_routes_with_fake_model_and_retrieval(monkeypatch, fake_retriever)
     result = graph.ask("指南中的 GDP 示例是什么？", "offline-planning")
     assert "3123.41" in result["results"]["planning"]["data"]
     assert result["results"]["planning"]["sources"]
-    assert "planning" in result["answer"]
+    assert "3123.41" in result["answer"]
+    assert "[planning" not in result["answer"]
+    graph.get_graph.cache_clear()
