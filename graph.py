@@ -1,5 +1,6 @@
 """按序执行子任务，保留部分失败，并使用 SQLite 保存会话快照。"""
 import sqlite3
+import time
 from functools import lru_cache
 from typing import TypedDict
 
@@ -13,7 +14,7 @@ from agents.agent_indicator import query_indicator, query_target, INDICATOR_DATA
 from agents.agent_spatial import query_spatial
 from agents.agent_evaluation import eval_1995_phase
 from knowledge.knowledge_base import format_context, search
-from resilience import find_checkpoint, log_event, transient_error
+from resilience import find_checkpoint, log_event, timeout_error, transient_error
 
 
 class TaskState(TypedDict, total=False):
@@ -24,18 +25,26 @@ class TaskState(TypedDict, total=False):
     kb_context: str
     kb_sources: list
     kb_error: str | None
+    kb_error_code: str | None
     results: dict
     errors: list
     answer: str
 
 
 def parse_node(state):
-    raw = split_task(state['question'])
-    if not isinstance(raw, list) or not raw:
-        raise ValueError('未生成有效子任务')
-    tasks = [SubTask.model_validate(item).model_dump(exclude_none=True) for item in raw]
+    started = time.monotonic()
+    try:
+        raw = split_task(state['question'])
+        if not isinstance(raw, list) or not raw:
+            raise ValueError('未生成有效子任务')
+        tasks = [SubTask.model_validate(item).model_dump(exclude_none=True) for item in raw]
+    except Exception as exc:
+        log_event('tasks_failed', state.get('request_id', ''), state.get('thread_id', ''),
+                  level='warning', node='parse_node', error_type=type(exc).__name__,
+                  duration_ms=round((time.monotonic() - started) * 1000, 1))
+        raise
     log_event('tasks_parsed', state.get('request_id', ''), state.get('thread_id', ''),
-              node='parse_node')
+              node='parse_node', duration_ms=round((time.monotonic() - started) * 1000, 1))
     return {'sub_tasks': tasks}
 
 
@@ -44,26 +53,32 @@ def route_node(state):
 
 
 def retrieve_node(state):
+    started = time.monotonic()
     query = ('福州市20年经济社会发展战略设想 战略布局'
              if '布局' in state['question'] and any(term in state['question'] for term in ('3820', '战略'))
              else state['question'])
     for attempt in range(2):
         try:
             found = search(query, top_k=get_settings().top_k)
+            log_event('retrieval_finished', state.get('request_id', ''), state.get('thread_id', ''),
+                      node='retrieve_node', duration_ms=round((time.monotonic() - started) * 1000, 1))
             return {'kb_context': format_context(found),
                     'kb_sources': [hit.source.model_dump() for hit in found.hits],
-                    'kb_error': None}
+                    'kb_error': None, 'kb_error_code': None}
         except Exception as exc:
             if attempt == 0 and transient_error(exc):
                 continue
             log_event('retrieval_failed', state.get('request_id', ''), state.get('thread_id', ''),
-                      level='warning', node='retrieve_node', error_type=type(exc).__name__)
-            return {'kb_context': '', 'kb_sources': [], 'kb_error': '检索暂不可用'}
+                      level='warning', node='retrieve_node', error_type=type(exc).__name__,
+                      duration_ms=round((time.monotonic() - started) * 1000, 1))
+            return {'kb_context': '', 'kb_sources': [], 'kb_error': '检索暂不可用',
+                    'kb_error_code': 'retrieval_timeout' if timeout_error(exc) else 'retrieval_error'}
 
 
 def execute_node(state):
     results = {}
     for i, task in enumerate(state['sub_tasks'], 1):
+        started = time.monotonic()
         role = task['type']
         label = f'{role}_{i}' if len(state['sub_tasks']) > 1 else role
         try:
@@ -101,8 +116,13 @@ def execute_node(state):
             else:
                 if state.get('kb_error'):
                     result = AgentResult(role=role, status='error',
-                                         error=ErrorInfo(code='retrieval_error', message=state['kb_error']))
+                                         error=ErrorInfo(code=state.get('kb_error_code') or 'retrieval_error',
+                                                         message=state['kb_error']))
                     results[label] = result.model_dump()
+                    log_event('agent_failed', state.get('request_id', ''), state.get('thread_id', ''),
+                              level='warning', role=role, node='execute_node',
+                              error_type=result.error.code,
+                              duration_ms=round((time.monotonic() - started) * 1000, 1))
                     continue
                 value = run_planning(task['question'], state.get('kb_context', ''))
                 sources = state.get('kb_sources', [])
@@ -123,19 +143,31 @@ def execute_node(state):
             else:
                 result = AgentResult(role=role, status='ok', data=value, sources=sources)
         except Exception as exc:
-            result = AgentResult(role=role, status='error', error=ErrorInfo(code='agent_error', message='子任务执行失败'))
+            is_timeout = timeout_error(exc)
+            result = AgentResult(role=role, status='error', error=ErrorInfo(
+                code='agent_timeout' if is_timeout else 'agent_error',
+                message='子任务执行超时' if is_timeout else '子任务执行失败'))
             log_event('agent_failed', state.get('request_id', ''), state.get('thread_id', ''),
-                      level='warning', role=role, node='execute_node', error_type=type(exc).__name__)
+                      level='warning', role=role, node='execute_node', error_type=type(exc).__name__,
+                      duration_ms=round((time.monotonic() - started) * 1000, 1))
         else:
-            log_event('agent_finished', state.get('request_id', ''), state.get('thread_id', ''),
-                      role=role, node='execute_node')
+            failed = result.status == 'error'
+            log_event('agent_failed' if failed else 'agent_finished',
+                      state.get('request_id', ''), state.get('thread_id', ''),
+                      level='warning' if failed else 'info', role=role, node='execute_node',
+                      error_type=result.error.code if failed else None,
+                      duration_ms=round((time.monotonic() - started) * 1000, 1))
         results[label] = result.model_dump()
     return {'results': results,
             'errors': [item['error'] for item in results.values() if item.get('error')]}
 
 
 def answer_node(state):
-    return {'answer': summarize(state['question'], state['results'])}
+    started = time.monotonic()
+    answer = summarize(state['question'], state['results'])
+    log_event('answer_finished', state.get('request_id', ''), state.get('thread_id', ''),
+              node='answer_node', duration_ms=round((time.monotonic() - started) * 1000, 1))
+    return {'answer': answer}
 
 
 builder = StateGraph(TaskState)
@@ -170,6 +202,7 @@ def ask(question, thread_id, request_id=None):
     return graph.invoke({'question': question, 'thread_id': thread_id,
                                'request_id': request_id or thread_id, 'sub_tasks': [],
                                'kb_context': '', 'kb_sources': [], 'kb_error': None,
+                               'kb_error_code': None,
                                'results': {}, 'errors': [], 'answer': ''}, config)
 
 

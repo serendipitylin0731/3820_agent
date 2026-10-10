@@ -11,6 +11,10 @@ def transient_error(exc):
     return isinstance(exc, (TimeoutError, ConnectionError, APIConnectionError, APITimeoutError)) or getattr(exc, 'status_code', None) in (429, 500, 502, 503, 504)
 
 
+def timeout_error(exc):
+    return isinstance(exc, (TimeoutError, APITimeoutError))
+
+
 def call_llm_safe(client, model, messages, timeout, temperature=0.3):
     for attempt in Retrying(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, max=8),
                             retry=retry_if_exception(transient_error), reraise=True):
@@ -28,6 +32,7 @@ def find_checkpoint(graph, thread_id, checkpoint_id):
 
 
 def log_event(event, request_id, thread_id, level='info', **extra):
-    allowed = {key: value for key, value in extra.items() if key in ('role', 'node', 'duration_ms', 'error_type')}
+    allowed = {key: value for key, value in extra.items()
+               if key in ('role', 'node', 'duration_ms', 'error_type') and value is not None}
     getattr(logger, level)(json.dumps({'event': event, 'request_id': request_id,
                                        'thread_id': thread_id, **allowed}, ensure_ascii=False))

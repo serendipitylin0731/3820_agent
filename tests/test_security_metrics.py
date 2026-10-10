@@ -44,3 +44,21 @@ def test_invalid_client_registry_fails_startup(monkeypatch):
     with pytest.raises(ConfigurationError, match='SERVICE_CLIENTS_JSON'):
         with TestClient(api.app):
             pass
+
+
+def test_metrics_include_timeout_and_retrieval_rates(monkeypatch):
+    monkeypatch.setattr(api, 'get_settings', lambda: Settings())
+    monkeypatch.setattr(api, 'retrieval_metrics', lambda: {
+        'requests': 4, 'insufficient_evidence': 2, 'low_relevance': 1})
+    monkeypatch.setattr(api, 'ask', lambda question, thread_id, request_id=None: {
+        'answer': '子任务执行超时',
+        'results': {'indicator': {'role': 'indicator', 'status': 'error',
+                                  'error': {'code': 'agent_timeout', 'message': '子任务执行超时'}}}})
+    prior = api._timeout_requests
+    with TestClient(api.app) as client:
+        assert client.post('/chat', json={'question':'GDP?'}).status_code == 200
+        body = client.get('/metrics').json()
+    assert body['timeout_requests'] == prior + 1
+    assert body['timeout_rate'] > 0
+    assert body['retrieval']['no_hit_rate'] == 0.5
+    assert body['retrieval']['low_relevance_rate'] == 0.25

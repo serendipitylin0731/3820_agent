@@ -17,6 +17,7 @@ from config import ConfigurationError, get_settings
 from contracts import AgentResult, ChatError, ChatRequest, ChatResponse, ErrorInfo
 from graph import ask
 from knowledge.knowledge_base import retrieval_metrics
+from resilience import timeout_error
 
 logger = logging.getLogger('3820_agent')
 _counters = defaultdict(int)
@@ -26,6 +27,7 @@ _lock = Lock()
 _active = 0
 _peak_active = 0
 _agent_errors = 0
+_timeout_requests = 0
 _SCOPES = {'/chat':'chat', '/metrics':'metrics'}
 
 
@@ -175,10 +177,17 @@ def metrics():
         requests = dict(_counters)
         total = sum(requests.values())
         failed = sum(count for route, count in requests.items() if int(route.rsplit(':', 1)[1]) >= 500)
+        chat_total = sum(count for route, count in requests.items() if route.startswith('/chat:'))
         snapshot = {'requests':requests, 'active':_active, 'peak_active':_peak_active,
                     'p95_ms':p95, 'http_error_rate':failed / total if total else 0,
-                    'agent_errors':_agent_errors}
-    snapshot['retrieval'] = retrieval_metrics()
+                    'agent_errors':_agent_errors,
+                    'timeout_requests':_timeout_requests,
+                    'timeout_rate':_timeout_requests / chat_total if chat_total else 0}
+    retrieval = retrieval_metrics()
+    count = retrieval.get('requests', 0)
+    snapshot['retrieval'] = {**retrieval,
+                             'no_hit_rate': retrieval.get('insufficient_evidence', 0) / count if count else 0,
+                             'low_relevance_rate': retrieval.get('low_relevance', 0) / count if count else 0}
     return snapshot
 
 
@@ -193,7 +202,7 @@ def _as_agent_result(role: str, raw) -> AgentResult:
 
 @app.post('/chat', response_model=ChatResponse)
 def chat(req: ChatRequest, request: Request):
-    global _agent_errors
+    global _agent_errors, _timeout_requests
     request_id = request.state.request_id
     principal = request.state.principal
     thread_id = f'{principal}:{req.thread_id or request_id}'
@@ -203,9 +212,13 @@ def chat(req: ChatRequest, request: Request):
         failures = sum(item.status == 'error' for item in results.values())
         with _lock:
             _agent_errors += sum(item.status == 'error' for item in results.values())
+            _timeout_requests += any(item.error and item.error.code.endswith('timeout')
+                                     for item in results.values())
         status = 'error' if not results or failures == len(results) else 'partial' if failures else 'ok'
         return ChatResponse(request_id=request_id, status=status,
                             answer=result.get('answer', ''), results=results)
-    except Exception:
-        logger.error('处理请求失败 request_id=%s', request_id)
+    except Exception as exc:
+        with _lock:
+            _timeout_requests += timeout_error(exc)
+        logger.error('处理请求失败 request_id=%s error_type=%s', request_id, type(exc).__name__)
         return _error(500, 'internal_error', '服务暂时不可用，请稍后重试', request_id)
