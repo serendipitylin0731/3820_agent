@@ -64,6 +64,14 @@
     "source_contains": []
   },
   {
+    "id": "investment_map_picture",
+    "question": "福州市闽江口金三角经济圈投资示意图有哪些区域？",
+    "expected_role": "planning",
+    "expected_role_status": "ok",
+    "answer_contains": ["福州经济技术开发区", "元洪开发区"],
+    "source_contains": ["预览第27页", "3820视频.pptx"]
+  },
+  {
     "id": "qualitative_goal_2000",
     "question": "2000年目标是否已经达成？",
     "expected_role": "evaluation",

@@ -65,6 +65,11 @@ def _normalize_tasks(tasks, question):
         if not any(item['name'] in question for item in spatial_features()):
             tasks = [{**task, 'type': 'planning', 'keyword': None, 'stype': None}
                      if task['type'] == 'spatial' else task for task in tasks]
+    if any(term in question for term in ('示意图', '地图', '幻灯片', 'PPT', '图片')):
+        tasks = [{**task, 'type': 'planning', 'keyword': None, 'stype': None}
+                 if task['type'] == 'spatial' else task for task in tasks]
+        if not any(task['type'] == 'planning' for task in tasks):
+            tasks.append({'type': 'planning', 'question': question})
     return tasks or [{'type': 'planning', 'question': question}]
 
 

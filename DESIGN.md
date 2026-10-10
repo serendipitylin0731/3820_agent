@@ -28,6 +28,7 @@
 ## 当前代码接入范围
 
 - `graph.py` 用 `SubTask` 校验主智能体拆分结果，非法任务不能进入工具层。
+- PPT 图片 OCR 以原 PPT 的校验值、实际幻灯片页号和文字校验值绑定；源文件变化时旧 OCR 不进入检索。投资示意图问答优先引用扫描预览第 27 页，地图主要名称经图像人工转录存于 `knowledge/map_labels.json`。
 - `app.py` 用 `ChatRequest`、`ChatResponse` 和 `ChatError` 校验 HTTP 边界；旧角色结果经适配后放入 `AgentResult.data`，不会凭空生成来源。
 - `knowledge/knowledge_base.py` 的 `search` 返回 `KnowledgeResult` 和 `KnowledgeHit`；`graph.py` 把角色输出转为 `AgentResult`，来源保持 `verified=false`。
 - 向量检索在距离接近首位时保留一条原件扫描 OCR 命中，同时返回未经修改的原始距离；OCR 页码为平台预览页码。目标问题进入规划检索，不能把指南中的完成值当作原始目标值。

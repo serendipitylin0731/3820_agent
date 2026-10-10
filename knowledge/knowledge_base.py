@@ -195,6 +195,27 @@ def load_scan_page_chunk(path, metadata):
     return [KnowledgeHit(chunk_id=f'original_3820:page:{page}', content=content, source=source)]
 
 
+def load_ppt_image_ocr_chunks(path, metadata, root):
+    """只读取与现有 PPT 校验值一致的 OCR，避免源文件变更后引用过期文本。"""
+    if not metadata or metadata.get('source_sha256', '')[:16] != _version(path):
+        return []
+    chunks = []
+    for slide in metadata['slides']:
+        text_path = Path(root) / slide['text_file']
+        if not text_path.is_file():
+            continue
+        content = text_path.read_text(encoding='utf-8').strip()
+        if not content or hashlib.sha256(text_path.read_bytes()).hexdigest() != slide['text_sha256']:
+            continue
+        chunks.append(KnowledgeHit(chunk_id=f'{Path(path).name}:image-ocr:slide:{slide["page"]}',
+                                   content=content,
+                                   source=SourceRef(source_file=_display_path(path),
+                                                    page_or_slide=slide['page'],
+                                                    section='幻灯片图片 OCR',
+                                                    data_version=_version(text_path), verified=False)))
+    return chunks
+
+
 def _source_paths(settings):
     files = [path for path in DATA_DIR.iterdir() if path.is_file() and path.suffix.lower() in
              {'.ppt', '.pptx', '.doc', '.docx'}] if DATA_DIR.is_dir() else []
@@ -215,6 +236,10 @@ def _source_paths(settings):
         for name in ('manifest.json', 'catalog.json'):
             if (scan_dir / name).is_file():
                 files.append(scan_dir / name)
+    ppt_ocr_dir = DATA_DIR / 'ppt_ocr'
+    if (ppt_ocr_dir / 'manifest.json').is_file():
+        files.append(ppt_ocr_dir / 'manifest.json')
+        files.extend(ppt_ocr_dir.glob('*/slide_*.txt'))
     return tuple(sorted({path.resolve() for path in files}, key=str))
 
 
@@ -236,15 +261,23 @@ def _load_knowledge_base(_guide_version, signatures):
     scan_manifest = scan_dir / 'manifest.json'
     scan_metadata = (json.loads(scan_manifest.read_text(encoding='utf-8'))
                      if scan_manifest.is_file() else None)
+    ppt_ocr_dir = DATA_DIR / 'ppt_ocr'
+    ppt_ocr_manifest = ppt_ocr_dir / 'manifest.json'
+    ppt_ocr_decks = ({deck['source_file']: deck for deck in
+                      json.loads(ppt_ocr_manifest.read_text(encoding='utf-8'))['decks']}
+                     if ppt_ocr_manifest.is_file() else {})
     for name, _, _ in signatures:
         path = Path(name)
         if path.suffix.lower() in {'.ppt', '.pptx'}:
             hits.extend(load_ppt_chunks(path))
+            hits.extend(load_ppt_image_ocr_chunks(path, ppt_ocr_decks.get(path.name), ppt_ocr_dir))
         elif path.suffix.lower() in {'.doc', '.docx'}:
             hits.extend(load_word_chunks(path))
         elif path.suffix.lower() == '.txt' and path.parent == scan_dir / 'pages':
             if scan_metadata:
                 hits.extend(load_scan_page_chunk(path, scan_metadata))
+        elif path.suffix.lower() == '.txt' and path.is_relative_to(ppt_ocr_dir):
+            continue
         elif path.suffix.lower() == '.txt':
             hits.extend(load_public_text_chunks(path, metadata.get(path.stem, {})))
     return hits

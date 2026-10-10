@@ -51,6 +51,25 @@ def test_scan_ocr_page_retains_preview_page_and_unverified_status(tmp_path):
     assert chunks[0].source.verified is False
 
 
+def test_ppt_image_ocr_requires_matching_source_and_keeps_slide_number(tmp_path):
+    import hashlib
+    path = tmp_path / 'slides.pptx'
+    path.write_bytes(b'present-version')
+    text_path = tmp_path / 'abc' / 'slide_0019.txt'
+    text_path.parent.mkdir()
+    text_path.write_text('闽江口金三角经济圈投资示意图\n', encoding='utf-8')
+    metadata = {'source_sha256': hashlib.sha256(path.read_bytes()).hexdigest(),
+                'slides': [{'page': 19, 'text_file': 'abc/slide_0019.txt',
+                            'text_sha256': hashlib.sha256(text_path.read_bytes()).hexdigest()}]}
+    chunks = kb.load_ppt_image_ocr_chunks(path, metadata, tmp_path)
+    assert len(chunks) == 1
+    assert chunks[0].source.page_or_slide == 19
+    assert chunks[0].source.section == '幻灯片图片 OCR'
+    assert chunks[0].source.verified is False
+    path.write_bytes(b'new-version')
+    assert kb.load_ppt_image_ocr_chunks(path, metadata, tmp_path) == []
+
+
 def test_vision_embedding_uses_multimodal_endpoint_and_query_instruction():
     class Client:
         def __init__(self):

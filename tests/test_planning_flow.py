@@ -54,6 +54,28 @@ def test_growth_intent_is_preserved_from_question(monkeypatch):
     assert task['growth'] is True
 
 
+def test_picture_question_routes_to_evidence_search(monkeypatch):
+    from agents import agent_main
+    monkeypatch.setattr(agent_main, 'get_settings',
+                        lambda: Settings(ark_api_key='fake', llm_model='fake'))
+    monkeypatch.setattr(agent_main, 'chat',
+                        lambda *_args, **_kwargs: '[{"type":"spatial",'
+                                                 '"question":"投资示意图有哪些区域",'
+                                                 '"keyword":"闽江口金三角"}]')
+    tasks = agent_main.split_task('福州市闽江口金三角经济圈投资示意图有哪些区域？')
+    assert [task['type'] for task in tasks] == ['planning']
+
+
+def test_map_answer_uses_reviewed_labels_when_scan_page_is_retrieved(monkeypatch):
+    from agents import agent_planning
+    monkeypatch.setattr(agent_planning, 'get_settings', lambda: Settings())
+    text = '[原始扫描件 OCR 预览第27页] 福州市闽江口金三角经济圈投资示意图\n福州经济技术开发区'
+    answer = agent_planning.run_planning('投资示意图有哪些区域？', text)
+    assert '罗源湾投资区' in answer['implementation_paths']
+    assert '元洪开发区' in answer['implementation_paths']
+    assert '人工转录' in answer['evidence']
+
+
 def test_planning_report_has_sections_and_no_evidence_behavior(monkeypatch):
     from agents import agent_planning
     monkeypatch.setattr(agent_planning, 'get_settings', lambda: Settings())
