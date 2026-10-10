@@ -30,7 +30,7 @@
 ~~~text
 .
 ├── README.md                 # 项目需求、实施步骤与验收标准
-├── TASK.md                   # 三人协作实施计划与阶段关卡
+├── TASK.md                   # 实施计划与阶段关卡
 ├── DESIGN.md                 # 设计文档
 ├── app.py                    # FastAPI 接口与请求校验
 ├── graph.py                  # LangGraph 状态、路由、Checkpoint
@@ -87,7 +87,7 @@ CHECKPOINT_PATH=var/checkpoints.sqlite3
 LOG_LEVEL=INFO
 ~~~
 
-共享接口字段、错误状态和三人审阅项见 [DESIGN.md](DESIGN.md)；可执行 schema 在 <code>contracts.py</code>。<code>CHECKPOINT_PATH</code> 已进入统一配置，但持久化 Saver 要在第 9 步接入。
+共享接口字段和错误状态见 [DESIGN.md](DESIGN.md)；可执行 schema 在 <code>contracts.py</code>。<code>CHECKPOINT_PATH</code> 已进入统一配置，但持久化 Saver 要在第 9 步接入。
 
 **完成标准：** 虚拟环境可安装锁定依赖；缺少必需在线配置时启动报清晰错误；无密钥时可运行离线测试；仓库和日志中没有真实密钥。
 

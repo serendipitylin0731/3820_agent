@@ -1,6 +1,6 @@
-# “3820”多智能体系统共享契约（待三人审阅）
+# “3820”多智能体系统接口契约
 
-本文件是 M0 的接口草案。可执行定义在 [contracts.py](contracts.py)，可运行示例在 [tests/fixtures/contracts.json](tests/fixtures/contracts.json)。A、B、C 审阅后固定字段；改动契约时同步修改示例和测试。
+本文件记录接口契约。可执行定义在 [contracts.py](contracts.py)，可运行示例在 [tests/fixtures/contracts.json](tests/fixtures/contracts.json)。改动契约时同步修改示例和测试。
 
 ## 配置边界
 
@@ -31,10 +31,7 @@
 - `knowledge/knowledge_base.py` 目前仍返回字符串或元组；B 在 M2 中将检索输出适配为 `KnowledgeResult` 和 `KnowledgeHit`。C 在 M4 中逐步让角色直接返回 `AgentResult`。
 - 原始资料尚未核验时，示例夹具中的来源均为 `verified=false`。本地夹具只验证接口，不充当历史事实的独立证明。
 
-## 离线验证与协作确认
+## 离线验证
 
 运行 `python -m pytest -m offline -q`。普通测试也不调用外部服务；需要真实密钥和资料的用例将来使用 `online` 标记，单独运行。
 
-- [ ] A 审阅配置、HTTP 状态和错误结构。
-- [ ] B 审阅 `SourceRef`、`KnowledgeHit` 和检索状态。
-- [ ] C 审阅 `SubTask`、`AgentResult` 和离线夹具。
