@@ -3,13 +3,19 @@
     "name": "地区生产总值（GDP）",
     "unit": "亿元",
     "values": {
-      "1990": 102.40,
+      "1990": 102.4,
       "1995": 464.14,
       "2000": 876.39,
       "2010": 3123.41
     },
-    "source": "指南表1“3820”战略工程主要指标完成情况",
-    "verified": false
+    "basis": "指南表 1 所列口径；原始统计口径待核验",
+    "source_ref": {
+      "source_file": "docs/基于3820战略工程内容的多智能体系统搭建指南.md",
+      "section": "表 1：主要指标完成情况",
+      "page_or_slide": null,
+      "data_version": "guide-v1",
+      "verified": false
+    }
   },
   "gdp_per_capita": {
     "name": "人均地区生产总值",
@@ -20,8 +26,14 @@
       "2000": 14841,
       "2010": 44000
     },
-    "source": "指南表1“3820”战略工程主要指标完成情况",
-    "verified": false
+    "basis": "指南表 1 所列口径；原始统计口径待核验",
+    "source_ref": {
+      "source_file": "docs/基于3820战略工程内容的多智能体系统搭建指南.md",
+      "section": "表 1：主要指标完成情况",
+      "page_or_slide": null,
+      "data_version": "guide-v1",
+      "verified": false
+    }
   },
   "gnp": {
     "name": "地区收入总值（GNP）",
@@ -32,8 +44,14 @@
       "2000": 925.35,
       "2010": 3165.05
     },
-    "source": "指南表1“3820”战略工程主要指标完成情况",
-    "verified": false
+    "basis": "指南表 1 所列口径；原始统计口径待核验",
+    "source_ref": {
+      "source_file": "docs/基于3820战略工程内容的多智能体系统搭建指南.md",
+      "section": "表 1：主要指标完成情况",
+      "page_or_slide": null,
+      "data_version": "guide-v1",
+      "verified": false
+    }
   },
   "gnp_per_capita": {
     "name": "人均收入总值（人均GNP）",
@@ -44,8 +62,14 @@
       "2000": 15670,
       "2010": 45262
     },
-    "source": "指南表1“3820”战略工程主要指标完成情况",
-    "verified": false
+    "basis": "指南表 1 所列口径；原始统计口径待核验",
+    "source_ref": {
+      "source_file": "docs/基于3820战略工程内容的多智能体系统搭建指南.md",
+      "section": "表 1：主要指标完成情况",
+      "page_or_slide": null,
+      "data_version": "guide-v1",
+      "verified": false
+    }
   },
   "industry_primary": {
     "name": "第一产业占比",
@@ -56,8 +80,14 @@
       "2000": 15.42,
       "2010": 9.05
     },
-    "source": "指南表1“3820”战略工程主要指标完成情况",
-    "verified": false
+    "basis": "指南表 1 所列口径；原始统计口径待核验",
+    "source_ref": {
+      "source_file": "docs/基于3820战略工程内容的多智能体系统搭建指南.md",
+      "section": "表 1：主要指标完成情况",
+      "page_or_slide": null,
+      "data_version": "guide-v1",
+      "verified": false
+    }
   },
   "industry_secondary": {
     "name": "第二产业占比",
@@ -68,8 +98,14 @@
       "2000": 43.23,
       "2010": 44.88
     },
-    "source": "指南表1“3820”战略工程主要指标完成情况",
-    "verified": false
+    "basis": "指南表 1 所列口径；原始统计口径待核验",
+    "source_ref": {
+      "source_file": "docs/基于3820战略工程内容的多智能体系统搭建指南.md",
+      "section": "表 1：主要指标完成情况",
+      "page_or_slide": null,
+      "data_version": "guide-v1",
+      "verified": false
+    }
   },
   "industry_tertiary": {
     "name": "第三产业占比",
@@ -80,8 +116,14 @@
       "2000": 41.34,
       "2010": 46.06
     },
-    "source": "指南表1“3820”战略工程主要指标完成情况",
-    "verified": false
+    "basis": "指南表 1 所列口径；原始统计口径待核验",
+    "source_ref": {
+      "source_file": "docs/基于3820战略工程内容的多智能体系统搭建指南.md",
+      "section": "表 1：主要指标完成情况",
+      "page_or_slide": null,
+      "data_version": "guide-v1",
+      "verified": false
+    }
   },
   "gross_ia": {
     "name": "工农业总产值",
@@ -92,8 +134,14 @@
       "2000": 1341.27,
       "2010": 5349.07
     },
-    "source": "指南表1“3820”战略工程主要指标完成情况",
-    "verified": false
+    "basis": "指南表 1 所列口径；原始统计口径待核验",
+    "source_ref": {
+      "source_file": "docs/基于3820战略工程内容的多智能体系统搭建指南.md",
+      "section": "表 1：主要指标完成情况",
+      "page_or_slide": null,
+      "data_version": "guide-v1",
+      "verified": false
+    }
   },
   "agriculture_output": {
     "name": "农业总产值",
@@ -104,8 +152,14 @@
       "2000": 217.42,
       "2010": 480.01
     },
-    "source": "指南表1“3820”战略工程主要指标完成情况",
-    "verified": false
+    "basis": "指南表 1 所列口径；原始统计口径待核验",
+    "source_ref": {
+      "source_file": "docs/基于3820战略工程内容的多智能体系统搭建指南.md",
+      "section": "表 1：主要指标完成情况",
+      "page_or_slide": null,
+      "data_version": "guide-v1",
+      "verified": false
+    }
   },
   "industry_output": {
     "name": "工业总产值",
@@ -116,8 +170,14 @@
       "2000": 1123.85,
       "2010": 4869.05
     },
-    "source": "指南表1“3820”战略工程主要指标完成情况",
-    "verified": false
+    "basis": "指南表 1 所列口径；原始统计口径待核验",
+    "source_ref": {
+      "source_file": "docs/基于3820战略工程内容的多智能体系统搭建指南.md",
+      "section": "表 1：主要指标完成情况",
+      "page_or_slide": null,
+      "data_version": "guide-v1",
+      "verified": false
+    }
   },
   "export_total": {
     "name": "出口总值",
@@ -128,8 +188,14 @@
       "2000": 27.29,
       "2010": 163.14
     },
-    "source": "指南表1“3820”战略工程主要指标完成情况",
-    "verified": false
+    "basis": "指南表 1 所列口径；原始统计口径待核验",
+    "source_ref": {
+      "source_file": "docs/基于3820战略工程内容的多智能体系统搭建指南.md",
+      "section": "表 1：主要指标完成情况",
+      "page_or_slide": null,
+      "data_version": "guide-v1",
+      "verified": false
+    }
   },
   "urban_income": {
     "name": "城镇居民人均可支配收入",
@@ -140,8 +206,14 @@
       "2000": 7944,
       "2010": 22723
     },
-    "source": "指南表1“3820”战略工程主要指标完成情况",
-    "verified": false
+    "basis": "指南表 1 所列口径；原始统计口径待核验",
+    "source_ref": {
+      "source_file": "docs/基于3820战略工程内容的多智能体系统搭建指南.md",
+      "section": "表 1：主要指标完成情况",
+      "page_or_slide": null,
+      "data_version": "guide-v1",
+      "verified": false
+    }
   },
   "rural_income": {
     "name": "农村居民人均纯收入",
@@ -152,7 +224,13 @@
       "2000": 3860,
       "2010": 8543
     },
-    "source": "指南表1“3820”战略工程主要指标完成情况",
-    "verified": false
+    "basis": "指南表 1 所列口径；原始统计口径待核验",
+    "source_ref": {
+      "source_file": "docs/基于3820战略工程内容的多智能体系统搭建指南.md",
+      "section": "表 1：主要指标完成情况",
+      "page_or_slide": null,
+      "data_version": "guide-v1",
+      "verified": false
+    }
   }
 }
