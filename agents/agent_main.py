@@ -1,30 +1,51 @@
-# agents/agent_main.py
+"""问题拆分与可追溯汇总。"""
 import json
+import re
+
+from config import ConfigurationError, get_settings
+from contracts import SubTask
 from llm_client import chat
-SPLIT_SYSTEM = '''
-你是“3820”战略工程知识系统的总控智能体。
-请把用户问题拆分为若干子任务，子任务类型只能从以下四类中选择：
-- planning：战略规划与路径分析
-- indicator：经济指标查询与计算
-- spatial：空间布局（港口、园区、城市更新等）分析
-- evaluation：目标达成率与效果评估
-每个子任务至少包含type与question两个字段；indicator任务还应尽可能提供key（指标键）与years（年份数组），spatial任务应提供keyword及可选stype。只输出合法JSON数组。
-注意：必须输出合法JSON，不要添加Markdown代码围栏；字符串键和值使用英文双引号。
-示例：[ {"type":"indicator","question":"2010年福州GDP是多少？","key":"gdp","years":[2010]},
-{"type":"evaluation","question":"1995年翻一番目标完成情况如何？"} ]
-'''
+
+SPLIT_SYSTEM = '''将问题拆成 JSON 数组。type 仅为 planning、indicator、spatial、evaluation。
+indicator 必须有 key，可用 gdp、gdp_per_capita、gnp、gnp_per_capita、industry_primary、industry_secondary、industry_tertiary、gross_ia、agriculture_output、industry_output、export_total、urban_income、rural_income；spatial 必须有 keyword。只输出 JSON。'''
+KEYWORDS = [('gdp_per_capita','人均GDP'),('gnp_per_capita','人均GNP'),('urban_income','城镇收入'),('rural_income','农村收入'),('industry_output','工业总产值'),('gdp','GDP'),('gnp','GNP'),('export_total','出口'),('industry_primary','第一产业'),('industry_secondary','第二产业'),('industry_tertiary','第三产业')]
+
+
+def _local_split(question):
+    tasks = []
+    years = [int(y) for y in re.findall(r'(?:1990|1995|2000|2010)', question)]
+    if '评估' in question or '达成率' in question or '翻一番' in question or '完成率' in question:
+        tasks.append({'type':'evaluation','question':question})
+    for key, label in KEYWORDS:
+        if label.lower() in question.lower():
+            tasks.append({'type':'indicator','question':question,'key':key,'years':years or None})
+            break
+    if any(word in question for word in ('空间','港口','机场','园区','元洪','苍霞','侨商','博览会')):
+        match = next((w for w in ('元洪','苍霞','港口','机场','园区','侨商','博览会') if w in question), '空间')
+        tasks.append({'type':'spatial','question':question,'keyword':match})
+    if not tasks or any(w in question for w in ('规划','路径','背景','目标','战略')):
+        tasks.append({'type':'planning','question':question})
+    return tasks
+
+
 def split_task(question):
-    content = chat(
-        [
-            {'role': 'system', 'content': SPLIT_SYSTEM},
-            {'role': 'user', 'content': question},
-        ],
-        temperature=0,
-    )
-    return json.loads(content)
+    settings = get_settings()
+    if settings.ark_api_key and settings.llm_model:
+        try:
+            raw = json.loads(chat([{'role':'system','content':SPLIT_SYSTEM},
+                                   {'role':'user','content':question}], temperature=0))
+            if not isinstance(raw, list) or not raw:
+                raise ValueError('模型未返回任务数组')
+            return [SubTask.model_validate(item).model_dump(exclude_none=True) for item in raw]
+        except (ValueError, ConfigurationError):
+            pass
+    return [SubTask.model_validate(item).model_dump(exclude_none=True) for item in _local_split(question)]
+
+
 def summarize(question, results):
-    # 将各专业智能体结果汇总为最终答案（示例为结构化拼接）
     parts = [f'问题：{question}']
-    for key, value in results.items():
-        parts.append(f'[{key}结果] {value}')
+    for role, result in results.items():
+        status = result.get('status', 'ok') if isinstance(result, dict) else 'ok'
+        data = result.get('data') if isinstance(result, dict) and 'data' in result else result
+        parts.append(f'[{role} / {status}] {data}')
     return '\n'.join(parts)

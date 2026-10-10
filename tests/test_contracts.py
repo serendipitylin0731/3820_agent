@@ -70,5 +70,6 @@ def test_graph_routes_with_fake_model_and_retrieval(monkeypatch, fake_retriever)
         lambda _question, context: f"依据片段：{context}",
     )
     result = graph.ask("指南中的 GDP 示例是什么？", "offline-planning")
-    assert "3123.41" in result["results"]["planning"]
+    assert "3123.41" in result["results"]["planning"]["data"]
+    assert result["results"]["planning"]["sources"]
     assert "planning" in result["answer"]

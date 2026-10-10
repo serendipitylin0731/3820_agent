@@ -1,16 +1,15 @@
-# agents/agent_planning.py
-PLANNING_SYSTEM = '''
-你是“3820”战略工程的规划分析智能体。
-请结合知识库中的“3820”内容（三阶段目标、制定过程、四条实施路径、人民情怀主题），
-对用户提出的战略规划类问题进行结构化分析，输出建议包含：
-背景、阶段目标、路径举措、关键依据、风险与建议。
-所有关键依据必须来自提供的参考资料片段。
-'''
+"""规划分析仅使用检索到的资料。"""
+from config import get_settings
+
+PLANNING_SYSTEM = '根据给定资料分析背景、阶段目标、实施路径和风险。只引用给定资料；区分事实与建议，并保留来源位置。'
+
+
 def run_planning(question, kb_text):
-    from llm_client import chat
-    return chat(
-        [
-            {'role': 'system', 'content': PLANNING_SYSTEM},
-            {'role': 'user', 'content': '问题：{}\n参考资料：{}'.format(question, kb_text or '无')},
-        ],
-    )
+    if not kb_text or '暂无充分依据' in kb_text:
+        return '知识库暂无充分依据，无法给出有来源的规划分析。'
+    settings = get_settings()
+    if settings.ark_api_key and settings.llm_model:
+        from llm_client import chat
+        return chat([{'role':'system','content':PLANNING_SYSTEM},
+                     {'role':'user','content':f'问题：{question}\n参考资料：{kb_text}'}])
+    return f'依据指南样例（未独立核验），相关资料如下：\n{kb_text[:1800]}'
