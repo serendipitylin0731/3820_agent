@@ -75,7 +75,6 @@ EMBED_MODEL=doubao-embedding-vision-251215
 <summary><strong>目 录</strong></summary>
 
 <ul>
-  <li><a href="#current-implementation">当前实现与运行</a></li>
   <li><a href="#sec-1">1 概述</a>
     <details>
       <summary>展开下级目录</summary>
