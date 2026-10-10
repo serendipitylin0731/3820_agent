@@ -8,6 +8,10 @@
   const welcome = document.querySelector('#welcome');
   const suggestions = document.querySelector('#suggestions');
   const settingsDialog = document.querySelector('#settings-dialog');
+  const modelDialog = document.querySelector('#model-dialog');
+  const modelButton = document.querySelector('#model-settings-button');
+  const mobileModelButton = document.querySelector('#mobile-model-settings');
+  let modelSettingsToken = '';
   const backgroundToggle = document.querySelector('#background-toggle');
   const backgroundDocument = document.querySelector('#background-document');
   const conversation = document.querySelector('#conversation');
@@ -319,6 +323,51 @@
     clientId = document.querySelector('#client-id').value.trim();
     serviceKey = document.querySelector('#service-key').value;
   });
+  function showModelSettings() {
+    if (!modelDialog.open) modelDialog.showModal();
+  }
+  modelButton.addEventListener('click', showModelSettings);
+  mobileModelButton.addEventListener('click', showModelSettings);
+  document.querySelector('#model-close').addEventListener('click', () => modelDialog.close());
+  document.querySelector('#model-form').addEventListener('submit', async event => {
+    event.preventDefault();
+    const status = document.querySelector('#model-status');
+    const save = document.querySelector('#model-save');
+    save.disabled = true;
+    status.textContent = '正在保存…';
+    try {
+      const response = await fetch('/desktop/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Desktop-Settings': modelSettingsToken },
+        body: JSON.stringify({
+          api_key: document.querySelector('#ark-key').value,
+          llm_model: document.querySelector('#llm-model').value,
+          embed_model: document.querySelector('#embed-model').value,
+          base_url: document.querySelector('#ark-base-url').value,
+        }),
+      });
+      if (!response.ok) throw new Error('保存失败，请检查密钥、模型 ID 和 API 地址。');
+      document.querySelector('#ark-key').value = '';
+      status.textContent = '配置已保存，可以开始提问。';
+      setTimeout(() => modelDialog.close(), 900);
+    } catch (error) {
+      status.textContent = error.message || '无法保存配置。';
+    } finally {
+      save.disabled = false;
+    }
+  });
+  fetch('/desktop/config', { cache: 'no-store' }).then(async response => {
+    if (!response.ok) return;
+    const config = await response.json();
+    modelSettingsToken = config.token;
+    modelButton.hidden = false;
+    mobileModelButton.hidden = false;
+    document.querySelector('#llm-model').value = config.llm_model || '';
+    document.querySelector('#embed-model').value = config.embed_model || '';
+    document.querySelector('#ark-base-url').value = config.base_url;
+    document.querySelector('#model-data-note').textContent = `个人资料目录：${config.data_dir}`;
+    if (!config.configured) showModelSettings();
+  }).catch(() => {});
   renderSuggestions();
   if (savedTurns.length) restoreConversation(savedTurns[savedTurns.length - 1].threadId);
   else renderHistory();

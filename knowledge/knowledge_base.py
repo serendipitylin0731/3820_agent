@@ -1,6 +1,7 @@
 """带来源的知识切片、离线文本检索和可选向量索引。"""
 import hashlib
 import json
+import os
 import re
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
@@ -222,6 +223,10 @@ def _source_paths(settings):
              {'.ppt', '.pptx', '.doc', '.docx'}] if DATA_DIR.is_dir() else []
     if settings.ppt_path and settings.ppt_path.is_file():
         files.append(settings.ppt_path)
+    extra = os.environ.get('AGENT3820_EXTRA_DATA_DIR')
+    if extra and Path(extra).is_dir():
+        files.extend(path for path in Path(extra).iterdir() if path.is_file() and
+                     path.suffix.lower() in {'.pptx', '.docx', '.txt'})
     # 两份演示文稿的 29 页文字完全重复；保留页码齐全的 PPTX。
     names = {path.name for path in files}
     if '3820视频.pptx' in names:

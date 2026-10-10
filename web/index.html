@@ -39,6 +39,7 @@
       </section>
 
       <div class="sidebar-bottom">
+        <button id="model-settings-button" class="model-settings-button" type="button" hidden>⚙ 豆包 API 设置</button>
         <div class="source-note"><span class="source-dot" aria-hidden="true"></span><span>依据已收录资料作答<br><small>历史数据请核对来源与口径</small></span></div>
       </div>
     </aside>
@@ -46,7 +47,7 @@
     <main class="main">
       <header class="topbar">
         <span class="eyebrow">3820 / 知识工作台</span>
-        <div class="topbar-right"><span class="topbar-status"><span class="status-dot" aria-hidden="true"></span> 本地服务</span><button class="mobile-new-chat" id="mobile-new-chat" type="button">新对话</button><button class="mobile-background" id="mobile-background" type="button">3820 背景</button></div>
+        <div class="topbar-right"><span class="topbar-status"><span class="status-dot" aria-hidden="true"></span> 本地服务</span><button class="mobile-new-chat" id="mobile-new-chat" type="button">新对话</button><button class="mobile-background" id="mobile-background" type="button">3820 背景</button><button class="mobile-model-settings" id="mobile-model-settings" type="button" hidden>API 设置</button></div>
       </header>
 
       <div class="conversation" id="conversation" role="log" aria-label="问答记录" aria-live="polite">
@@ -175,6 +176,23 @@
       <label for="service-key">网站访问密码</label>
       <input id="service-key" name="service-key" type="password" autocomplete="off" placeholder="管理员提供的密码">
       <div class="dialog-actions"><span>密码仅在当前页面使用。保存后可重发刚才的问题。</span><button type="submit" value="save">保存</button></div>
+    </form>
+  </dialog>
+  <dialog id="model-dialog" aria-labelledby="model-title">
+    <form id="model-form">
+      <div class="dialog-head"><div><span class="dialog-kicker">本机安装版</span><h2 id="model-title">配置豆包 API</h2></div><button class="dialog-close" id="model-close" aria-label="关闭" type="button">×</button></div>
+      <p>在火山方舟控制台复制 API Key 和已开通的模型 ID。密钥仅保存在当前 Windows 用户目录，由系统加密；不会写进安装包或浏览器历史。</p>
+      <label for="ark-key">API Key <span>重新打开时留空表示不修改</span></label>
+      <input id="ark-key" type="password" autocomplete="new-password" placeholder="在此粘贴 API Key">
+      <label for="llm-model">对话模型 ID</label>
+      <input id="llm-model" type="text" spellcheck="false" required placeholder="例如 doubao-seed-character-260628">
+      <label for="embed-model">向量模型 ID <span>可选，建立向量索引时使用</span></label>
+      <input id="embed-model" type="text" spellcheck="false" placeholder="例如 doubao-embedding-vision-251215">
+      <label for="ark-base-url">API 地址</label>
+      <input id="ark-base-url" type="url" spellcheck="false" required value="https://ark.cn-beijing.volces.com/api/v3">
+      <p class="model-data-note" id="model-data-note"></p>
+      <p class="model-status" id="model-status" role="status"></p>
+      <div class="dialog-actions"><span>保存后立即用于新问题。模型调用需要联网。</span><button id="model-save" type="submit">保存配置</button></div>
     </form>
   </dialog>
 </body>
