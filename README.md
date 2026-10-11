@@ -69,7 +69,7 @@ flowchart LR
     A --> D[豆包补充：仅在缺少直接资料时]
 ```
 
-后端使用 FastAPI 提供浏览器界面和问答接口；LangGraph 编排问题拆分、检索、专业模块和回答合成。知识库读取项目指南、公开资料和用户导入的 Word/PPT/文本，并可选用豆包向量模型建立本地向量索引。经济指标由 `knowledge/indicators.json` 提供，规划目标由指南表 4 与原件扫描目标表分别提供。桌面版使用 Tk 原生控件并直接调用同一问答图，不启动 HTTP 服务。
+后端使用 FastAPI 提供浏览器界面和问答接口；LangGraph 编排问题拆分、检索、专业模块和回答合成。常见规划问题优先匹配[背景导读](docs/3820背景.md)中经过整理、附有来源的主题章节；原件扫描和用户导入的 Word/PPT/文本仍供细节检索，避免 OCR 噪声盖过明确材料。无直接依据的问题可由豆包补充，回答下方说明来源边界。知识库可选用豆包向量模型建立本地向量索引。经济指标由 `knowledge/indicators.json` 提供，规划目标由指南表 4 与原件扫描目标表分别提供。桌面版使用 Tk 原生控件并直接调用同一问答图，不启动 HTTP 服务。
 
 | 路径 | 用途 |
 | --- | --- |
@@ -88,6 +88,8 @@ flowchart LR
 ```bash
 .venv/bin/python -m pytest -m offline -q
 ```
+
+问答质量还可用 `python -m scripts.evaluate_qa` 和 `python -m scripts.evaluate_expanded` 在已配置豆包模型的环境中复测。题目、检查范围与最近一次结果见[问答评测记录](docs/问答评测.md)。
 
 Windows x64 维护者可以依次执行 `python -m pip install -r requirements-desktop.txt`、`python -m PyInstaller --noconfirm packaging/3820Agent.spec`，再用 Inno Setup 编译 `packaging/3820Agent.iss`。仓库的 Windows CI 会检查可执行文件、DPI 设置、安装后启动和快捷方式图标。
 

@@ -77,7 +77,7 @@ def test_theory_fallback_does_not_repeat_truncated_ocr():
     answer, sources = answer_writer.compose_answer('3820的规划方法有何启示？', results,
                                                    fallback, settings=Settings())
     assert '使经济上一' not in answer
-    assert '1995年、2000年和2010年' in answer
+    assert '1992年经过广泛调研' in answer
     assert sources
 
 

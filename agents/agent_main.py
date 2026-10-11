@@ -26,7 +26,8 @@ KEYWORDS = [('gdp_per_capita','人均地区生产总值'),('gdp_per_capita','人
 def _local_split(question):
     tasks = []
     years = sorted({int(y) for y in re.findall(r'(?:1990|1995|2000|2010)', question)})
-    growth = any(term in question for term in ('增长率', '增幅', '增长了多少'))
+    growth = (any(term in question for term in ('增长率', '增幅', '涨幅', '增长了多少', '增长多少'))
+              or '增长' in question and any(term in question for term in ('百分之几', '百分比')))
     if any(term in question for term in ('三次产业结构', '三大产业结构', '三次产业构成')):
         tasks.extend({'type': 'indicator', 'question': question, 'key': key, 'years': years or None}
                      for key in ('industry_primary', 'industry_secondary', 'industry_tertiary'))
@@ -50,6 +51,10 @@ def _local_split(question):
 
 def _normalize_tasks(tasks, question):
     """对模型拆分做领域校验，防止无关问题被误映射为某项指标。"""
+    if ('GDP' in question.upper() and 'GNP' in question.upper() and
+            not re.search(r'(?:19|20)\d{2}', question) and '目标' not in question and
+            any(term in question for term in ('区别', '差别', '概念', '定义'))):
+        return [{'type': 'planning', 'question': question}]
     local_indicators = [task for task in _local_split(question) if task['type'] == 'indicator']
     tasks = [task for task in tasks if task['type'] != 'indicator']
     conceptual = any(cue in question for cue in ('为什么要区分', '如何区分', '怎样区分'))
@@ -70,6 +75,8 @@ def _normalize_tasks(tasks, question):
     if evaluating:
         if not any(task['type'] == 'evaluation' for task in tasks):
             tasks.insert(0, {'type': 'evaluation', 'question': question})
+        if '目标' in question and not local_indicators and not any(task['type'] == 'planning' for task in tasks):
+            tasks.append({'type': 'planning', 'question': question})
     if '布局' in question and '战略' in question:
         from knowledge.domain import spatial_features
         if not any(item['name'] in question for item in spatial_features()):
@@ -84,6 +91,18 @@ def _normalize_tasks(tasks, question):
         tasks = [task for task in tasks if task['type'] != 'spatial']
         if not any(task['type'] == 'planning' for task in tasks):
             tasks.append({'type': 'planning', 'question': question})
+    if any(term in question for term in ('何时', '什么时候', '哪一年', '哪年', '开工', '建成', '完工', '通航')):
+        if any(task['type'] == 'spatial' for task in tasks):
+            tasks = [task for task in tasks if task['type'] != 'spatial']
+            if not any(task['type'] == 'planning' for task in tasks):
+                tasks.append({'type': 'planning', 'question': question})
+    from knowledge.domain import spatial_features
+    named = [item['name'] for item in spatial_features()
+             if item['name'] in question and item['name'] not in {'港口与对外通道', '开发区与园区'}]
+    if named and not any(term in question for term in ('何时', '什么时候', '哪年', '开工', '建成', '完工', '通航',
+                                                        '规划', '战略布局', '地图', '示意图')):
+        tasks = [task for task in tasks if task['type'] not in {'planning', 'spatial'}]
+        tasks.append({'type': 'spatial', 'question': question, 'keyword': named[0]})
     if '福州经济技术开发区' in question and '老市区' in question:
         tasks = [task for task in tasks if task['type'] != 'spatial']
         if not any(task['type'] == 'planning' for task in tasks):

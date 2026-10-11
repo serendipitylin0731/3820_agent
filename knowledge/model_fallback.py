@@ -8,7 +8,8 @@ from llm_client import chat
 
 logger = logging.getLogger('3820_agent')
 CITY_TERMS = ('福州', '闽江口', '长乐', '马尾', '元洪', '福清', '罗源', '平潭')
-PROJECT_TERMS = ('南北两翼', '金三角经济圈', '海上福州', '沿江向海', '东进南下')
+PROJECT_TERMS = ('南北两翼', '金三角经济圈', '海上福州', '沿江向海',
+                 '东进南下', '机场', '港口', '开发区', '规划原文')
 DEVELOPMENT_TERMS = ('发展', '战略', '规划', '建设', '工程', '经济', '机场', '港口',
                      '开放', '产业', '投资', '招商', '交通', '开发区', '城市', '基础设施')
 INSUFFICIENT_MARKERS = (
@@ -29,6 +30,12 @@ def needs_model(question: str, results: dict, answer: str) -> bool:
         return False
     if any(item.get('status') == 'ok' and item.get('role') in {'indicator', 'evaluation'}
            for item in results.values()):
+        return False
+    if any(item.get('status') == 'ok' and item.get('role') == 'planning' and item.get('sources')
+           for item in results.values()):
+        return False
+    if any(item.get('role') == 'evaluation' and item.get('status') == 'insufficient_evidence'
+           for item in results.values()) and '无法评估' in answer:
         return False
     if any(item.get('role') == 'indicator' and isinstance(item.get('data'), dict)
            and item['data'].get('values') and

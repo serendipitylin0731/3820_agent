@@ -44,6 +44,11 @@ EXTRA = [
     ('unrelated_chip', '量子芯片的制程是多少？'),
     ('unrelated_weather', '福州明天天气如何？'),
     ('imaginary', '3820工程发射的宇宙飞船叫什么？'),
+    ('source_eras', '怎样区分1992年规划原文和后来的理论视角？'),
+    ('economic_concepts', 'GDP和GNP有什么区别？'),
+    ('jiang_hai', '为什么强调沿江向海？'),
+    ('combined_development', '3820工程如何通过开发区、招商和侨资推动产业发展？'),
+    ('qualitative_2000', '2000年定性目标是否达成？现有资料足以评估吗？'),
 ]
 
 
@@ -65,18 +70,51 @@ def evaluate(item):
     sources = [source for result in results.values() for source in result.get('sources', [])]
     answer = body.get('answer', '')
     checks = {'http_ok': response.status_code == 200,
-              'app_ok': body.get('status') == 'ok'}
+              'app_ok': body.get('status') == 'ok',
+              'no_technical_fallback': '请检查豆包模型配置' not in answer and '[资料 ' not in answer}
     if case_id == 'airport_original':
-        checks['original_page'] = bool(sources) and '预览第255页' in str(sources[0].get('page_or_slide'))
+        checks['reviewed_source'] = any('重点工程' in str(source.get('section')) for source in sources)
         checks['local_answer'] = 'model' not in results
+    elif case_id == 'ui_03':
+        checks['phase_years'] = all(term in answer for term in ('1992', '1995', '2000', '1990', '2010'))
+        checks['reviewed_local_answer'] = bool(sources) and 'model' not in results
     elif case_id == 'airport_1997':
         checks['actual_opening_year'] = '1997' in answer and '计划1996' not in answer
     elif case_id == 'industry_share':
         checks['three_shares'] = all(term in answer for term in ('9.05', '44.88', '46.06'))
     elif case_id in {'ui_13', 'research'}:
         checks['local_source'] = bool(sources) and 'model' not in results
+    elif case_id in {'ui_02', 'ui_16', 'yuanhong', 'assessment_2010',
+                     'source_eras', 'economic_concepts', 'jiang_hai', 'combined_development',
+                     'qualitative_2000'}:
+        checks['reviewed_local_answer'] = bool(sources) and 'model' not in results
+        expected = {
+            'ui_02': ('工业基础薄弱', '交通'),
+            'ui_16': ('开发区', '招商', '侨'),
+            'yuanhong': ('元洪投资区', '以侨引侨'),
+            'assessment_2010': ('2010', '亚洲', '不能'),
+            'source_eras': ('1992', '后来'),
+            'economic_concepts': ('GDP', 'GNP', '生产'),
+            'jiang_hai': ('沿江', '港口开放'),
+            'combined_development': ('开发区', '招商', '侨'),
+            'qualitative_2000': ('2000', '国内先进', '不能'),
+        }[case_id]
+        checks['key_facts'] = all(term in answer for term in expected)
+        if case_id == 'source_eras':
+            checks['not_as_original'] = any(term in answer for term in ('不能', '并非', '不是', '不得'))
+    elif case_id == 'ui_18':
+        checks['qualitative_boundary'] = all(term in answer for term in ('2000', '国内先进', '不能'))
+    elif case_id == 'ui_23':
+        checks['concise_theory'] = len(answer) <= 650 and '从今天的理论视角看' in answer
     elif case_id == 'airport_runway_model':
-        checks['model_supplement'] = 'model' in results and '豆包模型' in answer
+        checks['model_supplement'] = ('model' in results and
+                                      bool(results['model'].get('data', {}).get('source_note')) and
+                                      '知识库没有找到' not in answer)
+    elif case_id == 'growth_1995':
+        checks['correct_growth'] = '353.3%' in answer and '226.6%' not in answer
+    elif case_id == 'imaginary':
+        checks['no_spurious_source'] = not sources
+        checks['reject_false_premise'] = any(term in answer for term in ('没有', '并未', '不是', '未曾', '不存在'))
     elif case_id in {'unrelated_chip', 'unrelated_weather'}:
         checks['no_model_supplement'] = 'model' not in results
     elif case_id == 'ui_05':

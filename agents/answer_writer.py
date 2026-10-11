@@ -59,6 +59,20 @@ def _critical_terms(question: str, results: dict) -> list[str]:
 
 def natural_fallback(question: str, results: dict) -> str:
     """模型不可用时仍用完整句子回答，技术状态留在结构化结果里。"""
+    if any(item.get('role') == 'evaluation' and item.get('status') == 'insufficient_evidence'
+           for item in results.values()):
+        plans = [item['data'] for item in results.values()
+                 if item.get('role') == 'planning' and item.get('status') == 'ok'
+                 and isinstance(item.get('data'), dict)
+                 and item['data'].get('evidence', '').startswith('项目背景导读对应章节')]
+        if plans:
+            year = next((year for year in ('2000', '2010', '1995') if year in question), None)
+            outline = plans[0]['implementation_paths']
+            target = re.search(rf'{year}\s*年：[^\n]+', outline) if year else None
+            if target:
+                return (f"规划对{year}年的目标是：{target.group(0).split('：', 1)[1]}"
+                        '现有资料缺少同一比较对象、年份、统计口径和判据，不能仅凭这些资料'
+                        '判定该定性目标是否达成。')
     targets = [item['data'] for item in results.values()
                if item.get('role') == 'indicator' and item.get('status') == 'ok'
                and isinstance(item.get('data'), dict) and 'target_value' in item['data']]
@@ -84,6 +98,10 @@ def natural_fallback(question: str, results: dict) -> str:
                                  for entry in alternatives)
                 sentences.append(f'指南表1记录{data["name"]}：{baseline}；另一个统计版本记录{other}。'
                                  '这些数值各有来源，跨期增长率需要先选定同一统计版本。')
+            elif role == 'evaluation' and isinstance(data, str) and '无法评估' in data:
+                sentence = '现有资料' + data
+                if sentence not in sentences:
+                    sentences.append(sentence)
             continue
         if role == 'indicator' and isinstance(data, dict):
             if 'target_value' in data:
@@ -105,9 +123,17 @@ def natural_fallback(question: str, results: dict) -> str:
             for row in data:
                 sentences.append(f"按指南表4的阶段目标算法，{row['指标']}的目标达成率为{row['达成率']}%。")
         elif role == 'spatial' and isinstance(data, list):
-            sentences.append('相关空间要素包括：' + '；'.join(
-                f"{entry['name']}：{entry['note']}" for entry in data) + '。')
+            if len(data) == 1 and data[0]['name'] in question:
+                entry = data[0]
+                sentences.append(f"已收录资料将{entry['name']}列为{entry['type']}，"
+                                 f"{entry['note'].rstrip('。')}。")
+            else:
+                sentences.append('相关空间要素包括：' + '；'.join(
+                    f"{entry['name']}：{entry['note']}" for entry in data) + '。')
         elif role == 'planning' and isinstance(data, dict):
+            if data.get('evidence', '').startswith('项目背景导读对应章节'):
+                sentences.append(data['implementation_paths'])
+                continue
             if any(word in question for word in ('三个阶段', '三阶段')):
                 sentences.append('“3820”工程按三年、八年、二十年安排阶段目标：到1995年推动主要指标在1990年基础上翻一番；到2000年力争城乡主要人均指标达到国内先进城市水平；到2010年前后力争达到或接近亚洲中等发达国家或地区当时的平均水平。')
             elif '布局' in question and '福州经济技术开发区' in data.get('implementation_paths', ''):
@@ -134,7 +160,7 @@ def natural_fallback(question: str, results: dict) -> str:
         if any(item.get('role') == 'planning' and item.get('status') == 'ok' and item.get('sources')
                for item in results.values()):
             return '据已收录的规划资料，“3820”工程通过调查研究和论证形成，并按三年、八年、二十年三个阶段推进福州发展。具体问题仍需结合对应来源核对。'
-        return '暂时无法给出可靠回答，请检查豆包模型配置或稍后重试。'
+        return '目前无法确认这一问题的答案。'
     return '\n\n'.join(sentences)
 
 
@@ -189,10 +215,9 @@ def _fallback_with_theory(fallback: str, theory: dict, results: dict) -> tuple[s
     if 'new_development' in theory:
         thoughts.append('创新、协调、绿色、开放、共享可用于分析其当代意义')
     supplement = '从今天的理论视角看，' + '；'.join(thoughts) + '。这些是后来的分析视角，并非1992年规划原文的理论表述。'
-    has_numeric_result = any(item.get('role') in ('indicator', 'evaluation')
-                             for item in results.values())
-    grounding = (fallback.rstrip() if has_numeric_result else
-                 '据已收录的“3820”资料，这项规划经过调查研究和论证形成，并以1995年、2000年和2010年为阶段节点。')
+    grounding = fallback.rstrip()
+    if not grounding or '目前无法确认这一问题的答案' in grounding:
+        grounding = '据已收录的“3820”资料，这项规划经过调查研究和论证形成，并以1995年、2000年和2010年为阶段节点。'
     return grounding + '\n\n' + supplement, theory
 
 
@@ -201,6 +226,16 @@ def compose_answer(question: str, results: dict, fallback: str, *, settings=None
     if not any(item.get('status') == 'ok' for item in results.values()):
         return fallback, None
     theory = select_theory(question, results)
+    if (not theory and any(item.get('role') == 'evaluation' and
+                           item.get('status') == 'insufficient_evidence' for item in results.values())
+            and any(item.get('role') == 'planning' and item.get('status') == 'ok'
+                    for item in results.values())):
+        return fallback, None
+    if (not theory and len(results) == 1 and any(
+            item.get('role') == 'spatial' and item.get('status') == 'ok'
+            and isinstance(item.get('data'), list) and len(item['data']) == 1
+            and item['data'][0]['name'] in question for item in results.values())):
+        return fallback, None
     settings = settings or get_settings()
     if not settings.ark_api_key or not settings.llm_model:
         return _fallback_with_theory(fallback, theory, results)

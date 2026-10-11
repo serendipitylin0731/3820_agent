@@ -34,7 +34,6 @@ def test_jiang_hai_question_routes_to_cited_planning_answer(monkeypatch):
     monkeypatch.setattr(agent_main, 'chat',
                         lambda *_args, **_kwargs: '[{"type":"spatial","question":"沿江向海",'
                                                  '"keyword":"空间"}]')
-    monkeypatch.setattr(agent_planning, 'get_settings', lambda: Settings())
     monkeypatch.setattr(graph, 'get_settings', lambda: Settings())
     monkeypatch.setattr(graph, 'search', lambda *_args, **_kwargs:
                         KnowledgeResult(status='insufficient_evidence'))
@@ -134,7 +133,6 @@ def test_three_industry_structure_uses_recorded_percentages(monkeypatch):
 
 def test_planned_airport_date_is_not_used_as_opening_date(monkeypatch):
     from agents import agent_planning
-    monkeypatch.setattr(agent_planning, 'get_settings', lambda: Settings())
     report = agent_planning.run_planning('长乐国际机场哪年正式通航？',
                                          '规划称长乐国际机场计划在1996年建成投入使用。')
     assert 'insufficient_evidence' in report
@@ -163,7 +161,6 @@ def test_whether_qualitative_goal_achieved_routes_to_evaluation(monkeypatch):
 
 def test_map_answer_uses_reviewed_labels_when_scan_page_is_retrieved(monkeypatch):
     from agents import agent_planning
-    monkeypatch.setattr(agent_planning, 'get_settings', lambda: Settings())
     text = '[原始扫描件 OCR 预览第27页] 福州市闽江口金三角经济圈投资示意图\n福州经济技术开发区'
     answer = agent_planning.run_planning('投资示意图有哪些区域？', text)
     assert '罗源湾投资区' in answer['implementation_paths']
@@ -171,26 +168,25 @@ def test_map_answer_uses_reviewed_labels_when_scan_page_is_retrieved(monkeypatch
     assert '人工转录' in answer['evidence']
 
 
-def test_planning_report_has_sections_and_no_evidence_behavior(monkeypatch):
+def test_planning_requires_reviewed_evidence():
     from agents import agent_planning
-    monkeypatch.setattr(agent_planning, 'get_settings', lambda: Settings())
     report = agent_planning.run_planning('三阶段目标', '[指南 1.2] 1995年主要指标翻一番。\n以侨引侨是实施路径。')
-    assert set(report) == {'background','stage_goals','implementation_paths','evidence','risks','suggestions'}
-    assert '1995' in report['stage_goals']
-    assert '分析建议' in report['suggestions']
+    assert 'insufficient_evidence' in report
     assert agent_planning.run_planning('无依据', '') is None
 
 
-def test_model_advice_cannot_replace_evidence(monkeypatch):
+def test_reviewed_evidence_is_not_vetoed_by_model_advice(monkeypatch):
     from agents import agent_planning
-    monkeypatch.setattr(agent_planning, 'get_settings',
-                        lambda: Settings(ark_api_key='fake', llm_model='fake'))
     import llm_client
-    monkeypatch.setattr(llm_client, 'chat', lambda _messages: '{"risks":"需核对","suggestions":"补充原件"}')
-    report = agent_planning.run_planning('三阶段目标', '[指南] 1995年指标翻一番。')
-    assert report['stage_goals'] == '[指南] 1995年指标翻一番。'
-    assert report['evidence'] == '[指南] 1995年指标翻一番。'
-    assert report['suggestions'].startswith('分析建议：')
+    monkeypatch.setattr(llm_client, 'chat', lambda *_args, **_kwargs: (_ for _ in ()).throw(
+        AssertionError('规划证据判定不应再调用模型')))
+    from knowledge.curated import direct_hits
+    from knowledge.knowledge_base import format_context
+    report = agent_planning.run_planning('1995年阶段目标是什么？',
+                                         format_context(KnowledgeResult(status='ok',
+                                                                        hits=direct_hits('1995年阶段目标是什么？'))))
+    assert '1995' in report['implementation_paths']
+    assert report['source_sections'] == ['3820 战略工程三阶段目标']
 
 
 def test_retrieval_failure_isolated_to_planning(monkeypatch):
@@ -213,7 +209,7 @@ def test_retrieval_failure_isolated_to_planning(monkeypatch):
     assert graph.route_node({'sub_tasks':[{'type':'indicator'}]}) == 'execute_node'
 
 
-def test_retrieval_uses_single_hit_set(monkeypatch):
+def test_retrieval_uses_single_hit_set_when_no_reviewed_section_matches(monkeypatch):
     import graph
     hit = KnowledgeHit(chunk_id='x', content='1995年翻一番',
                        source=SourceRef(source_file='guide.md', data_version='v1', verified=False))
@@ -223,13 +219,13 @@ def test_retrieval_uses_single_hit_set(monkeypatch):
         return KnowledgeResult(status='ok', hits=[hit])
     monkeypatch.setattr(graph, 'search', fake)
     monkeypatch.setattr(graph, 'get_settings', lambda: Settings())
-    result = graph.retrieve_node({'question':'1995年目标'})
+    result = graph.retrieve_node({'question':'罕见专题'})
     assert len(calls) == 1
     assert '1995年翻一番' in result['kb_context']
-    assert result['kb_sources'][0]['source_file'] == 'guide.md'
+    assert any(source['source_file'] == 'guide.md' for source in result['kb_sources'])
 
 
-def test_layout_retrieval_uses_original_section_and_passage(monkeypatch):
+def test_reviewed_layout_section_avoids_noisy_search(monkeypatch):
     import graph
     from agents import agent_planning
     queries = []
@@ -241,8 +237,7 @@ def test_layout_retrieval_uses_original_section_and_passage(monkeypatch):
         queries.append(query) or KnowledgeResult(status='ok', hits=[hit])))
     monkeypatch.setattr(graph, 'get_settings', lambda: Settings())
     fetched = graph.retrieve_node({'question':'3820战略工程对城市空间布局有什么安排？'})
-    assert queries == ['福州市20年经济社会发展战略设想 战略布局']
-    monkeypatch.setattr(agent_planning, 'get_settings', lambda: Settings())
+    assert queries == []
     report = agent_planning.run_planning('3820战略工程对城市空间布局有什么安排？',
                                          fetched['kb_context'])
     assert '闽江口金三角经济圈' in report['implementation_paths']

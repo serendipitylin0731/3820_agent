@@ -6,7 +6,7 @@ from typing import TypedDict
 
 from langgraph.graph import StateGraph, START, END
 from langgraph.checkpoint.sqlite import SqliteSaver
-from contracts import AgentResult, ErrorInfo, SubTask
+from contracts import AgentResult, ErrorInfo, KnowledgeResult, SubTask
 from config import get_settings
 from agents.agent_main import split_task
 from agents.answer_writer import compose_answer, natural_fallback
@@ -58,6 +58,13 @@ def route_node(state):
 def retrieve_node(state):
     started = time.monotonic()
     direct = direct_hits(state['question'])
+    if direct and not any(term in state['question'] for term in ('示意图', '地图', '幻灯片', 'PPT', '图片')):
+        found = KnowledgeResult(status='ok', hits=direct)
+        log_event('retrieval_finished', state.get('request_id', ''), state.get('thread_id', ''),
+                  node='retrieve_node', duration_ms=round((time.monotonic() - started) * 1000, 1))
+        return {'kb_context': format_context(found),
+                'kb_sources': [hit.source.model_dump() for hit in direct],
+                'kb_error': None, 'kb_error_code': None}
     query = ('福州市20年经济社会发展战略设想 战略布局'
              if '布局' in state['question'] and any(term in state['question'] for term in ('3820', '战略'))
              else '福州市20年经济社会发展战略设想 3820工程 调查研究 战略规划'
@@ -84,7 +91,6 @@ def retrieve_node(state):
             if attempt == 0 and transient_error(exc):
                 continue
             if direct:
-                from contracts import KnowledgeResult
                 found = KnowledgeResult(status='ok', hits=direct)
                 return {'kb_context': format_context(found),
                         'kb_sources': [hit.source.model_dump() for hit in direct],
@@ -147,11 +153,9 @@ def execute_node(state):
                     continue
                 value = run_planning(task['question'], state.get('kb_context', ''))
                 sources = state.get('kb_sources', [])
-                if (isinstance(value, dict) and
-                        value.get('evidence', '').startswith(
-                            '《福州市20年经济社会发展战略设想》扫描预览第40页；项目背景导读第04节。')):
-                    sources = [source for source in sources
-                               if source.get('section') == '预览第40页：战略布局']
+                if isinstance(value, dict) and value.get('source_sections'):
+                    selected = set(value.pop('source_sections'))
+                    sources = [source for source in sources if source.get('section') in selected]
             if isinstance(value, dict) and 'error' in value:
                 if value.get('conflicts') or value.get('incomparable'):
                     alternatives = [item['other'] for item in value['conflicts']]

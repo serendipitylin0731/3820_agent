@@ -76,7 +76,7 @@
     "question": "2000年目标是否已经达成？",
     "expected_role": "evaluation",
     "expected_role_status": "insufficient_evidence",
-    "answer_contains": ["无法评估"],
+    "answer_contains": ["不能", "判定"],
     "source_contains": []
   },
   {
@@ -84,7 +84,7 @@
     "question": "量子芯片的制程是多少？",
     "expected_role": "planning",
     "expected_role_status": "insufficient_evidence",
-    "answer_contains": ["依据不足"],
+    "answer_contains": ["无法确认"],
     "source_contains": []
   },
   {

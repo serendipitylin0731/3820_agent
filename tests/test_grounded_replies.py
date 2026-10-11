@@ -13,14 +13,13 @@ pytestmark = pytest.mark.offline
 @pytest.fixture
 def offline_graph(monkeypatch, tmp_path):
     import graph
-    from agents import agent_main, agent_planning
+    from agents import agent_main
     from knowledge import knowledge_base
 
     settings = Settings(ark_api_key=None, llm_model=None, embed_model=None,
                         vector_max_distance=None, checkpoint_path=tmp_path / 'reported.sqlite3')
     monkeypatch.setattr(graph, 'get_settings', lambda: settings)
     monkeypatch.setattr(agent_main, 'get_settings', lambda: settings)
-    monkeypatch.setattr(agent_planning, 'get_settings', lambda: settings)
     monkeypatch.setattr(knowledge_base, 'get_settings', lambda: settings)
     graph.get_graph.cache_clear()
     yield graph
