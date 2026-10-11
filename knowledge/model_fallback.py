@@ -1,4 +1,4 @@
-"""知识库没有直接依据时，仅为 3820 相关问题提供豆包模型补充。"""
+"""知识库没有直接依据时，为 3820 相关问题提供豆包模型补充。"""
 
 import logging
 
@@ -15,7 +15,7 @@ INSUFFICIENT_MARKERS = (
     '无法明确', '无法确定', '暂未查找到', '未查找到', '未找到', '未收录',
     '依据不足', '资料不足', '未提及', '缺乏具体', '无法给出',
 )
-PREFIX = '知识库资料中暂未查找到，以下是豆包模型提供的参考回答：'
+MODEL_NOTE = '知识库没有找到直接匹配的资料；此回答由豆包模型补充，未附资料来源。'
 
 
 def is_related(question: str) -> bool:
@@ -27,12 +27,16 @@ def is_related(question: str) -> bool:
 def needs_model(question: str, results: dict, answer: str) -> bool:
     if not is_related(question):
         return False
-    # 数值冲突与目标达成判据缺失不能用模型常识替代原始统计依据。
-    if any(item.get('role') in {'indicator', 'evaluation'} for item in results.values()):
+    if any(item.get('status') == 'ok' and item.get('role') in {'indicator', 'evaluation'}
+           for item in results.values()):
         return False
-    planning = [item for item in results.values() if item.get('role') == 'planning']
-    return bool(planning) and (not any(item.get('status') == 'ok' for item in planning)
-                               or any(marker in answer for marker in INSUFFICIENT_MARKERS))
+    if any(item.get('role') == 'indicator' and isinstance(item.get('data'), dict)
+           and item['data'].get('values') and
+           (item['data'].get('conflicts') or item['data'].get('incomparable'))
+           for item in results.values()):
+        return False
+    return bool(results) and (not any(item.get('status') == 'ok' for item in results.values())
+                              or any(marker in answer for marker in INSUFFICIENT_MARKERS))
 
 
 def answer_from_model(question: str, *, settings=None):
@@ -56,9 +60,9 @@ def answer_from_model(question: str, *, settings=None):
         if not body or any(marker in body for marker in ('无法识别', '无法回答该问题', '无法提供相关信息')):
             return None
         result = AgentResult(role='model', status='ok',
-                             data={'kind': 'model_knowledge', 'source_note': '模型补充，未检索外部资料'},
+                             data={'kind': 'model_knowledge', 'source_note': MODEL_NOTE},
                              sources=[])
-        return PREFIX + body, result.model_dump()
+        return body, result.model_dump()
     except Exception as exc:
         logger.warning('豆包模型补充失败 error_type=%s', type(exc).__name__)
         return None

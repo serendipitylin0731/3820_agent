@@ -15,6 +15,7 @@ from agents.agent_indicator import query_indicator, query_target, INDICATOR_DATA
 from agents.agent_spatial import query_spatial
 from agents.agent_evaluation import eval_1995_phase
 from knowledge.knowledge_base import EXACT_ENTITIES, format_context, search
+from knowledge.curated import direct_hits
 from knowledge.model_fallback import answer_from_model, needs_model
 from resilience import find_checkpoint, log_event, timeout_error, transient_error
 
@@ -56,6 +57,7 @@ def route_node(state):
 
 def retrieve_node(state):
     started = time.monotonic()
+    direct = direct_hits(state['question'])
     query = ('福州市20年经济社会发展战略设想 战略布局'
              if '布局' in state['question'] and any(term in state['question'] for term in ('3820', '战略'))
              else '福州市20年经济社会发展战略设想 3820工程 调查研究 战略规划'
@@ -64,6 +66,10 @@ def retrieve_node(state):
     for attempt in range(2):
         try:
             found = search(query, top_k=get_settings().top_k)
+            if direct:
+                found = found.model_copy(update={'status': 'ok',
+                    'hits': [*direct, *[hit for hit in found.hits
+                                      if hit.chunk_id not in {item.chunk_id for item in direct}]][:get_settings().top_k]})
             anchors = [term for term in EXACT_ENTITIES if term in state['question']]
             if anchors and found.hits:
                 relevant = [hit for hit in found.hits if any(term in hit.content for term in anchors)]
@@ -77,6 +83,12 @@ def retrieve_node(state):
         except Exception as exc:
             if attempt == 0 and transient_error(exc):
                 continue
+            if direct:
+                from contracts import KnowledgeResult
+                found = KnowledgeResult(status='ok', hits=direct)
+                return {'kb_context': format_context(found),
+                        'kb_sources': [hit.source.model_dump() for hit in direct],
+                        'kb_error': None, 'kb_error_code': None}
             log_event('retrieval_failed', state.get('request_id', ''), state.get('thread_id', ''),
                       level='warning', node='retrieve_node', error_type=type(exc).__name__,
                       duration_ms=round((time.monotonic() - started) * 1000, 1))
@@ -139,7 +151,7 @@ def execute_node(state):
                 if value.get('conflicts') or value.get('incomparable'):
                     alternatives = [item['other'] for item in value['conflicts']]
                     alternatives.extend(value['incomparable'])
-                    result = AgentResult(role=role, status='insufficient_evidence', data=value['error'],
+                    result = AgentResult(role=role, status='insufficient_evidence', data=value,
                                          sources=[INDICATOR_DATA[task['key']]['source_ref']] +
                                          [item['source_ref'] for item in alternatives])
                 else:

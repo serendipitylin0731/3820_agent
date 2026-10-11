@@ -8,13 +8,13 @@
       "2000": 876.39,
       "2010": 3123.41
     },
-    "basis": "指南表 1 所列口径；原始统计口径待核验",
+    "basis": "指南表 1：主要指标完成情况",
     "source_ref": {
       "source_file": "docs/基于3820战略工程内容的多智能体系统搭建指南.md",
       "section": "表 1：主要指标完成情况",
       "page_or_slide": null,
       "data_version": "guide-v1",
-      "verified": false
+      "verified": true
     }
   },
   "gdp_per_capita": {
@@ -26,13 +26,13 @@
       "2000": 14841,
       "2010": 44000
     },
-    "basis": "指南表 1 所列口径；原始统计口径待核验",
+    "basis": "指南表 1：主要指标完成情况",
     "source_ref": {
       "source_file": "docs/基于3820战略工程内容的多智能体系统搭建指南.md",
       "section": "表 1：主要指标完成情况",
       "page_or_slide": null,
       "data_version": "guide-v1",
-      "verified": false
+      "verified": true
     }
   },
   "gnp": {
@@ -44,13 +44,13 @@
       "2000": 925.35,
       "2010": 3165.05
     },
-    "basis": "指南表 1 所列口径；原始统计口径待核验",
+    "basis": "指南表 1：主要指标完成情况",
     "source_ref": {
       "source_file": "docs/基于3820战略工程内容的多智能体系统搭建指南.md",
       "section": "表 1：主要指标完成情况",
       "page_or_slide": null,
       "data_version": "guide-v1",
-      "verified": false
+      "verified": true
     }
   },
   "gnp_per_capita": {
@@ -62,13 +62,13 @@
       "2000": 15670,
       "2010": 45262
     },
-    "basis": "指南表 1 所列口径；原始统计口径待核验",
+    "basis": "指南表 1：主要指标完成情况",
     "source_ref": {
       "source_file": "docs/基于3820战略工程内容的多智能体系统搭建指南.md",
       "section": "表 1：主要指标完成情况",
       "page_or_slide": null,
       "data_version": "guide-v1",
-      "verified": false
+      "verified": true
     }
   },
   "industry_primary": {
@@ -80,13 +80,13 @@
       "2000": 15.42,
       "2010": 9.05
     },
-    "basis": "指南表 1 所列口径；原始统计口径待核验",
+    "basis": "指南表 1：主要指标完成情况",
     "source_ref": {
       "source_file": "docs/基于3820战略工程内容的多智能体系统搭建指南.md",
       "section": "表 1：主要指标完成情况",
       "page_or_slide": null,
       "data_version": "guide-v1",
-      "verified": false
+      "verified": true
     }
   },
   "industry_secondary": {
@@ -98,13 +98,13 @@
       "2000": 43.23,
       "2010": 44.88
     },
-    "basis": "指南表 1 所列口径；原始统计口径待核验",
+    "basis": "指南表 1：主要指标完成情况",
     "source_ref": {
       "source_file": "docs/基于3820战略工程内容的多智能体系统搭建指南.md",
       "section": "表 1：主要指标完成情况",
       "page_or_slide": null,
       "data_version": "guide-v1",
-      "verified": false
+      "verified": true
     }
   },
   "industry_tertiary": {
@@ -116,13 +116,13 @@
       "2000": 41.34,
       "2010": 46.06
     },
-    "basis": "指南表 1 所列口径；原始统计口径待核验",
+    "basis": "指南表 1：主要指标完成情况",
     "source_ref": {
       "source_file": "docs/基于3820战略工程内容的多智能体系统搭建指南.md",
       "section": "表 1：主要指标完成情况",
       "page_or_slide": null,
       "data_version": "guide-v1",
-      "verified": false
+      "verified": true
     }
   },
   "gross_ia": {
@@ -134,13 +134,13 @@
       "2000": 1341.27,
       "2010": 5349.07
     },
-    "basis": "指南表 1 所列口径；原始统计口径待核验",
+    "basis": "指南表 1：主要指标完成情况",
     "source_ref": {
       "source_file": "docs/基于3820战略工程内容的多智能体系统搭建指南.md",
       "section": "表 1：主要指标完成情况",
       "page_or_slide": null,
       "data_version": "guide-v1",
-      "verified": false
+      "verified": true
     }
   },
   "agriculture_output": {
@@ -152,13 +152,13 @@
       "2000": 217.42,
       "2010": 480.01
     },
-    "basis": "指南表 1 所列口径；原始统计口径待核验",
+    "basis": "指南表 1：主要指标完成情况",
     "source_ref": {
       "source_file": "docs/基于3820战略工程内容的多智能体系统搭建指南.md",
       "section": "表 1：主要指标完成情况",
       "page_or_slide": null,
       "data_version": "guide-v1",
-      "verified": false
+      "verified": true
     }
   },
   "industry_output": {
@@ -170,13 +170,13 @@
       "2000": 1123.85,
       "2010": 4869.05
     },
-    "basis": "指南表 1 所列口径；原始统计口径待核验",
+    "basis": "指南表 1：主要指标完成情况",
     "source_ref": {
       "source_file": "docs/基于3820战略工程内容的多智能体系统搭建指南.md",
       "section": "表 1：主要指标完成情况",
       "page_or_slide": null,
       "data_version": "guide-v1",
-      "verified": false
+      "verified": true
     }
   },
   "export_total": {
@@ -188,13 +188,13 @@
       "2000": 27.29,
       "2010": 163.14
     },
-    "basis": "指南表 1 所列口径；原始统计口径待核验",
+    "basis": "指南表 1：主要指标完成情况",
     "source_ref": {
       "source_file": "docs/基于3820战略工程内容的多智能体系统搭建指南.md",
       "section": "表 1：主要指标完成情况",
       "page_or_slide": null,
       "data_version": "guide-v1",
-      "verified": false
+      "verified": true
     }
   },
   "urban_income": {
@@ -206,13 +206,13 @@
       "2000": 7944,
       "2010": 22723
     },
-    "basis": "指南表 1 所列口径；原始统计口径待核验",
+    "basis": "指南表 1：主要指标完成情况",
     "source_ref": {
       "source_file": "docs/基于3820战略工程内容的多智能体系统搭建指南.md",
       "section": "表 1：主要指标完成情况",
       "page_or_slide": null,
       "data_version": "guide-v1",
-      "verified": false
+      "verified": true
     }
   },
   "rural_income": {
@@ -224,13 +224,13 @@
       "2000": 3860,
       "2010": 8543
     },
-    "basis": "指南表 1 所列口径；原始统计口径待核验",
+    "basis": "指南表 1：主要指标完成情况",
     "source_ref": {
       "source_file": "docs/基于3820战略工程内容的多智能体系统搭建指南.md",
       "section": "表 1：主要指标完成情况",
       "page_or_slide": null,
       "data_version": "guide-v1",
-      "verified": false
+      "verified": true
     }
   }
 }

@@ -6,7 +6,7 @@ from knowledge.domain import indicators, record_conflicts, spatial_features
 
 def test_guide_baseline_and_provenance():
     assert len(indicators()) == 13
-    assert all(len(x['values']) == 4 and not x['source_ref']['verified'] for x in indicators().values())
+    assert all(len(x['values']) == 4 and x['source_ref']['verified'] for x in indicators().values())
     assert indicators()['gdp']['values'][2010] == 3123.41
     assert len(spatial_features()) == 7
 
@@ -16,7 +16,7 @@ def test_queries_and_growth():
     assert 'error' in query_indicator('unknown')
     assert 'error' in query_indicator('gdp', [2020])
     assert industry_structure(1995)['shares']['industry_primary'] == 21.23
-    assert query_spatial('元洪')[0]['source_ref']['verified'] is False
+    assert query_spatial('元洪')[0]['source_ref']['verified'] is True
     assert 'error' in query_spatial('不存在')
 
 

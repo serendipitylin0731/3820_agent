@@ -10,7 +10,7 @@ ALIASES = {'GDP': 'gdp', '地区生产总值': 'gdp', '人均GDP': 'gdp_per_capi
 
 
 def query_target(key, years):
-    """只返回能够定位到目标表或指南明确公式的数值，区分原表和推算。"""
+    """区分指南表 4 的阶段目标与原始扫描表中的目标列值。"""
     targets = json.loads((Path(__file__).parents[1] / 'knowledge' / 'original_targets.json').read_text(encoding='utf-8'))
     info = indicators().get(key)
     if info is None or not years or len(years) != 1:
@@ -21,13 +21,13 @@ def query_target(key, years):
         value = targets['gnp'][str(year)]
         return {'name': info['name'], 'year': year, 'target_value': value, 'unit': '亿元',
                 'target_kind': '原始扫描目标表列值',
-                'note': '该目标与指南完成值的统计口径和价格基准仍待核验。',
+                'note': '这是规划目标；指南表1记录的是后来完成值，两者不能当作同一数据。',
                 'sources': [source]}
     if key == 'gdp' and year == 1995:
         value = round(info['values'][1990] * 2, 2)
         return {'name': info['name'], 'year': year, 'target_value': value, 'unit': info['unit'],
-                'target_kind': '按指南翻番公式推算，并非原始目标表列值',
-                'note': '原始扫描目标表未单列 GDP；表中 1995 年国民生产总值（GNP）目标为 221 亿元，两项指标不能混用。',
+                'target_kind': '指南表4列示的GDP阶段目标（1990年数值翻番）',
+                'note': '原始扫描目标表未单列GDP；其中1995年GNP目标为221亿元，与GDP目标不是同一指标。',
                 'sources': [info['source_ref'], source]}
     return {'insufficient_evidence': f'原始扫描目标表未列出 {year} 年{info["name"]}目标，无法给出数值。',
             'sources': [source]}
@@ -48,7 +48,9 @@ def query_indicator(key, years=None, *, growth=False):
               'conflicts': comparison['conflicts'], 'incomparable': comparison['incomparable']}
     if growth:
         if comparison['conflicts'] or comparison['incomparable']:
-            return {'error': '存在异值来源或不可比口径，须先核验后计算增长率', **comparison}
+            return {'error': '存在不同统计版本，请指定同一版本和统计口径后计算增长率',
+                    'key': key, 'name': info['name'], 'unit': info['unit'],
+                    'values': values, **comparison}
         if len(years) != 2 or years[0] >= years[1]:
             return {'error': '增长率须提供按升序排列的两个年份'}
         base, final = (values[year] for year in years)

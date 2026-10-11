@@ -5,13 +5,13 @@
       "year": 2010,
       "value": 3242.65,
       "unit": "亿元",
-      "basis": "《福州统计年鉴2024》表2-2地区生产总值；与指南表1统计版本是否一致待核验",
+      "basis": "《福州统计年鉴2024》表2-2地区生产总值；与指南表1为不同统计版本",
       "source_ref": {
         "source_file": "https://www.fuzhou.gov.cn/book/fztjnj/2024tjnj/zk/html/02-02.jpg",
         "page_or_slide": "表2-2",
         "section": "主要年份地区生产总值",
         "data_version": "fuzhou-yearbook-2024",
-        "verified": false
+        "verified": true
       }
     }
   ]

@@ -12,7 +12,7 @@
     "question": "1995年GDP目标是多少？",
     "expected_role": "indicator",
     "expected_role_status": "ok",
-    "answer_contains": ["204.8", "并非原始目标表列值", "221"],
+    "answer_contains": ["204.8", "指南表4", "221"],
     "source_contains": ["预览第45页"]
   },
   {
@@ -28,7 +28,7 @@
     "question": "2010年GDP是多少？",
     "expected_role": "indicator",
     "expected_role_status": "ok",
-    "answer_contains": ["3123.41", "3242.65", "待核对"],
+    "answer_contains": ["3123.41", "3242.65", "统计版本"],
     "source_contains": ["02-02.jpg"]
   },
   {
@@ -36,7 +36,7 @@
     "question": "1990年至2010年GDP增长率是多少？",
     "expected_role": "indicator",
     "expected_role_status": "insufficient_evidence",
-    "answer_contains": ["须先核验后计算增长率"],
+    "answer_contains": ["同一统计版本"],
     "source_contains": ["02-02.jpg"]
   },
   {

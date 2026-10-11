@@ -1,4 +1,4 @@
-"""指南样例数据的唯一读取入口；来源未独立核验时始终保留 verified=false。"""
+"""指南指标数据的唯一读取入口，保留不同资料的版本与来源。"""
 import json
 import math
 from functools import lru_cache

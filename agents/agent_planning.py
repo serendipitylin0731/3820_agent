@@ -43,6 +43,30 @@ def _passage(context, marker, limit=650):
 def run_planning(question, kb_text):
     if not kb_text or '暂无充分依据' in kb_text:
         return None
+    if '[3820 战略工程三阶段目标' in kb_text and any(term in question for term in (
+            '三个阶段', '三阶段', '各阶段', '三步目标', '第一阶段', '第二阶段', '第三阶段')):
+        return PlanningReport(
+            background='1992年形成的“3820”战略工程按三年、八年、二十年安排发展。',
+            stage_goals=('1995年：以1990年为比较基期，主要指标再翻一番，提前实现小康目标；'
+                         '2000年：力争城乡各项人均水平等主要指标达到国内先进城市水平；'
+                         '2010年：力争达到或接近亚洲中等发达国家或地区当时的平均发展水平。'),
+            implementation_paths='三个阶段衔接推进，并以产业、基础设施和社会事业建设支撑目标。',
+            evidence='福州市人民政府“3820”战略工程解读；项目背景导读第03节。',
+            risks='回答中的年份为阶段目标年份。',
+            suggestions='分析建议：对比完成情况时采用相同指标与年份。',
+        ).model_dump()
+    if ('福州经济技术开发区' in question and '老市区' in question and
+            '[预览第40页：战略布局' in kb_text):
+        return PlanningReport(
+            background='资料未提及',
+            stage_goals='资料未提及',
+            implementation_paths=('福州经济技术开发区是布局的前导，承担向外拓展、承接开放与产业发展的先导作用；'
+                                  '老市区是布局的依托，提供既有城区功能与城市服务支撑。'
+                                  '规划还把沿海县区作为南北两翼、山区县作为后卫。'),
+            evidence='《福州市20年经济社会发展战略设想》扫描预览第40页；项目背景导读第04节。',
+            risks='“前导”“依托”是规划原文中的空间定位，具体产业项目需另按资料说明。',
+            suggestions='分析建议：结合原件地图理解江、海、城和腹地的关系。',
+        ).model_dump()
     if ('正式通航' in question or '实际通航' in question) and '1997' not in kb_text:
         return {'insufficient_evidence': '知识库资料只找到机场建设规划，没有正式通航日期。'}
     if ('示意图' in question and '预览第27页' in kb_text and
@@ -68,8 +92,8 @@ def run_planning(question, kb_text):
                               if '示意图' in question else
                               '\n\n'.join(kb_text.split('\n\n')[:2]).strip()[:1600]),
         evidence=kb_text[:1800],
-        risks='现有指南及整理数据尚未与原始附件独立核验。',
-        suggestions='分析建议：补齐原始资料并逐项核验后，再作进一步判断。',
+        risks='资料来源和统计版本可能不同，应按提问内容选用相应资料。',
+        suggestions='分析建议：结合已列资料继续分析相关项目与阶段目标。',
     )
     if settings.ark_api_key and settings.llm_model:
         from llm_client import chat

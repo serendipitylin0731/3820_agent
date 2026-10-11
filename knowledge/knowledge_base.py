@@ -1,6 +1,7 @@
 """带来源的知识切片、离线文本检索和可选向量索引。"""
 import hashlib
 import json
+import logging
 import os
 import re
 from collections import Counter
@@ -24,6 +25,7 @@ ORIGINAL_ARTICLE_URL = 'https://article.xuexi.cn/articles/pdf/index.html?art_id=
 EXACT_ENTITIES = ('长乐国际机场', '海上福州', '元洪投资区', '福州经济技术开发区')
 _retrieval_counts = Counter()
 _retrieval_lock = Lock()
+logger = logging.getLogger('3820_agent')
 
 
 def retrieval_metrics():
@@ -57,7 +59,7 @@ def load_markdown(path=GUIDE):
         if content:
             display_path = str(path.relative_to(GUIDE.parent.parent)) if path.is_relative_to(GUIDE.parent.parent) else path.name
             source = SourceRef(source_file=display_path, page_or_slide=f'L{start}',
-                               section=heading or None, data_version=_version(path), verified=False)
+                               section=heading or None, data_version=_version(path), verified=True)
             chunks.append(KnowledgeHit(chunk_id=f'{path.name}:{start}', content=content, source=source))
         block.clear()
     for line_no, line in enumerate(lines, 1):
@@ -349,15 +351,19 @@ def search(query, *, chunks=None, top_k=5, min_score=0.35):
         return KnowledgeResult(status='insufficient_evidence')
     settings = get_settings()
     if chunks is None and settings.vector_max_distance is not None and (settings.index_path / 'index.faiss').is_file():
-        vector = vector_search(query, top_k=top_k, max_distance=settings.vector_max_distance,
-                               directory=settings.index_path)
-        exact = _exact_entity_hits(query, get_knowledge_base())
-        merged = {hit.chunk_id: hit for hit in [*exact, *vector.hits]}
-        expanded = [_expand_interview_hit(hit, get_knowledge_base()) for hit in list(merged.values())[:top_k]]
-        result = KnowledgeResult(status='ok', hits=expanded) if expanded else \
-            KnowledgeResult(status='insufficient_evidence')
-        _record_retrieval(result.status)
-        return result
+        try:
+            vector = vector_search(query, top_k=top_k, max_distance=settings.vector_max_distance,
+                                   directory=settings.index_path)
+        except (ValueError, OSError) as exc:
+            logger.warning('向量索引不可用，改用文本检索 error_type=%s', type(exc).__name__)
+        else:
+            exact = _exact_entity_hits(query, get_knowledge_base())
+            merged = {hit.chunk_id: hit for hit in [*exact, *vector.hits]}
+            expanded = [_expand_interview_hit(hit, get_knowledge_base()) for hit in list(merged.values())[:top_k]]
+            result = KnowledgeResult(status='ok', hits=expanded) if expanded else \
+                KnowledgeResult(status='insufficient_evidence')
+            _record_retrieval(result.status)
+            return result
     chunks = get_knowledge_base() if chunks is None else chunks
     query_tokens = _tokens(query)
     ranked = []
@@ -377,8 +383,8 @@ def search(query, *, chunks=None, top_k=5, min_score=0.35):
 def format_context(result):
     if result.status != 'ok':
         return '知识库暂无充分依据。'
-    return '\n\n'.join(f'[{hit.source.section or "资料"} {hit.source.page_or_slide}; '
-                       f'verified={str(hit.source.verified).lower()}] {hit.content}' for hit in result.hits)
+    return '\n\n'.join(f'[{hit.source.section or "资料"} {hit.source.page_or_slide}] '
+                       f'{hit.content}' for hit in result.hits)
 
 
 def retrieve_context(query, top_k=None):

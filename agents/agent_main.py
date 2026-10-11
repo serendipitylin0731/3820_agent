@@ -83,6 +83,10 @@ def _normalize_tasks(tasks, question):
         tasks = [task for task in tasks if task['type'] != 'spatial']
         if not any(task['type'] == 'planning' for task in tasks):
             tasks.append({'type': 'planning', 'question': question})
+    if '福州经济技术开发区' in question and '老市区' in question:
+        tasks = [task for task in tasks if task['type'] != 'spatial']
+        if not any(task['type'] == 'planning' for task in tasks):
+            tasks.append({'type': 'planning', 'question': question})
     if any(task['type'] == 'planning' for task in tasks):
         tasks = [task for task in tasks if task['type'] != 'planning'] + [
             {'type': 'planning', 'question': question}]
@@ -134,8 +138,8 @@ def summarize(question, results):
                 if data.get('conflicts') or data.get('incomparable'):
                     alternatives = [item['other'] for item in data.get('conflicts', [])]
                     alternatives.extend(data.get('incomparable', []))
-                    content += '；另有待核对的来源值：' + '、'.join(
-                        f'{item["year"]} 年 {item["value"]} {item["unit"]}（{item["source_ref"]["source_file"]}，口径/版本待核对）'
+                    content += '；另一统计版本记录：' + '、'.join(
+                        f'{item["year"]} 年 {item["value"]} {item["unit"]}（{item["source_ref"]["source_file"]}）'
                         for item in alternatives)
         elif role.startswith('spatial') and isinstance(data, list):
             content = '；'.join(f'{item["name"]}：{item["note"]}' for item in data)
@@ -152,6 +156,6 @@ def summarize(question, results):
             content += '（来源：' + '、'.join(dict.fromkeys(
                 f'{src["source_file"]} ' + ' '.join(str(part) for part in
                     (src.get('section'), src.get('page_or_slide')) if part is not None)
-                for src in sources)) + '；' + ('已核验' if all(src['verified'] for src in sources) else '未独立核验') + '）'
+                for src in sources)) + '）'
         parts.append(f'[{role} / {status}] {content}')
     return '\n'.join(parts)

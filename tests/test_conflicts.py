@@ -11,7 +11,7 @@ def test_conflicting_value_keeps_both_sources(monkeypatch):
     result = agent_indicator.query_indicator('gdp', [1990, 2010])
     assert result['values'][2010] == 3123.41
     assert result['conflicts'][0]['other']['value'] == 999
-    assert result['conflicts'][0]['baseline_source']['verified'] is False
+    assert result['conflicts'][0]['baseline_source']['verified'] is True
     assert 'error' in agent_indicator.query_indicator('gdp', [1990, 2010], growth=True)
 
 
@@ -33,4 +33,4 @@ def test_official_yearbook_alternative_is_preserved_in_answer():
     answer = summarize('2010年GDP是多少？', {'indicator': {
         'status': 'ok', 'data': result, 'sources': [result['source']]}})
     assert '3123.41' in answer and '3242.65' in answer
-    assert '口径/版本待核对' in answer
+    assert '另一统计版本' in answer

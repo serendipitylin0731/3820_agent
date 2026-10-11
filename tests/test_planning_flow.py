@@ -13,6 +13,19 @@ def test_model_routes_general_strategic_layout_to_planning(monkeypatch):
     assert [task['type'] for task in tasks] == ['planning']
 
 
+def test_development_zone_and_old_city_route_to_planning_even_if_model_guesses_spatial(monkeypatch):
+    from agents import agent_main
+    monkeypatch.setattr(agent_main, 'get_settings',
+                        lambda: Settings(ark_api_key='fake', llm_model='fake'))
+    monkeypatch.setattr(agent_main, 'chat',
+                        lambda *_args, **_kwargs: '[{"type":"spatial","question":"开发区",'
+                                                 '"keyword":"开发区"}]')
+    question = '福州经济技术开发区和老市区分别承担什么作用？'
+    tasks = agent_main.split_task(question)
+    assert [task['type'] for task in tasks] == ['planning']
+    assert tasks[0]['question'] == question
+
+
 def test_model_indicator_guess_needs_indicator_in_question(monkeypatch):
     from agents import agent_main
     monkeypatch.setattr(agent_main, 'get_settings',
