@@ -3,12 +3,15 @@
 
   const KEY = '3820-chat-history-v1';
   const LIMIT = 30;
+  const LEGACY_PREFIX = '知识库资料中暂未查找到，以下是豆包模型提供的参考回答：';
+  const MODEL_NOTE = '知识库没有找到直接匹配的资料；此回答由豆包模型补充，未附资料来源。';
 
   function normalizeTurn(value) {
     if (!value || typeof value !== 'object') return null;
     if (typeof value.threadId !== 'string' || !value.threadId ||
         typeof value.question !== 'string' || !value.question.trim() ||
         !value.payload || typeof value.payload.answer !== 'string') return null;
+    const legacy = value.payload.answer.startsWith(LEGACY_PREFIX);
     const results = {};
     for (const [name, result] of Object.entries(value.payload.results || {})) {
       if (!result || typeof result !== 'object') continue;
@@ -26,9 +29,11 @@
       question: value.question.trim().slice(0, 4000),
       createdAt: typeof value.createdAt === 'string' ? value.createdAt : new Date().toISOString(),
       payload: {
-        answer: value.payload.answer,
+        answer: legacy ? value.payload.answer.slice(LEGACY_PREFIX.length) : value.payload.answer,
         status: typeof value.payload.status === 'string' ? value.payload.status : 'ok',
         request_id: typeof value.payload.request_id === 'string' ? value.payload.request_id : '',
+        notice: legacy ? MODEL_NOTE :
+          typeof value.payload.notice === 'string' ? value.payload.notice.slice(0, 300) : '',
         results,
       },
     };

@@ -25,7 +25,8 @@ def test_browser_root_opens_chat_ui_without_api_docs(monkeypatch):
         assert '<body data-view="chat">' in root.text
         assert 'id="background-timeline" hidden' in root.text
         assert 'href="/assets/logo.svg"' in root.text
-        assert '我的 ID：_serendipity · 开发者' in root.text
+        assert '开发者：_serendipity' in root.text
+        assert 'serendipity_lin@sjtu.edu.cn' in root.text
         assert 'id="history-panel"' in root.text
         assert 'aria-controls="background-timeline"' not in root.text
         assert '接口文档' not in root.text

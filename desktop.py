@@ -7,6 +7,16 @@ import uuid
 
 from desktop_runtime import prepare_desktop
 
+APP_USER_MODEL_ID = 'edu.sjtu.serendipity.3820Agent'
+
+
+def _set_app_user_model_id():
+    """Give the taskbar the same identity as the installed shortcuts."""
+    if sys.platform == 'win32':
+        result = ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(APP_USER_MODEL_ID)
+        if result != 0:
+            raise OSError(f'无法设置 Windows 应用标识：{result}')
+
 
 def _message(title: str, message: str):
     if sys.platform == 'win32':
@@ -56,6 +66,7 @@ def main():
         logging.basicConfig(filename=home / 'desktop.log', level=logging.INFO,
                             format='%(asctime)s %(levelname)s %(message)s',
                             encoding='utf-8')
+        _set_app_user_model_id()
         _enable_high_dpi()
         import tkinter as tk
         from desktop_gui import DesktopApp

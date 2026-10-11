@@ -53,6 +53,9 @@ EXAMPLES = [
 
 
 def collect_sources(result):
+    model = result.get('results', {}).get('model', {})
+    if isinstance(model.get('data'), dict) and model['data'].get('kind') == 'model_knowledge':
+        return []
     seen = set()
     sources = []
     candidates = list(result.get('kb_sources', []))
@@ -277,6 +280,12 @@ class DesktopApp:
         self.history_canvas.bind('<Button-5>', self._scroll_history)
         tk.Label(self.history_panel, text='本机最多保存 30 轮问答', bg=SIDEBAR, fg='#92aa99',
                  font=('Microsoft YaHei UI', 8)).pack(anchor='w', padx=25, pady=(2, 8))
+        tk.Button(self.sidebar, text='有问题请联系\nserendipity_lin@sjtu.edu.cn',
+                  command=lambda: webbrowser.open('mailto:serendipity_lin@sjtu.edu.cn'),
+                  bg=SIDEBAR, fg='#b9d0bc', activebackground=SIDEBAR,
+                  activeforeground='white', relief='flat', bd=0, cursor='hand2',
+                  anchor='w', justify='left', font=('Microsoft YaHei UI', 8)).pack(
+                      fill='x', padx=24, pady=(0, 11))
         self._side_button('豆包 API 设置', self.show_settings).pack(fill='x', padx=20, pady=(0, 7))
         self._side_button('导入资料', self.import_files).pack(fill='x', padx=20, pady=(0, 17))
 
@@ -285,7 +294,7 @@ class DesktopApp:
         topbar.pack_propagate(False)
         tk.Label(topbar, text='3820  /  知识工作台', bg=PAPER, fg='#567863',
                  font=('Microsoft YaHei UI', 10, 'bold')).pack(side='left', padx=32)
-        tk.Label(topbar, text='我的 ID：_serendipity · 开发者', bg=PAPER, fg='#6f8576',
+        tk.Label(topbar, text='开发者：_serendipity', bg=PAPER, fg='#6f8576',
                  font=('Microsoft YaHei UI', 9)).pack(side='right', padx=30)
         tk.Frame(self.main, height=1, bg=LINE).pack(fill='x')
         self.page_host = tk.Frame(self.main, bg=PAPER)
@@ -433,7 +442,7 @@ class DesktopApp:
         self.suggestion_grid.grid_columnconfigure(0, weight=1)
         self.suggestion_grid.grid_columnconfigure(1, weight=1)
 
-    def _add_message(self, kind, content, sources=None):
+    def _add_message(self, kind, content, sources=None, note=''):
         row = tk.Frame(self.messages, bg=PAPER)
         row.pack(fill='x', padx=40, pady=(9, 15))
         header = tk.Frame(row, bg=PAPER)
@@ -480,6 +489,11 @@ class DesktopApp:
                 if detail:
                     tk.Label(line, text=detail, bg='white', fg='#839487',
                              font=('Microsoft YaHei UI', 8)).pack(anchor='w')
+        if note:
+            tk.Frame(card, height=1, bg=LINE).pack(fill='x', padx=18, pady=(5, 0))
+            tk.Label(card, text=note, bg='white', fg='#839487', anchor='w',
+                     justify='left', wraplength=640,
+                     font=('Microsoft YaHei UI', 8)).pack(fill='x', padx=18, pady=(7, 12))
         if kind == 'assistant':
             tk.Button(row, text='复制回答', command=lambda text=content: self._copy(text),
                       bg=PAPER, fg=MUTED, relief='flat', bd=0,
@@ -514,20 +528,22 @@ class DesktopApp:
         try:
             from graph import ask
             result = ask(question, thread_id=thread_id, request_id=str(uuid.uuid4()))
+            model = result.get('results', {}).get('model', {})
+            note = model.get('data', {}).get('source_note', '') if isinstance(model.get('data'), dict) else ''
             self.pending.put((question, result.get('answer') or '没有收到可显示的答案。',
-                              collect_sources(result)))
+                              collect_sources(result), note))
         except Exception as exc:
             logging.warning('本地问答失败 error_type=%s', type(exc).__name__)
-            self.pending.put((question, '问答暂时不可用，请检查模型配置或稍后重试。', []))
+            self.pending.put((question, '问答暂时不可用，请检查模型配置或稍后重试。', [], ''))
 
     def _poll(self):
         try:
             while True:
-                question, answer, sources = self.pending.get_nowait()
+                question, answer, sources, note = self.pending.get_nowait()
                 self.loading_row.destroy()
-                self._add_message('assistant', answer, sources)
+                self._add_message('assistant', answer, sources, note)
                 turn = {'thread_id': self.thread_id, 'question': question,
-                        'answer': answer, 'sources': sources}
+                        'answer': answer, 'sources': sources, 'note': note}
                 try:
                     self.turns = save_history(self.home, [*self.turns, turn])
                 except OSError:
@@ -603,7 +619,7 @@ class DesktopApp:
             self.welcome.pack_forget()
         for turn in matching:
             self._add_message('user', turn['question'])
-            self._add_message('assistant', turn['answer'], turn.get('sources'))
+            self._add_message('assistant', turn['answer'], turn.get('sources'), turn.get('note', ''))
         self._render_history()
 
     def new_chat(self):

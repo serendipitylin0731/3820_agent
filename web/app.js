@@ -159,6 +159,10 @@
 
   }
 
+  function modelNotice(payload) {
+    return payload.notice || payload.results?.model?.data?.source_note || '';
+  }
+
   function renderAnswer(container, payload, error, scroll = true) {
     container.body.replaceChildren();
     const answer = error || payload.answer || '没有收到可显示的答案。';
@@ -166,6 +170,8 @@
     if (payload.status === 'partial') container.body.append(make('p', 'message-warning', '回答部分内容暂不可用，请结合资料来源阅读或稍后重试。'));
     if (payload.status === 'error' && !error) container.body.append(make('p', 'message-warning', '回答生成未完成，请稍后重试。'));
     if (!error) addDetails(container.body, payload.results);
+    const notice = !error && modelNotice(payload);
+    if (notice) container.body.append(make('p', 'answer-note', notice));
 
     const actions = make('div', 'message-actions');
     const copy = make('button', '', '复制回答');
@@ -277,6 +283,7 @@
         }
         renderAnswer(answer, payload, message);
       } else {
+        payload.notice = modelNotice(payload);
         renderAnswer(answer, payload);
         savedTurns = historyStore.saveTurn(storage, savedTurns, {
           threadId, question, payload, createdAt: new Date().toISOString(),

@@ -31,6 +31,9 @@ try:
     assert first > 120
     assert answer.yview() == (0.0, 1.0)
     root.geometry('420x500+20000+20000')
+    # Off-screen window managers may ignore the geometry change; resize the
+    # canvas window too, as the real conversation canvas does on Configure.
+    canvas.itemconfigure(window, width=420)
     for _ in range(8):
         root.update()
     assert int(answer.cget('height')) > first

@@ -77,6 +77,12 @@ jobs:
           if ($process.ExitCode -ne 0) { exit $process.ExitCode }
           $installed = Join-Path $target '3820Agent.exe'
           if (-not (Test-Path $installed)) { throw 'Installed executable missing' }
+          if (-not (Test-Path (Join-Path $target '3820Agent.ico'))) { throw 'Installed icon missing' }
+          $startMenu = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs'
+          $shortcut = Get-ChildItem $startMenu -Filter '3820 战略知识助手.lnk' -Recurse | Select-Object -First 1
+          if (-not $shortcut) { throw 'Start Menu shortcut missing' }
+          $link = (New-Object -ComObject WScript.Shell).CreateShortcut($shortcut.FullName)
+          if ($link.IconLocation -notmatch '3820Agent.ico') { throw "Shortcut icon mismatch: $($link.IconLocation)" }
           & $installed --smoke-test
           if ($LASTEXITCODE -ne 0) {
             $log = Join-Path $env:APPDATA '3820Agent\desktop.log'

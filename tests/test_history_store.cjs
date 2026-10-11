@@ -53,3 +53,21 @@ test('invalid or unavailable storage leaves chat history usable in memory', () =
   assert.equal(turns.length, 1);
   assert.deepEqual(history.load(null), []);
 });
+
+test('keeps the model supplement note after reload', () => {
+  const storage = memoryStorage();
+  const value = turn(1);
+  value.payload.notice = '此回答由豆包模型补充，未附资料来源。';
+  const saved = history.saveTurn(storage, [], value);
+  assert.equal(saved[0].payload.notice, value.payload.notice);
+  assert.equal(history.load(storage)[0].payload.notice, value.payload.notice);
+});
+
+test('moves the old model preface from answer text into the note', () => {
+  const storage = memoryStorage();
+  const value = turn(2);
+  value.payload.answer = '知识库资料中暂未查找到，以下是豆包模型提供的参考回答：开发区推动开放。';
+  const saved = history.saveTurn(storage, [], value)[0].payload;
+  assert.equal(saved.answer, '开发区推动开放。');
+  assert.match(saved.notice, /豆包模型补充/);
+});

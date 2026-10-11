@@ -7,6 +7,8 @@ from pathlib import Path
 
 
 LIMIT = 30
+LEGACY_PREFIX = '知识库资料中暂未查找到，以下是豆包模型提供的参考回答：'
+MODEL_NOTE = '知识库没有找到直接匹配的资料；此回答由豆包模型补充，未附资料来源。'
 
 
 def _normalise(turn):
@@ -16,8 +18,11 @@ def _normalise(turn):
     if not all(isinstance(item, str) and item for item in (thread_id, question, answer)):
         return None
     sources = turn.get('sources')
-    return {'thread_id': thread_id, 'question': question[:4000], 'answer': answer,
+    legacy = answer.startswith(LEGACY_PREFIX)
+    return {'thread_id': thread_id, 'question': question[:4000],
+            'answer': answer[len(LEGACY_PREFIX):] if legacy else answer,
             'created_at': str(turn.get('created_at') or datetime.now(timezone.utc).isoformat()),
+            'note': MODEL_NOTE if legacy else str(turn.get('note') or '')[:300],
             'sources': [item for item in sources[:60] if isinstance(item, dict)]
             if isinstance(sources, list) else []}
 
