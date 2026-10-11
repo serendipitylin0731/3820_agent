@@ -122,8 +122,6 @@ class DesktopApp:
         self.thread_id = str(uuid.uuid4())
         self.busy = False
         self.pending = queue.Queue()
-        self.history_ids = []
-        self._history_updating = False
         self._build()
         self._show_welcome()
         self._render_history()
@@ -167,39 +165,111 @@ class DesktopApp:
                  font=('Microsoft YaHei UI', 9)).pack(anchor='w')
 
         self._side_button('✦  新建对话', self.new_chat).pack(fill='x', padx=20, pady=(0, 8))
-        self._side_button('↗  3820 背景', self.show_document).pack(fill='x', padx=20, pady=(0, 17))
+        self.background_button = tk.Frame(self.sidebar, bg='#284b3b',
+                                          highlightbackground='#527463',
+                                          highlightthickness=1, takefocus=1, cursor='hand2')
+        self.background_button.pack(fill='x', padx=20, pady=(0, 17))
+        self.background_label = tk.Label(self.background_button, text='3820 背景',
+                                         bg='#284b3b', fg='#f0f6ed',
+                                         font=('Microsoft YaHei UI', 10, 'bold'), cursor='hand2')
+        self.background_label.pack(side='left', padx=12, pady=10)
+        self.background_arrow = tk.Label(self.background_button, text='↗',
+                                         bg='#284b3b', fg='#afd1b4',
+                                         font=('Microsoft YaHei UI', 12), cursor='hand2')
+        self.background_arrow.pack(side='right', padx=12)
+        for widget in (self.background_button, self.background_label, self.background_arrow):
+            widget.bind('<Button-1>', lambda _event: self.show_document())
+        self.background_button.bind('<Return>', lambda _event: self.show_document())
+        self.background_button.bind('<space>', lambda _event: self.show_document())
         self.sidebar_body = tk.Frame(self.sidebar, bg=SIDEBAR)
         self.sidebar_body.pack(fill='both', expand=True)
         self.timeline_panel = tk.Frame(self.sidebar_body, bg=SIDEBAR)
         tk.Label(self.timeline_panel, text='发展时间线', bg=SIDEBAR, fg='#9db5a4',
-                 font=('Microsoft YaHei UI', 9, 'bold')).pack(anchor='w', padx=26, pady=(0, 8))
-        timeline = [('1990', '规划基期'), ('1992', '战略形成'), ('1995', '三年起步'),
-                    ('2000', '八年追赶'), ('2010', '二十年远景')]
-        for year, label in timeline:
-            row = tk.Frame(self.timeline_panel, bg=SIDEBAR)
-            row.pack(fill='x', padx=28, pady=4)
-            tk.Label(row, text=year, width=5, anchor='w', bg=SIDEBAR, fg='#e6b67c',
-                     font=('Georgia', 11, 'bold')).pack(side='left')
-            tk.Label(row, text=label, bg=SIDEBAR, fg='#e3ede2',
-                     font=('Microsoft YaHei UI', 9)).pack(side='left')
+                 font=('Microsoft YaHei UI', 9, 'bold')).pack(anchor='w', padx=26, pady=(0, 15))
+        timeline_scroll = tk.Frame(self.timeline_panel, bg=SIDEBAR)
+        timeline_scroll.pack(fill='both', expand=True)
+        self.timeline_canvas = tk.Canvas(timeline_scroll, bg=SIDEBAR, highlightthickness=0,
+                                         borderwidth=0)
+        timeline_bar = ttk.Scrollbar(timeline_scroll, orient='vertical',
+                                     command=self.timeline_canvas.yview)
+        self.timeline_canvas.configure(yscrollcommand=timeline_bar.set)
+        self.timeline_canvas.pack(side='left', fill='both', expand=True)
+        timeline_bar.pack(side='right', fill='y')
+        timeline_content = tk.Frame(self.timeline_canvas, bg=SIDEBAR)
+        timeline_window = self.timeline_canvas.create_window((0, 0), window=timeline_content,
+                                                              anchor='nw')
+        self.timeline_canvas.bind('<Configure>',
+                                  lambda event: self.timeline_canvas.itemconfigure(timeline_window, width=event.width))
+        timeline_content.bind('<Configure>',
+                              lambda _event: self.timeline_canvas.configure(scrollregion=self.timeline_canvas.bbox('all')))
+        self.timeline_canvas.bind('<MouseWheel>', self._scroll_timeline)
+        self.timeline_canvas.bind('<Button-4>', self._scroll_timeline)
+        self.timeline_canvas.bind('<Button-5>', self._scroll_timeline)
+        timeline = [
+            ('1990', '规划基期', '以这一年的主要指标作为三年目标的比较起点。'),
+            ('1992', '战略形成', '广泛调研、论证后，二十年战略设想于 11 月审议通过。'),
+            ('1995', '三年 · 起步', '推动主要指标在 1990 年基础上再翻一番。'),
+            ('2000', '八年 · 追赶', '力争城乡主要人均指标达到国内先进城市水平。'),
+            ('2010', '二十年 · 远景', '力争达到或接近亚洲中等发达国家或地区的平均水平。'),
+        ]
+        for index, (year, title, detail) in enumerate(timeline):
+            row = tk.Frame(timeline_content, bg=SIDEBAR)
+            row.pack(fill='x', padx=(27, 17))
+            rail = tk.Canvas(row, width=21, height=1, bg=SIDEBAR, highlightthickness=0)
+            rail.pack(side='left', fill='y', padx=(0, 10))
+            def draw_rail(event, canvas=rail, last=index == len(timeline) - 1):
+                canvas.delete('all')
+                if not last:
+                    canvas.create_line(10, 0, 10, event.height, fill='#547360', width=1)
+                canvas.create_oval(6, 5, 14, 13, fill='#dbab72', outline='#254c3d', width=2)
+            rail.bind('<Configure>', draw_rail)
+            content = tk.Frame(row, bg=SIDEBAR)
+            content.pack(side='left', fill='x', expand=True, pady=(0, 14))
+            tk.Label(content, text=year, bg=SIDEBAR, fg='#e8b777', anchor='w',
+                     font=('Georgia', 13, 'bold')).pack(anchor='w', pady=(0, 2))
+            tk.Label(content, text=title, bg=SIDEBAR, fg='#f0f4e9', anchor='w',
+                     font=('Microsoft YaHei UI', 9, 'bold')).pack(anchor='w')
+            tk.Label(content, text=detail, bg=SIDEBAR, fg='#b0c5b5', anchor='w',
+                     justify='left', wraplength=round(175 * scale),
+                     font=('Microsoft YaHei UI', 8)).pack(anchor='w', pady=(3, 0))
+            for widget in (row, rail, content, *content.winfo_children()):
+                widget.bind('<MouseWheel>', self._scroll_timeline)
+                widget.bind('<Button-4>', self._scroll_timeline)
+                widget.bind('<Button-5>', self._scroll_timeline)
+        tk.Button(timeline_content, text='查看福州市发改委资料 ↗',
+                  command=lambda: webbrowser.open('https://fgw.fuzhou.gov.cn/fgwzwgk/fzgggz/jjyx/202403/t20240328_4799823.htm'),
+                  bg=SIDEBAR, fg='#b9d0bc', activebackground=SIDEBAR,
+                  activeforeground='white', relief='flat', bd=0, cursor='hand2',
+                  font=('Microsoft YaHei UI', 8, 'underline')).pack(anchor='w', padx=34, pady=(1, 8))
 
         self.history_panel = tk.Frame(self.sidebar_body, bg=SIDEBAR)
-        tk.Frame(self.history_panel, height=1, bg='#4c6a58').pack(fill='x', padx=20, pady=(0, 10))
+        tk.Frame(self.history_panel, height=1, bg='#466253').pack(fill='x', padx=20, pady=(0, 15))
         header = tk.Frame(self.history_panel, bg=SIDEBAR)
         header.pack(fill='x', padx=24)
         tk.Label(header, text='历史对话', bg=SIDEBAR, fg='#bcd0bd',
                  font=('Microsoft YaHei UI', 9, 'bold')).pack(side='left')
-        tk.Button(header, text='清空', command=self.clear_history, bg=SIDEBAR,
-                  fg='#bcd0bd', activebackground=SIDEBAR, activeforeground='white',
-                  relief='flat', bd=0, cursor='hand2', font=('Microsoft YaHei UI', 8)).pack(side='right')
+        self.clear_button = tk.Button(header, text='清空', command=self.clear_history, bg=SIDEBAR,
+                                      fg='#bcd0bd', activebackground=SIDEBAR, activeforeground='white',
+                                      relief='flat', bd=0, cursor='hand2', font=('Microsoft YaHei UI', 8))
         history_frame = tk.Frame(self.history_panel, bg=SIDEBAR)
         history_frame.pack(fill='both', expand=True, padx=19, pady=(8, 5))
-        self.history_list = tk.Listbox(history_frame, bg='#244538', fg='#e1ece1',
-                                       selectbackground='#3c6f52', selectforeground='white',
-                                       activestyle='none', relief='flat', bd=0,
-                                       highlightthickness=0, font=('Microsoft YaHei UI', 9))
-        self.history_list.pack(side='left', fill='both', expand=True)
-        self.history_list.bind('<<ListboxSelect>>', self._select_history)
+        self.history_canvas = tk.Canvas(history_frame, bg=SIDEBAR, highlightthickness=0,
+                                        borderwidth=0)
+        history_scroll = ttk.Scrollbar(history_frame, orient='vertical',
+                                       command=self.history_canvas.yview)
+        self.history_canvas.configure(yscrollcommand=history_scroll.set)
+        self.history_canvas.pack(side='left', fill='both', expand=True)
+        history_scroll.pack(side='right', fill='y')
+        self.history_items = tk.Frame(self.history_canvas, bg=SIDEBAR)
+        history_window = self.history_canvas.create_window((0, 0), window=self.history_items,
+                                                            anchor='nw')
+        self.history_canvas.bind('<Configure>',
+                                 lambda event: self.history_canvas.itemconfigure(history_window, width=event.width))
+        self.history_items.bind('<Configure>',
+                                lambda _event: self.history_canvas.configure(scrollregion=self.history_canvas.bbox('all')))
+        self.history_canvas.bind('<MouseWheel>', self._scroll_history)
+        self.history_canvas.bind('<Button-4>', self._scroll_history)
+        self.history_canvas.bind('<Button-5>', self._scroll_history)
         tk.Label(self.history_panel, text='本机最多保存 30 轮问答', bg=SIDEBAR, fg='#92aa99',
                  font=('Microsoft YaHei UI', 8)).pack(anchor='w', padx=25, pady=(2, 8))
         self._side_button('⚙  豆包 API 设置', self.show_settings).pack(fill='x', padx=20, pady=(0, 7))
@@ -281,6 +351,33 @@ class DesktopApp:
             amount = (-1 if delta > 0 else 1) * max(1, abs(delta) // 120)
         self.canvas.yview_scroll(amount, 'units')
         return 'break'
+
+    def _scroll_history(self, event):
+        if getattr(event, 'num', None) == 4:
+            amount = -3
+        elif getattr(event, 'num', None) == 5:
+            amount = 3
+        else:
+            delta = getattr(event, 'delta', 0)
+            amount = (-1 if delta > 0 else 1) * max(1, abs(delta) // 120)
+        self.history_canvas.yview_scroll(amount, 'units')
+        return 'break'
+
+    def _scroll_timeline(self, event):
+        if getattr(event, 'num', None) == 4:
+            amount = -3
+        elif getattr(event, 'num', None) == 5:
+            amount = 3
+        else:
+            delta = getattr(event, 'delta', 0)
+            amount = (-1 if delta > 0 else 1) * max(1, abs(delta) // 120)
+        self.timeline_canvas.yview_scroll(amount, 'units')
+        return 'break'
+
+    def _paint_background_button(self, selected):
+        color = '#37664e' if selected else '#284b3b'
+        for widget in (self.background_button, self.background_label, self.background_arrow):
+            widget.configure(bg=color)
 
     def _show_welcome(self):
         self.welcome = tk.Frame(self.messages, bg=PAPER)
@@ -426,23 +523,54 @@ class DesktopApp:
             self.root.after(100, self._poll)
 
     def _render_history(self):
-        self._history_updating = True
+        for child in self.history_items.winfo_children():
+            child.destroy()
         items = conversations(self.turns)
-        self.history_ids = [item['thread_id'] for item in items]
-        self.history_list.delete(0, 'end')
-        for item in items:
-            title = item['title'].replace('\n', ' ')[:22]
-            self.history_list.insert('end', f'{title}  · {item["count"]}轮')
-        if self.thread_id in self.history_ids:
-            self.history_list.selection_set(self.history_ids.index(self.thread_id))
-        self._history_updating = False
-
-    def _select_history(self, _event):
-        if self._history_updating or self.busy:
+        if not items:
+            self.clear_button.pack_forget()
+            tk.Label(self.history_items, text='暂无记录', bg=SIDEBAR, fg='#91ac99',
+                     font=('Microsoft YaHei UI', 9)).pack(anchor='w', padx=8, pady=7)
             return
-        chosen = self.history_list.curselection()
-        if chosen and chosen[0] < len(self.history_ids):
-            self._restore(self.history_ids[chosen[0]])
+        if not self.clear_button.winfo_manager():
+            self.clear_button.pack(side='right')
+        for item in items:
+            self._add_history_card(item)
+        self.history_canvas.yview_moveto(0)
+
+    def _add_history_card(self, item):
+        thread_id = item['thread_id']
+        active = thread_id == self.thread_id
+        base = '#315b43' if active else SIDEBAR
+        card = tk.Frame(self.history_items, bg=base, cursor='hand2',
+                        highlightthickness=1 if active else 0,
+                        highlightbackground='#628a6d', takefocus=1)
+        card.pack(fill='x', padx=2, pady=2)
+        title = item['title'].replace('\n', ' ').strip()[:26]
+        title_label = tk.Label(card, text=title, bg=base, fg='#e9f1e6',
+                               font=('Microsoft YaHei UI', 9, 'bold'), anchor='w', cursor='hand2')
+        title_label.pack(fill='x', padx=9, pady=(8, 1))
+        count_label = tk.Label(card, text=f'{item["count"]} 轮问答', bg=base, fg='#a9c4ae',
+                               font=('Microsoft YaHei UI', 8), anchor='w', cursor='hand2')
+        count_label.pack(fill='x', padx=9, pady=(0, 8))
+
+        def paint(color):
+            for widget in (card, title_label, count_label):
+                widget.configure(bg=color)
+
+        def select(_event=None):
+            if not self.busy:
+                self._restore(thread_id)
+
+        for widget in (card, title_label, count_label):
+            widget.bind('<Button-1>', select)
+            widget.bind('<MouseWheel>', self._scroll_history)
+            widget.bind('<Button-4>', self._scroll_history)
+            widget.bind('<Button-5>', self._scroll_history)
+            if not active:
+                widget.bind('<Enter>', lambda _event: paint('#29493b'))
+                widget.bind('<Leave>', lambda _event: paint(SIDEBAR))
+        card.bind('<Return>', select)
+        card.bind('<space>', select)
 
     def _restore(self, thread_id):
         self.thread_id = thread_id
@@ -484,6 +612,7 @@ class DesktopApp:
         self.timeline_panel.pack_forget()
         if not self.history_panel.winfo_manager():
             self.history_panel.pack(fill='both', expand=True)
+        self._paint_background_button(False)
 
     def show_document(self):
         self.chat_page.pack_forget()
@@ -492,6 +621,7 @@ class DesktopApp:
         self.history_panel.pack_forget()
         if not self.timeline_panel.winfo_manager():
             self.timeline_panel.pack(fill='both', expand=True)
+        self._paint_background_button(True)
 
     def _load_document(self):
         path = Path(__file__).with_name('docs') / '3820背景.md'
