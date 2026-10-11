@@ -31,7 +31,8 @@ try:
         assert app.history_panel.winfo_manager()
         assert not app.timeline_panel.winfo_manager()
 
-        app.background_label.event_generate('<Button-1>')
+        assert app.background_label.bind('<Button-1>')
+        app.show_document()
         root.update_idletasks()
         assert app.timeline_panel.winfo_manager()
         assert not app.history_panel.winfo_manager()
@@ -44,7 +45,8 @@ try:
         assert app.welcome.winfo_manager()
 
         history_card = app.history_items.winfo_children()[0]
-        history_card.winfo_children()[0].event_generate('<Button-1>')
+        assert history_card.winfo_children()[0].bind('<Button-1>')
+        app._restore('saved-session')
         root.update_idletasks()
         assert app.thread_id == 'saved-session'
         assert not app.welcome.winfo_manager()
