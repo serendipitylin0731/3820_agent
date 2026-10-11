@@ -306,12 +306,14 @@ class DesktopApp:
         chat_canvas_wrap.pack(fill='both', expand=True)
         self.canvas = tk.Canvas(chat_canvas_wrap, bg=PAPER, highlightthickness=0)
         scroll = ttk.Scrollbar(chat_canvas_wrap, orient='vertical', command=self.canvas.yview)
-        self.canvas.configure(yscrollcommand=scroll.set)
+        self.canvas.configure(yscrollcommand=scroll.set, yscrollincrement=1)
+        self._message_wheel_remainder = 0.0
         self.canvas.pack(side='left', fill='both', expand=True)
         scroll.pack(side='right', fill='y')
         self.messages = tk.Frame(self.canvas, bg=PAPER)
         self.canvas_window = self.canvas.create_window((0, 0), window=self.messages, anchor='nw')
         self.messages.bind('<Configure>', lambda _e: self.canvas.configure(scrollregion=self.canvas.bbox('all')))
+        self._bind_chat_wheel(self.messages)
         self.canvas.bind('<Configure>', lambda e: self.canvas.itemconfigure(self.canvas_window, width=e.width))
         self.canvas.bind('<MouseWheel>', self._scroll_messages)
         self.canvas.bind('<Button-4>', self._scroll_messages)
@@ -365,14 +367,25 @@ class DesktopApp:
 
     def _scroll_messages(self, event):
         if getattr(event, 'num', None) == 4:
-            amount = -3
+            pixels = -64
         elif getattr(event, 'num', None) == 5:
-            amount = 3
+            pixels = 64
         else:
             delta = getattr(event, 'delta', 0)
-            amount = (-1 if delta > 0 else 1) * max(1, abs(delta) // 120)
-        self.canvas.yview_scroll(amount, 'units')
+            pixels = -delta * 64 / 120
+        self._message_wheel_remainder += pixels
+        whole_pixels = math.trunc(self._message_wheel_remainder)
+        self._message_wheel_remainder -= whole_pixels
+        if whole_pixels:
+            self.canvas.yview_scroll(whole_pixels, 'units')
         return 'break'
+
+    def _bind_chat_wheel(self, widget):
+        """Keep wheel events on every part of a card in the conversation canvas."""
+        for sequence in ('<MouseWheel>', '<Button-4>', '<Button-5>'):
+            widget.bind(sequence, self._scroll_messages)
+        for child in widget.winfo_children():
+            self._bind_chat_wheel(child)
 
     def _scroll_history(self, event):
         if getattr(event, 'num', None) == 4:
@@ -441,6 +454,7 @@ class DesktopApp:
             button.grid(row=index // 2, column=index % 2, sticky='nsew', padx=5, pady=5)
         self.suggestion_grid.grid_columnconfigure(0, weight=1)
         self.suggestion_grid.grid_columnconfigure(1, weight=1)
+        self._bind_chat_wheel(self.welcome)
 
     def _add_message(self, kind, content, sources=None, note=''):
         row = tk.Frame(self.messages, bg=PAPER)
@@ -459,9 +473,6 @@ class DesktopApp:
         answer = _readonly_text(card, content, bg=SOFT if kind == 'user' else 'white',
                                 font_size=11, padx=18, pady=14)
         answer.pack(fill='x')
-        answer.bind('<MouseWheel>', self._scroll_messages, add='+')
-        answer.bind('<Button-4>', self._scroll_messages, add='+')
-        answer.bind('<Button-5>', self._scroll_messages, add='+')
         if sources:
             panel = tk.Frame(card, bg='white')
             def toggle():
@@ -498,6 +509,7 @@ class DesktopApp:
             tk.Button(row, text='复制回答', command=lambda text=content: self._copy(text),
                       bg=PAPER, fg=MUTED, relief='flat', bd=0,
                       cursor='hand2', font=('Microsoft YaHei UI', 8)).pack(anchor='w', pady=(6, 0))
+        self._bind_chat_wheel(row)
         self.root.after_idle(lambda: self.canvas.yview_moveto(1.0))
         return row
 
