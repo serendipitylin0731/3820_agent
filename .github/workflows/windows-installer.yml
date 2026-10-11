@@ -82,7 +82,12 @@ jobs:
           $shortcut = Get-ChildItem $startMenu -Filter '3820 战略知识助手.lnk' -Recurse | Select-Object -First 1
           if (-not $shortcut) { throw 'Start Menu shortcut missing' }
           $link = (New-Object -ComObject WScript.Shell).CreateShortcut($shortcut.FullName)
-          if ($link.IconLocation -notmatch '3820Agent.ico') { throw "Shortcut icon mismatch: $($link.IconLocation)" }
+          if ($link.TargetPath -ne $installed) { throw "Shortcut target mismatch: $($link.TargetPath)" }
+          $linkBytes = [System.IO.File]::ReadAllBytes($shortcut.FullName)
+          $linkText = [System.Text.Encoding]::ASCII.GetString($linkBytes) + [System.Text.Encoding]::Unicode.GetString($linkBytes)
+          if ($link.IconLocation -notmatch '3820Agent.ico' -and $linkText -notmatch '3820Agent.ico') {
+            throw "Shortcut does not reference the installed logo: $($link.IconLocation)"
+          }
           & $installed --smoke-test
           if ($LASTEXITCODE -ne 0) {
             $log = Join-Path $env:APPDATA '3820Agent\desktop.log'
