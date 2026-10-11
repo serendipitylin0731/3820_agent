@@ -8,7 +8,7 @@ from llm_client import chat
 
 logger = logging.getLogger('3820_agent')
 CITY_TERMS = ('福州', '闽江口', '长乐', '马尾', '元洪', '福清', '罗源', '平潭')
-PROJECT_TERMS = ('南北两翼', '金三角经济圈', '海上福州')
+PROJECT_TERMS = ('南北两翼', '金三角经济圈', '海上福州', '沿江向海', '东进南下')
 DEVELOPMENT_TERMS = ('发展', '战略', '规划', '建设', '工程', '经济', '机场', '港口',
                      '开放', '产业', '投资', '招商', '交通', '开发区', '城市', '基础设施')
 INSUFFICIENT_MARKERS = (

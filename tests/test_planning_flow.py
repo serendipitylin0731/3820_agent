@@ -26,6 +26,33 @@ def test_development_zone_and_old_city_route_to_planning_even_if_model_guesses_s
     assert tasks[0]['question'] == question
 
 
+def test_jiang_hai_question_routes_to_cited_planning_answer(monkeypatch):
+    import graph
+    from agents import agent_main, agent_planning
+    monkeypatch.setattr(agent_main, 'get_settings',
+                        lambda: Settings(ark_api_key='fake', llm_model='fake'))
+    monkeypatch.setattr(agent_main, 'chat',
+                        lambda *_args, **_kwargs: '[{"type":"spatial","question":"沿江向海",'
+                                                 '"keyword":"空间"}]')
+    monkeypatch.setattr(agent_planning, 'get_settings', lambda: Settings())
+    monkeypatch.setattr(graph, 'get_settings', lambda: Settings())
+    monkeypatch.setattr(graph, 'search', lambda *_args, **_kwargs:
+                        KnowledgeResult(status='insufficient_evidence'))
+    question = '为什么强调沿江向海'
+    tasks = agent_main.split_task(question)
+    assert [task['type'] for task in tasks] == ['planning']
+    fetched = graph.retrieve_node({'question': question})
+    assert len(fetched['kb_sources']) == 1
+    executed = graph.execute_node({'question': question, 'sub_tasks': tasks, **fetched})
+    assert executed['results']['planning']['status'] == 'ok'
+    result = graph.answer_node({'question': question, **executed})
+    assert '沿江向海' in result['answer']
+    assert '港口开放' in result['answer']
+    assert '暂时无法' not in result['answer']
+    assert [source['section'] for source in result['results']['planning']['sources']] == [
+        '预览第40页：战略布局']
+
+
 def test_model_indicator_guess_needs_indicator_in_question(monkeypatch):
     from agents import agent_main
     monkeypatch.setattr(agent_main, 'get_settings',

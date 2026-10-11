@@ -6,6 +6,7 @@ def test_model_scope_and_evidence_boundary():
     missing = {'planning': {'role': 'planning', 'status': 'insufficient_evidence', 'sources': []}}
     assert fallback.needs_model('3820工程与福州机场有什么关系？', missing, '依据不足')
     assert fallback.needs_model('福州机场二期扩建何时完成？', missing, '依据不足')
+    assert fallback.needs_model('为什么强调沿江向海？', missing, '依据不足')
     assert not fallback.needs_model('量子芯片制程是多少？', missing, '依据不足')
     assert not fallback.needs_model('福州明天天气如何？', missing, '依据不足')
     disputed = {'indicator': {'role': 'indicator', 'status': 'insufficient_evidence',

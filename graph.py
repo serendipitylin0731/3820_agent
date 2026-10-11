@@ -147,6 +147,11 @@ def execute_node(state):
                     continue
                 value = run_planning(task['question'], state.get('kb_context', ''))
                 sources = state.get('kb_sources', [])
+                if (isinstance(value, dict) and
+                        value.get('evidence', '').startswith(
+                            '《福州市20年经济社会发展战略设想》扫描预览第40页；项目背景导读第04节。')):
+                    sources = [source for source in sources
+                               if source.get('section') == '预览第40页：战略布局']
             if isinstance(value, dict) and 'error' in value:
                 if value.get('conflicts') or value.get('incomparable'):
                     alternatives = [item['other'] for item in value['conflicts']]

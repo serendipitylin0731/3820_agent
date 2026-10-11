@@ -3,6 +3,7 @@ import json
 from pathlib import Path
 from pydantic import BaseModel, ConfigDict, Field
 from config import get_settings
+from knowledge.curated import JIANG_HAI_TERMS
 
 
 class PlanningReport(BaseModel):
@@ -54,6 +55,21 @@ def run_planning(question, kb_text):
             evidence='福州市人民政府“3820”战略工程解读；项目背景导读第03节。',
             risks='回答中的年份为阶段目标年份。',
             suggestions='分析建议：对比完成情况时采用相同指标与年份。',
+        ).model_dump()
+    if (any(term in question for term in JIANG_HAI_TERMS) and
+            '[预览第40页：战略布局' in kb_text):
+        return PlanningReport(
+            background='1992年福州提出建设闽江口金三角经济圈。',
+            stage_goals='资料未提及',
+            implementation_paths=(
+                '规划沿福马线、福厦线建设工业走廊，推进粗芦岛、琅岐岛等海域开发，'
+                '形成沿路、沿江、沿海的经济走廊；同时以开发区为前导、老市区为依托，'
+                '把沿海地区与闽江流域等腹地联系起来。强调“沿江向海”，是为了把'
+                '产业布局、港口开放和城乡联系放在同一个区域发展框架中。'
+                '“沿江向海、东进南下”是后续延续这一方向的发展思路。'),
+            evidence='《福州市20年经济社会发展战略设想》扫描预览第40页；项目背景导读第04节。',
+            risks='后续概括性口号与1992年规划原文应区分。',
+            suggestions='分析建议：结合战略布局原图辨认具体区域。',
         ).model_dump()
     if ('福州经济技术开发区' in question and '老市区' in question and
             '[预览第40页：战略布局' in kb_text):

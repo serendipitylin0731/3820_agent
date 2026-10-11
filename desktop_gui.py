@@ -58,9 +58,9 @@ def collect_sources(result):
         return []
     seen = set()
     sources = []
-    candidates = list(result.get('kb_sources', []))
+    candidates = []
     for item in result.get('results', {}).values():
-        if isinstance(item, dict):
+        if isinstance(item, dict) and item.get('status') != 'error':
             candidates.extend(item.get('sources') or [])
     for source in candidates:
         if not isinstance(source, dict):

@@ -8,6 +8,7 @@ from contracts import KnowledgeHit, SourceRef
 
 
 BACKGROUND = Path(__file__).resolve().parents[1] / 'docs' / '3820背景.md'
+JIANG_HAI_TERMS = ('沿江向海', '东进南下')
 SECTIONS = {
     '03 三步目标': (
         'https://www.fuzhou.gov.cn/gzdt/rcyw/202205/t20220519_4364544.htm',
@@ -34,7 +35,8 @@ def direct_hits(question: str) -> list[KnowledgeHit]:
                                         '第一阶段', '第二阶段', '第三阶段')):
         sections.append('03 三步目标')
     if ('福州经济技术开发区' in question and '老市区' in question) or (
-            '战略布局' in question and any(term in question for term in ('闽江口', '开发区'))):
+            '战略布局' in question and any(term in question for term in ('闽江口', '开发区'))) or (
+            any(term in question for term in JIANG_HAI_TERMS)):
         sections.append('04 江海布局')
     version = hashlib.sha256(BACKGROUND.read_bytes()).hexdigest()[:16]
     return [KnowledgeHit(

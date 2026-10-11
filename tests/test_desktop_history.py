@@ -57,3 +57,9 @@ def test_model_supplement_does_not_show_unrelated_retrieval_sources():
     result = {'kb_sources': [{'source_file': 'unrelated.md'}],
               'results': {'model': {'data': {'kind': 'model_knowledge'}, 'sources': []}}}
     assert collect_sources(result) == []
+
+
+def test_unanswered_planning_result_does_not_claim_retrieval_hit_as_source():
+    result = {'kb_sources': [{'source_file': 'nearby-but-not-used.md'}],
+              'results': {'planning': {'status': 'insufficient_evidence', 'sources': []}}}
+    assert collect_sources(result) == []

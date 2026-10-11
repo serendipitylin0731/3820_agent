@@ -6,6 +6,7 @@ import re
 from pydantic import ValidationError
 from config import ConfigurationError, get_settings
 from contracts import SubTask
+from knowledge.curated import JIANG_HAI_TERMS
 from llm_client import chat
 
 SPLIT_SYSTEM = '''将问题拆成 JSON 数组。每个对象必须包含 type 和 question，question 是对应子问题；禁止使用 content 字段。type 仅为 planning、indicator、spatial、evaluation。
@@ -84,6 +85,10 @@ def _normalize_tasks(tasks, question):
         if not any(task['type'] == 'planning' for task in tasks):
             tasks.append({'type': 'planning', 'question': question})
     if '福州经济技术开发区' in question and '老市区' in question:
+        tasks = [task for task in tasks if task['type'] != 'spatial']
+        if not any(task['type'] == 'planning' for task in tasks):
+            tasks.append({'type': 'planning', 'question': question})
+    if any(term in question for term in JIANG_HAI_TERMS):
         tasks = [task for task in tasks if task['type'] != 'spatial']
         if not any(task['type'] == 'planning' for task in tasks):
             tasks.append({'type': 'planning', 'question': question})
