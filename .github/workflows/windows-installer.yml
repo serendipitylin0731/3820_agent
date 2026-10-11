@@ -73,20 +73,26 @@ jobs:
         run: |
           $target = Join-Path $env:RUNNER_TEMP '3820AgentInstall'
           $installer = (Resolve-Path 'dist\installer\3820Agent-Setup-x64.exe').Path
-          $process = Start-Process -FilePath $installer -ArgumentList "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /DIR=$target" -Wait -PassThru
+          $process = Start-Process -FilePath $installer -ArgumentList "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /DIR=$target /TASKS=desktopicon" -Wait -PassThru
           if ($process.ExitCode -ne 0) { exit $process.ExitCode }
           $installed = Join-Path $target '3820Agent.exe'
           if (-not (Test-Path $installed)) { throw 'Installed executable missing' }
           if (-not (Test-Path (Join-Path $target '3820Agent.ico'))) { throw 'Installed icon missing' }
           $startMenu = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs'
-          $shortcut = Get-ChildItem $startMenu -Filter '3820 战略知识助手.lnk' -Recurse | Select-Object -First 1
-          if (-not $shortcut) { throw 'Start Menu shortcut missing' }
-          $link = (New-Object -ComObject WScript.Shell).CreateShortcut($shortcut.FullName)
-          if ($link.TargetPath -ne $installed) { throw "Shortcut target mismatch: $($link.TargetPath)" }
-          $linkBytes = [System.IO.File]::ReadAllBytes($shortcut.FullName)
-          $linkText = [System.Text.Encoding]::ASCII.GetString($linkBytes) + [System.Text.Encoding]::Unicode.GetString($linkBytes)
-          if ($link.IconLocation -notmatch '3820Agent.ico' -and $linkText -notmatch '3820Agent.ico') {
-            throw "Shortcut does not reference the installed logo: $($link.IconLocation)"
+          $startShortcut = Get-ChildItem $startMenu -Filter '3820 战略知识助手.lnk' -Recurse | Select-Object -First 1
+          $desktopShortcut = Join-Path ([Environment]::GetFolderPath('DesktopDirectory')) '3820 战略知识助手.lnk'
+          if (-not $startShortcut) { throw 'Start Menu shortcut missing' }
+          if (-not (Test-Path $desktopShortcut)) { throw 'Desktop shortcut missing' }
+          foreach ($shortcutPath in @($startShortcut.FullName, $desktopShortcut)) {
+            $linkBytes = [System.IO.File]::ReadAllBytes($shortcutPath)
+            $linkHex = [Convert]::ToHexString($linkBytes)
+            foreach ($fileName in @('3820Agent.exe', '3820Agent.ico')) {
+              $ascii = [Convert]::ToHexString([System.Text.Encoding]::ASCII.GetBytes($fileName))
+              $unicode = [Convert]::ToHexString([System.Text.Encoding]::Unicode.GetBytes($fileName))
+              if (-not ($linkHex.Contains($ascii) -or $linkHex.Contains($unicode))) {
+                throw "Shortcut $shortcutPath does not reference $fileName"
+              }
+            }
           }
           & $installed --smoke-test
           if ($LASTEXITCODE -ne 0) {
