@@ -6,6 +6,8 @@ from pathlib import Path
 
 root = Path(SPECPATH).parent
 datas = [
+    (str(root / 'packaging' / 'logo.png'), 'packaging'),
+    (str(root / 'packaging' / '3820Agent.ico'), 'packaging'),
     (str(root / 'docs' / '3820背景.md'), 'docs'),
     (str(root / 'docs' / '基于3820战略工程内容的多智能体系统搭建指南.md'), 'docs'),
     *[(str(path), 'knowledge') for path in (root / 'knowledge').glob('*.json')],
@@ -31,6 +33,7 @@ exe = EXE(
     name='3820Agent',
     console=False,
     manifest=str(root / 'packaging' / '3820Agent.manifest'),
+    icon=str(root / 'packaging' / '3820Agent.ico'),
     disable_windowed_traceback=False,
 )
 coll = COLLECT(exe, analysis.binaries, analysis.datas,

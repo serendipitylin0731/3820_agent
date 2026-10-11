@@ -1,5 +1,5 @@
 #define AppName "3820 战略知识助手"
-#define AppVersion "0.5.0"
+#define AppVersion "0.6.0"
 
 [Setup]
 AppId={{D684B40D-1361-4438-BD51-3820A6F7C811}
@@ -18,6 +18,7 @@ OutputBaseFilename=3820Agent-Setup-x64
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
+SetupIconFile=3820Agent.ico
 UninstallDisplayIcon={app}\3820Agent.exe
 CloseApplications=yes
 

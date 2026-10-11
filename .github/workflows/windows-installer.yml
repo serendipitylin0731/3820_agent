@@ -10,6 +10,7 @@ on:
       - 'requirements*.txt'
       - 'desktop.py'
       - 'desktop_gui.py'
+      - 'desktop_markdown.py'
       - 'desktop_history.py'
       - 'desktop_runtime.py'
       - 'app.py'

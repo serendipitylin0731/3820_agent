@@ -7,7 +7,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from desktop_gui import DesktopApp
+from desktop_gui import DesktopApp, _readonly_text
 from desktop_history import save_history
 
 
@@ -30,6 +30,16 @@ try:
         assert len(app.turns) == 1
         assert app.history_panel.winfo_manager()
         assert not app.timeline_panel.winfo_manager()
+        document = app.doc_text.get('1.0', 'end')
+        assert '**1995' not in document
+        assert '1995 年：三年起步。' in document
+        assert app.doc_text.tag_ranges('strong')
+        assert app.doc_text.tag_ranges('link')
+        sample = _readonly_text(root, '**加粗**和[来源](https://example.org)', bg='white')
+        assert sample.get('1.0', 'end').startswith('加粗和来源')
+        assert sample.tag_ranges('strong') and sample.tag_ranges('link')
+        sample.destroy()
+        assert app._logo_images
 
         assert app.background_label.bind('<Button-1>')
         app.show_document()

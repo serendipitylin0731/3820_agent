@@ -1,9 +1,9 @@
 """Native Tk desktop interface. It calls the agent graph directly without HTTP or WebView."""
 
 import logging
+import math
 import queue
 import random
-import re
 import shutil
 import threading
 import uuid
@@ -12,10 +12,13 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 import tkinter as tk
+import tkinter.font as tkfont
 from tkinter import filedialog, messagebox, ttk
+from PIL import Image, ImageTk
 
 from config import Settings
 from desktop_history import conversations, load_history, save_history
+from desktop_markdown import render_markdown
 from desktop_runtime import apply_model_config, read_model_config, write_model_config
 
 
@@ -85,9 +88,10 @@ class AutoHeightText(tk.Text):
         self._fit_pending = False
         if not self.winfo_exists() or self.winfo_width() <= 1:
             return
-        result = self.count('1.0', 'end', 'update', 'displaylines')
-        lines = result[0] if isinstance(result, tuple) else result
-        needed = max(2, int(lines or 1) + 1)
+        result = self.count('1.0', 'end', 'update', 'ypixels')
+        pixels = result[0] if isinstance(result, tuple) else result
+        line_height = tkfont.Font(font=self.cget('font')).metrics('linespace')
+        needed = max(2, math.ceil((pixels or line_height) / line_height) + 1)
         if int(self.cget('height')) != needed:
             self.configure(height=needed)
 
@@ -96,7 +100,7 @@ def _readonly_text(parent, content, *, bg, fg=INK, font_size=11, padx=12, pady=1
     widget = AutoHeightText(parent, wrap='word', bg=bg, fg=fg,
                             relief='flat', borderwidth=0, padx=padx, pady=pady,
                             font=('Microsoft YaHei UI', font_size), cursor='arrow')
-    widget.insert('1.0', content)
+    render_markdown(widget, content, font_size=font_size)
     widget.configure(state='disabled')
     widget._schedule_fit()
     return widget
@@ -132,6 +136,10 @@ class DesktopApp:
     def _build(self):
         self.root.title('3820 · 战略知识助手')
         scale = getattr(self.root, 'ui_scale', 1.0)
+        self._logo_images = {}
+        self.root.iconphoto(True, self._logo_image(64))
+        if self.root.tk.call('tk', 'windowingsystem') == 'win32':
+            self.root.iconbitmap(str(Path(__file__).with_name('packaging') / '3820Agent.ico'))
         width = min(round(1160 * scale), max(760, self.root.winfo_screenwidth() - 80))
         height = min(round(780 * scale), max(540, self.root.winfo_screenheight() - 80))
         self.root.geometry(f'{width}x{height}')
@@ -152,19 +160,16 @@ class DesktopApp:
 
         brand = tk.Frame(self.sidebar, bg=SIDEBAR)
         brand.pack(fill='x', padx=21, pady=(27, 30))
-        logo = tk.Canvas(brand, width=48, height=48, bg=SIDEBAR, highlightthickness=0)
-        logo.pack(side='left', padx=(0, 12))
-        logo.create_rectangle(3, 3, 45, 45, outline='#91ad9b', width=1)
-        logo.create_line(10, 35, 20, 27, 29, 31, 39, 14,
-                         fill='#a9d4ad', width=3, smooth=False)
-        for x, y in ((10, 35), (20, 27), (39, 14)):
-            logo.create_oval(x-3, y-3, x+3, y+3, fill='#d8a366', outline='')
+        tk.Label(brand, image=self._logo_image(round(48 * scale)), bg=SIDEBAR).pack(
+            side='left', padx=(0, 12))
         tk.Label(brand, text='3820 · 战略知识助手', bg=SIDEBAR, fg='#f0f6ed',
                  font=('Microsoft YaHei UI', 12, 'bold')).pack(anchor='w', pady=(4, 2))
         tk.Label(brand, text='福州发展战略知识平台', bg=SIDEBAR, fg='#a9c1ac',
                  font=('Microsoft YaHei UI', 9)).pack(anchor='w')
 
-        self._side_button('✦  新建对话', self.new_chat).pack(fill='x', padx=20, pady=(0, 8))
+        new_chat_button = self._side_button('新建对话', self.new_chat)
+        new_chat_button.configure(image=self._logo_image(round(20 * scale)), compound='left')
+        new_chat_button.pack(fill='x', padx=20, pady=(0, 8))
         self.background_button = tk.Frame(self.sidebar, bg='#284b3b',
                                           highlightbackground='#527463',
                                           highlightthickness=1, takefocus=1, cursor='hand2')
@@ -272,15 +277,15 @@ class DesktopApp:
         self.history_canvas.bind('<Button-5>', self._scroll_history)
         tk.Label(self.history_panel, text='本机最多保存 30 轮问答', bg=SIDEBAR, fg='#92aa99',
                  font=('Microsoft YaHei UI', 8)).pack(anchor='w', padx=25, pady=(2, 8))
-        self._side_button('⚙  豆包 API 设置', self.show_settings).pack(fill='x', padx=20, pady=(0, 7))
-        self._side_button('＋  导入资料', self.import_files).pack(fill='x', padx=20, pady=(0, 17))
+        self._side_button('豆包 API 设置', self.show_settings).pack(fill='x', padx=20, pady=(0, 7))
+        self._side_button('导入资料', self.import_files).pack(fill='x', padx=20, pady=(0, 17))
 
         topbar = tk.Frame(self.main, bg=PAPER, height=round(68 * scale))
         topbar.pack(fill='x')
         topbar.pack_propagate(False)
         tk.Label(topbar, text='3820  /  知识工作台', bg=PAPER, fg='#567863',
                  font=('Microsoft YaHei UI', 10, 'bold')).pack(side='left', padx=32)
-        tk.Label(topbar, text='本地应用', bg=PAPER, fg='#6f8576',
+        tk.Label(topbar, text='我的 ID：_serendipity · 开发者', bg=PAPER, fg='#6f8576',
                  font=('Microsoft YaHei UI', 9)).pack(side='right', padx=30)
         tk.Frame(self.main, height=1, bg=LINE).pack(fill='x')
         self.page_host = tk.Frame(self.main, bg=PAPER)
@@ -341,6 +346,14 @@ class DesktopApp:
                          activeforeground='white', relief='flat', bd=0,
                          font=('Microsoft YaHei UI', 10), padx=13, pady=10, cursor='hand2')
 
+    def _logo_image(self, size):
+        if size not in self._logo_images:
+            path = Path(__file__).with_name('packaging') / 'logo.png'
+            with Image.open(path) as source:
+                bitmap = source.resize((size, size), Image.Resampling.LANCZOS)
+            self._logo_images[size] = ImageTk.PhotoImage(bitmap, master=self.root)
+        return self._logo_images[size]
+
     def _scroll_messages(self, event):
         if getattr(event, 'num', None) == 4:
             amount = -3
@@ -382,6 +395,8 @@ class DesktopApp:
     def _show_welcome(self):
         self.welcome = tk.Frame(self.messages, bg=PAPER)
         self.welcome.pack(fill='x', padx=45, pady=(50, 26))
+        size = round(51 * getattr(self.root, 'ui_scale', 1.0))
+        tk.Label(self.welcome, image=self._logo_image(size), bg=PAPER).pack(anchor='w', pady=(0, 14))
         tk.Label(self.welcome, text='福州 · 1992—2010', bg=PAPER, fg='#67866b',
                  font=('Microsoft YaHei UI', 10, 'bold')).pack(anchor='w', pady=(0, 12))
         tk.Label(self.welcome, text='从资料出发，读懂“3820”。', bg=PAPER, fg=INK,
@@ -421,9 +436,14 @@ class DesktopApp:
     def _add_message(self, kind, content, sources=None):
         row = tk.Frame(self.messages, bg=PAPER)
         row.pack(fill='x', padx=40, pady=(9, 15))
-        label = '我  ·  我的提问' if kind == 'user' else '✦  ·  知识助手'
-        tk.Label(row, text=label, bg=PAPER, fg='#61816a',
-                 font=('Microsoft YaHei UI', 9, 'bold')).pack(anchor='w', pady=(0, 8))
+        header = tk.Frame(row, bg=PAPER)
+        header.pack(anchor='w', pady=(0, 8))
+        if kind == 'assistant':
+            size = round(22 * getattr(self.root, 'ui_scale', 1.0))
+            tk.Label(header, image=self._logo_image(size), bg=PAPER).pack(side='left', padx=(0, 8))
+        label = '我  ·  我的提问' if kind == 'user' else '知识助手'
+        tk.Label(header, text=label, bg=PAPER, fg='#61816a',
+                 font=('Microsoft YaHei UI', 9, 'bold')).pack(side='left')
         card = tk.Frame(row, bg=SOFT if kind == 'user' else 'white',
                         highlightbackground=LINE, highlightthickness=1)
         card.pack(fill='x')
@@ -627,25 +647,7 @@ class DesktopApp:
         path = Path(__file__).with_name('docs') / '3820背景.md'
         content = path.read_text(encoding='utf-8')
         widget = self.doc_text
-        widget.tag_configure('h1', font=('Microsoft YaHei UI', 20, 'bold'), foreground=INK,
-                             spacing1=16, spacing3=16)
-        widget.tag_configure('h2', font=('Microsoft YaHei UI', 14, 'bold'), foreground=GREEN,
-                             spacing1=18, spacing3=10)
-        widget.tag_configure('link', foreground=GREEN, underline=True)
-        for line in content.splitlines():
-            tag = 'h1' if line.startswith('# ') else 'h2' if line.startswith('## ') else None
-            line = line.lstrip('# ').replace('**', '') if tag else line
-            cursor = 0
-            for match in re.finditer(r'\[([^\]]+)\]\((https?://[^)]+)\)', line):
-                widget.insert('end', line[cursor:match.start()], tag)
-                label, url = match.groups()
-                link_tag = f'link_{widget.index("end-1c").replace(".", "_")}'
-                widget.insert('end', label, ('link', link_tag))
-                widget.tag_bind(link_tag, '<Button-1>', lambda _event, address=url: webbrowser.open(address))
-                widget.tag_bind(link_tag, '<Enter>', lambda _event: widget.configure(cursor='hand2'))
-                widget.tag_bind(link_tag, '<Leave>', lambda _event: widget.configure(cursor='arrow'))
-                cursor = match.end()
-            widget.insert('end', line[cursor:] + '\n', tag)
+        render_markdown(widget, content, document=True)
         widget.configure(state='disabled')
 
     def _first_run_settings(self):
