@@ -58,7 +58,8 @@ def route_node(state):
 def retrieve_node(state):
     started = time.monotonic()
     direct = direct_hits(state['question'])
-    if direct and not any(term in state['question'] for term in ('示意图', '地图', '幻灯片', 'PPT', '图片')):
+    if direct and (direct[0].chunk_id == 'reviewed:investment_map' or
+                   not any(term in state['question'] for term in ('示意图', '地图', '幻灯片', 'PPT', '图片'))):
         found = KnowledgeResult(status='ok', hits=direct)
         log_event('retrieval_finished', state.get('request_id', ''), state.get('thread_id', ''),
                   node='retrieve_node', duration_ms=round((time.monotonic() - started) * 1000, 1))

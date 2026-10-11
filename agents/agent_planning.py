@@ -47,8 +47,7 @@ def run_planning(question, kb_text):
         ).model_dump()
     if ('正式通航' in question or '实际通航' in question) and '1997' not in kb_text:
         return {'insufficient_evidence': '知识库资料只找到机场建设规划，没有正式通航日期。'}
-    if ('示意图' in question and '预览第27页' in kb_text and
-            '福州市闽江口金三角经济圈投资示意图' in kb_text):
+    if '示意图' in question and '福州市闽江口金三角经济圈投资示意图' in kb_text:
         map_data = json.loads((Path(__file__).parents[1] / 'knowledge' / 'map_labels.json').read_text(encoding='utf-8'))
         return PlanningReport(
             background='闽江口金三角经济圈投资布局示意图。',
@@ -57,6 +56,7 @@ def run_planning(question, kb_text):
             evidence='扫描出版物预览第27页地图人工转录；PPT第19页可对照。',
             risks='地图名称和 OCR 未完成独立史料核验；位置与比例应回看原图。',
             suggestions='分析建议：按地图原图复核地名和空间位置后再用于正式展示。',
+            source_sections=['福州市闽江口金三角经济圈投资示意图'],
         ).model_dump()
     sections = source_sections(question)
     passage = answer_passage(question)

@@ -5,6 +5,7 @@ out a concise section that already answers the question with explicit provenance
 """
 
 import hashlib
+import json
 import re
 from pathlib import Path
 
@@ -82,6 +83,14 @@ def section_titles(question: str) -> list[str]:
 
 
 def direct_hits(question: str) -> list[KnowledgeHit]:
+    if '示意图' in question and any(term in question for term in ('闽江口', '金三角', '投资')):
+        map_data = json.loads((BACKGROUND.parents[1] / 'knowledge' / 'map_labels.json').read_text(encoding='utf-8'))
+        return [KnowledgeHit(
+            chunk_id='reviewed:investment_map',
+            content=f"{map_data['title']}：" + '、'.join(map_data['labels']) + '。',
+            source=SourceRef.model_validate(map_data['source_ref']),
+            score=1.0, score_kind='similarity',
+        )]
     version = hashlib.sha256(BACKGROUND.read_bytes()).hexdigest()[:16]
     return [KnowledgeHit(
         chunk_id=f'background:{title}', content=_section(title),

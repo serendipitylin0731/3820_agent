@@ -48,3 +48,19 @@ def test_question_audit(offline_runtime, case):
     assert '[资料 ' not in answer, question
     for term in case['contains']:
         assert term in answer, (question, term, answer)
+
+
+def test_reviewed_map_is_available_without_untracked_raw_corpus(offline_runtime, monkeypatch):
+    graph, agent_main = offline_runtime
+    def unavailable_search(*args, **kwargs):
+        raise AssertionError('原始 OCR 资料不可用时不应调用检索')
+    monkeypatch.setattr(graph, 'search', unavailable_search)
+    question = '闽江口投资示意图有哪些区域？'
+    state = {'question': question, 'sub_tasks': agent_main.split_task(question)}
+    state.update(graph.retrieve_node(state))
+    state.update(graph.execute_node(state))
+    state.update(graph.answer_node(state))
+    assert '罗源湾投资区' in state['answer']
+    assert '元洪开发区' in state['answer']
+    assert any(source['section'] == '福州市闽江口金三角经济圈投资示意图'
+               for item in state['results'].values() for source in item.get('sources') or [])
