@@ -127,10 +127,8 @@ class DesktopApp:
         self._build()
         self._show_welcome()
         self._render_history()
-        if self.turns:
-            self._restore(self.turns[-1]['thread_id'])
-        else:
-            self.root.after(250, self._first_run_settings)
+        self.show_chat()
+        self.root.after(250, self._first_run_settings)
         self.root.after(100, self._poll)
 
     def _build(self):
@@ -170,27 +168,31 @@ class DesktopApp:
 
         self._side_button('✦  新建对话', self.new_chat).pack(fill='x', padx=20, pady=(0, 8))
         self._side_button('↗  3820 背景', self.show_document).pack(fill='x', padx=20, pady=(0, 17))
-        tk.Label(self.sidebar, text='发展时间线', bg=SIDEBAR, fg='#9db5a4',
+        self.sidebar_body = tk.Frame(self.sidebar, bg=SIDEBAR)
+        self.sidebar_body.pack(fill='both', expand=True)
+        self.timeline_panel = tk.Frame(self.sidebar_body, bg=SIDEBAR)
+        tk.Label(self.timeline_panel, text='发展时间线', bg=SIDEBAR, fg='#9db5a4',
                  font=('Microsoft YaHei UI', 9, 'bold')).pack(anchor='w', padx=26, pady=(0, 8))
         timeline = [('1990', '规划基期'), ('1992', '战略形成'), ('1995', '三年起步'),
                     ('2000', '八年追赶'), ('2010', '二十年远景')]
         for year, label in timeline:
-            row = tk.Frame(self.sidebar, bg=SIDEBAR)
+            row = tk.Frame(self.timeline_panel, bg=SIDEBAR)
             row.pack(fill='x', padx=28, pady=4)
             tk.Label(row, text=year, width=5, anchor='w', bg=SIDEBAR, fg='#e6b67c',
                      font=('Georgia', 11, 'bold')).pack(side='left')
             tk.Label(row, text=label, bg=SIDEBAR, fg='#e3ede2',
                      font=('Microsoft YaHei UI', 9)).pack(side='left')
 
-        tk.Frame(self.sidebar, height=1, bg='#4c6a58').pack(fill='x', padx=20, pady=(18, 10))
-        header = tk.Frame(self.sidebar, bg=SIDEBAR)
+        self.history_panel = tk.Frame(self.sidebar_body, bg=SIDEBAR)
+        tk.Frame(self.history_panel, height=1, bg='#4c6a58').pack(fill='x', padx=20, pady=(0, 10))
+        header = tk.Frame(self.history_panel, bg=SIDEBAR)
         header.pack(fill='x', padx=24)
         tk.Label(header, text='历史对话', bg=SIDEBAR, fg='#bcd0bd',
                  font=('Microsoft YaHei UI', 9, 'bold')).pack(side='left')
         tk.Button(header, text='清空', command=self.clear_history, bg=SIDEBAR,
                   fg='#bcd0bd', activebackground=SIDEBAR, activeforeground='white',
                   relief='flat', bd=0, cursor='hand2', font=('Microsoft YaHei UI', 8)).pack(side='right')
-        history_frame = tk.Frame(self.sidebar, bg=SIDEBAR)
+        history_frame = tk.Frame(self.history_panel, bg=SIDEBAR)
         history_frame.pack(fill='both', expand=True, padx=19, pady=(8, 5))
         self.history_list = tk.Listbox(history_frame, bg='#244538', fg='#e1ece1',
                                        selectbackground='#3c6f52', selectforeground='white',
@@ -198,7 +200,7 @@ class DesktopApp:
                                        highlightthickness=0, font=('Microsoft YaHei UI', 9))
         self.history_list.pack(side='left', fill='both', expand=True)
         self.history_list.bind('<<ListboxSelect>>', self._select_history)
-        tk.Label(self.sidebar, text='本机最多保存 30 轮问答', bg=SIDEBAR, fg='#92aa99',
+        tk.Label(self.history_panel, text='本机最多保存 30 轮问答', bg=SIDEBAR, fg='#92aa99',
                  font=('Microsoft YaHei UI', 8)).pack(anchor='w', padx=25, pady=(2, 8))
         self._side_button('⚙  豆包 API 设置', self.show_settings).pack(fill='x', padx=20, pady=(0, 7))
         self._side_button('＋  导入资料', self.import_files).pack(fill='x', padx=20, pady=(0, 17))
@@ -479,11 +481,17 @@ class DesktopApp:
         self.doc_page.pack_forget()
         if not self.chat_page.winfo_manager():
             self.chat_page.pack(fill='both', expand=True)
+        self.timeline_panel.pack_forget()
+        if not self.history_panel.winfo_manager():
+            self.history_panel.pack(fill='both', expand=True)
 
     def show_document(self):
         self.chat_page.pack_forget()
         if not self.doc_page.winfo_manager():
             self.doc_page.pack(fill='both', expand=True)
+        self.history_panel.pack_forget()
+        if not self.timeline_panel.winfo_manager():
+            self.timeline_panel.pack(fill='both', expand=True)
 
     def _load_document(self):
         path = Path(__file__).with_name('docs') / '3820背景.md'

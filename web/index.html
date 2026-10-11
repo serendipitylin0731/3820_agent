@@ -9,7 +9,7 @@
   <script src="/assets/history_store.js" defer></script>
   <script src="/assets/app.js" defer></script>
 </head>
-<body>
+<body data-view="chat">
   <div class="shell">
     <aside class="sidebar" aria-label="工作区导航">
       <a class="brand" href="/" aria-label="3820 战略知识助手首页">
@@ -21,17 +21,17 @@
       <button class="nav-item active" type="button" id="new-chat"><span class="nav-icon" aria-hidden="true">✦</span> 新建对话 <span class="nav-arrow" aria-hidden="true">↗</span></button>
       <div class="timeline-wrap">
         <button class="background-toggle" id="background-toggle" type="button" aria-controls="background-document"><span>3820 背景</span><span class="toggle-arrow" aria-hidden="true">↗</span></button>
-        <ol class="timeline" id="background-timeline">
+        <ol class="timeline" id="background-timeline" hidden>
           <li><time>1990</time><strong>规划基期</strong><p>以这一年的主要指标作为三年目标的比较起点。</p></li>
           <li><time>1992</time><strong>战略形成</strong><p>广泛调研、论证后，《福州市20年经济社会发展战略设想》于 11 月审议通过。</p></li>
           <li><time>1995</time><strong>三年 · 起步</strong><p>推动主要指标在 1990 年基础上再翻一番，提前实现小康目标。</p></li>
           <li><time>2000</time><strong>八年 · 追赶</strong><p>力争城乡主要人均指标达到国内先进城市水平。</p></li>
           <li><time>2010</time><strong>二十年 · 远景</strong><p>力争达到或接近亚洲中等发达国家或地区当时的平均水平。</p></li>
         </ol>
-        <a class="timeline-source" href="https://fgw.fuzhou.gov.cn/fgwzwgk/fzgggz/jjyx/202403/t20240328_4799823.htm" target="_blank" rel="noopener noreferrer">查看福州市发改委资料 ↗</a>
+        <a class="timeline-source" href="https://fgw.fuzhou.gov.cn/fgwzwgk/fzgggz/jjyx/202403/t20240328_4799823.htm" target="_blank" rel="noopener noreferrer" hidden>查看福州市发改委资料 ↗</a>
       </div>
 
-      <section class="history-panel" aria-labelledby="history-title">
+      <section class="history-panel" id="history-panel" aria-labelledby="history-title">
         <div class="history-heading"><h2 id="history-title">历史对话</h2><button id="clear-history" type="button" hidden>清空</button></div>
         <p class="history-empty" id="history-empty">暂无记录</p>
         <div class="history-list" id="history-list" aria-label="保存的对话"></div>

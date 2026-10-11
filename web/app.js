@@ -13,10 +13,13 @@
   const mobileModelButton = document.querySelector('#mobile-model-settings');
   let modelSettingsToken = '';
   const backgroundToggle = document.querySelector('#background-toggle');
+  const backgroundTimeline = document.querySelector('#background-timeline');
+  const timelineSource = document.querySelector('.timeline-source');
   const backgroundDocument = document.querySelector('#background-document');
   const conversation = document.querySelector('#conversation');
   const composer = document.querySelector('#composer-wrap');
   const historyList = document.querySelector('#history-list');
+  const historyPanel = document.querySelector('#history-panel');
   const historyEmpty = document.querySelector('#history-empty');
   const clearHistory = document.querySelector('#clear-history');
   const historyStore = window.ChatHistory;
@@ -182,18 +185,26 @@
   }
 
   function showChat() {
+    document.body.dataset.view = 'chat';
     backgroundDocument.hidden = true;
     conversation.hidden = false;
     composer.hidden = false;
+    backgroundTimeline.hidden = true;
+    timelineSource.hidden = true;
+    historyPanel.hidden = false;
     backgroundToggle.classList.remove('selected');
     backgroundToggle.removeAttribute('aria-current');
     document.querySelector('#mobile-background').removeAttribute('aria-current');
   }
 
   function showBackground() {
+    document.body.dataset.view = 'background';
     backgroundDocument.hidden = false;
     conversation.hidden = true;
     composer.hidden = true;
+    backgroundTimeline.hidden = false;
+    timelineSource.hidden = false;
+    historyPanel.hidden = true;
     backgroundToggle.classList.add('selected');
     backgroundToggle.setAttribute('aria-current', 'page');
     document.querySelector('#mobile-background').setAttribute('aria-current', 'page');
@@ -369,6 +380,6 @@
     if (!config.configured) showModelSettings();
   }).catch(() => {});
   renderSuggestions();
-  if (savedTurns.length) restoreConversation(savedTurns[savedTurns.length - 1].threadId);
-  else renderHistory();
+  showChat();
+  renderHistory();
 })();

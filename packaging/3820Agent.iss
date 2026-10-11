@@ -1,5 +1,5 @@
 #define AppName "3820 战略知识助手"
-#define AppVersion "0.3.0"
+#define AppVersion "0.4.0"
 
 [Setup]
 AppId={{D684B40D-1361-4438-BD51-3820A6F7C811}
