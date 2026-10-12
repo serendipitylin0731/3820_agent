@@ -4,9 +4,13 @@ from fastapi.testclient import TestClient
 import pytest
 
 import app as api
+import desktop_runtime
 from config import Settings
 from desktop_runtime import read_model_config, write_model_config
 from knowledge.knowledge_base import _source_paths
+
+
+pytestmark = pytest.mark.offline
 
 
 def test_desktop_config_round_trip_keeps_secret_out_of_api(tmp_path, monkeypatch):
@@ -64,6 +68,27 @@ def test_encrypted_config_file_round_trip(tmp_path):
     raw = (tmp_path / 'model_config.dpapi').read_bytes()
     assert b'secret-value' not in raw
     assert read_model_config(tmp_path, decrypt=lambda data: data[::-1]) == config
+
+
+def test_config_write_falls_back_to_second_user_directory(tmp_path, monkeypatch):
+    roaming, local = tmp_path / 'roaming', tmp_path / 'local'
+    monkeypatch.setattr(desktop_runtime, '_config_dirs', lambda _home: [roaming, local])
+    old_config = {'ARK_API_KEY': 'old-secret', 'LLM_MODEL': 'old-chat',
+                  'EMBED_MODEL': '', 'ARK_BASE_URL': 'https://example.com/api/v3'}
+    write_model_config(old_config, roaming, encrypt=lambda data: data[::-1])
+    real_replace = desktop_runtime.os.replace
+
+    def replace(source, destination):
+        if destination.parent == roaming:
+            raise PermissionError('roaming storage blocked')
+        return real_replace(source, destination)
+
+    monkeypatch.setattr(desktop_runtime.os, 'replace', replace)
+    config = {'ARK_API_KEY': 'secret-value', 'LLM_MODEL': 'chat-model',
+              'EMBED_MODEL': '', 'ARK_BASE_URL': 'https://example.com/api/v3'}
+    stored = write_model_config(config, roaming, encrypt=lambda data: data[::-1])
+    assert stored == local / 'model_config.dpapi'
+    assert read_model_config(roaming, decrypt=lambda data: data[::-1]) == config
 
 
 @pytest.mark.skipif(sys.platform != 'win32', reason='Windows DPAPI only')

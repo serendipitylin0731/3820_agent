@@ -741,11 +741,22 @@ class DesktopApp:
                 Settings(ark_api_key=config['ARK_API_KEY'], llm_model=config['LLM_MODEL'],
                          embed_model=config['EMBED_MODEL'] or None,
                          ark_base_url=config['ARK_BASE_URL'])
+            except ValueError:
+                logging.warning('模型配置校验失败')
+                messagebox.showerror('配置无效', '请检查 API Key、模型 ID 和 API 地址。', parent=dialog)
+                return
+            try:
                 write_model_config(config, self.home)
+                if read_model_config(self.home) != config:
+                    raise OSError('配置写入后校验失败')
                 apply_model_config(config)
-            except (OSError, ValueError) as exc:
-                logging.warning('保存模型配置失败 error_type=%s', type(exc).__name__)
-                messagebox.showerror('保存失败', '无法保存模型配置，请检查当前用户目录。', parent=dialog)
+            except (OSError, ValueError, UnicodeError) as exc:
+                logging.exception('保存模型配置失败 error_type=%s', type(exc).__name__)
+                code = getattr(exc, 'winerror', None) or getattr(exc, 'errno', None)
+                detail = f'（系统错误码 {code}）' if code is not None else ''
+                messagebox.showerror('保存失败',
+                                     f'无法加密或写入模型配置{detail}。请把当前用户 AppData\\Roaming\\3820Agent\\desktop.log 的末尾内容发给开发者；日志不记录 API Key。',
+                                     parent=dialog)
                 return
             dialog.destroy()
         buttons = tk.Frame(dialog, bg=PAPER)

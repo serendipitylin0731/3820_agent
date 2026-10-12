@@ -3,7 +3,9 @@
 import ctypes
 import logging
 import sys
+import tempfile
 import uuid
+from pathlib import Path
 
 from desktop_runtime import prepare_desktop
 
@@ -77,6 +79,15 @@ def main():
             root.withdraw()
         DesktopApp(root, home)
         if smoke:
+            from desktop_runtime import read_model_config, write_model_config
+            with tempfile.TemporaryDirectory(prefix='config-smoke-', dir=home) as directory:
+                config = {'ARK_API_KEY': 'build-smoke-key',
+                          'LLM_MODEL': 'build-smoke-chat', 'EMBED_MODEL': '',
+                          'ARK_BASE_URL': 'https://ark.cn-beijing.volces.com/api/v3'}
+                target = Path(directory)
+                written = write_model_config(config, target)
+                if written.parent != target or read_model_config(target) != config:
+                    raise RuntimeError('Windows 配置加密、保存或读取失败')
             root.update_idletasks()
             root.update()
             from graph import ask

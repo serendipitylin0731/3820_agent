@@ -8,6 +8,7 @@ import ctypes
 import json
 import os
 import sys
+import uuid
 from ctypes import wintypes
 from pathlib import Path
 
@@ -46,47 +47,91 @@ def _dpapi(data: bytes, *, decrypt: bool) -> bytes:
         raise RuntimeError("密钥加密仅在 Windows 上可用")
     crypt32 = ctypes.windll.crypt32
     kernel32 = ctypes.windll.kernel32
+    crypt32.CryptProtectData.argtypes = [ctypes.POINTER(_DataBlob), ctypes.c_wchar_p,
+                                        ctypes.POINTER(_DataBlob), ctypes.c_void_p,
+                                        ctypes.c_void_p, wintypes.DWORD, ctypes.POINTER(_DataBlob)]
+    crypt32.CryptProtectData.restype = wintypes.BOOL
+    crypt32.CryptUnprotectData.argtypes = [ctypes.POINTER(_DataBlob),
+                                          ctypes.POINTER(ctypes.c_wchar_p),
+                                          ctypes.POINTER(_DataBlob), ctypes.c_void_p,
+                                          ctypes.c_void_p, wintypes.DWORD,
+                                          ctypes.POINTER(_DataBlob)]
+    crypt32.CryptUnprotectData.restype = wintypes.BOOL
     kernel32.LocalFree.argtypes = [ctypes.c_void_p]
     kernel32.LocalFree.restype = ctypes.c_void_p
     source, source_buffer = _blob(data)
     output = _DataBlob()
     if decrypt:
         ok = crypt32.CryptUnprotectData(ctypes.byref(source), None, None, None, None,
-                                        0, ctypes.byref(output))
+                                        0x1, ctypes.byref(output))
     else:
         # CRYPTPROTECT_UI_FORBIDDEN: no Windows confirmation dialog.
         ok = crypt32.CryptProtectData(ctypes.byref(source), None, None, None, None,
                                       0x1, ctypes.byref(output))
     if not ok:
-        raise OSError("无法读取或保存当前 Windows 用户的模型配置")
+        raise ctypes.WinError(kernel32.GetLastError())
     try:
         return ctypes.string_at(output.pbData, output.cbData)
     finally:
         kernel32.LocalFree(ctypes.cast(output.pbData, ctypes.c_void_p))
 
 
+def _config_dirs(home: Path | None) -> list[Path]:
+    primary = home or profile_dir()
+    directories = [primary]
+    if sys.platform == "win32" and not os.environ.get("AGENT3820_DESKTOP_HOME"):
+        local = os.environ.get("LOCALAPPDATA")
+        if local:
+            alternative = Path(local) / APP_NAME
+            if alternative != primary:
+                directories.append(alternative)
+    return directories
+
+
 def read_model_config(home: Path | None = None, *, decrypt=None) -> dict:
-    path = (home or profile_dir()) / "model_config.dpapi"
-    if not path.is_file():
+    paths = [directory / "model_config.dpapi" for directory in _config_dirs(home)]
+    paths = [path for path in paths if path.is_file()]
+    if not paths:
         return {}
-    raw = (decrypt or (lambda value: _dpapi(value, decrypt=True)))(path.read_bytes())
-    parsed = json.loads(raw.decode("utf-8"))
-    if not isinstance(parsed, dict) or parsed.get("version") != 1:
-        raise ValueError("模型配置格式无效")
-    return {key: str(parsed.get(key, "")) for key in
-            ("ARK_API_KEY", "LLM_MODEL", "EMBED_MODEL", "ARK_BASE_URL")}
+    # If roaming storage is blocked and a later save used LocalAppData, load
+    # the latest valid file instead of a stale roaming copy.
+    paths.sort(key=lambda path: path.stat().st_mtime_ns, reverse=True)
+    error = None
+    for path in paths:
+        try:
+            raw = (decrypt or (lambda value: _dpapi(value, decrypt=True)))(path.read_bytes())
+            parsed = json.loads(raw.decode("utf-8"))
+            if not isinstance(parsed, dict) or parsed.get("version") != 1:
+                raise ValueError("模型配置格式无效")
+            return {key: str(parsed.get(key, "")) for key in
+                    ("ARK_API_KEY", "LLM_MODEL", "EMBED_MODEL", "ARK_BASE_URL")}
+        except (OSError, ValueError, UnicodeError) as exc:
+            error = exc
+    raise error
 
 
-def write_model_config(config: dict, home: Path | None = None, *, encrypt=None) -> None:
-    directory = home or profile_dir()
-    directory.mkdir(parents=True, exist_ok=True)
+def write_model_config(config: dict, home: Path | None = None, *, encrypt=None) -> Path:
     payload = {"version": 1, **{key: str(config.get(key, "")) for key in
                                ("ARK_API_KEY", "LLM_MODEL", "EMBED_MODEL", "ARK_BASE_URL")}}
     raw = json.dumps(payload, ensure_ascii=False).encode("utf-8")
     encrypted = (encrypt or (lambda value: _dpapi(value, decrypt=False)))(raw)
-    temp = directory / "model_config.dpapi.tmp"
-    temp.write_bytes(encrypted)
-    os.replace(temp, directory / "model_config.dpapi")
+    last_error = None
+    for directory in _config_dirs(home):
+        temp = directory / f"model_config.dpapi.{uuid.uuid4().hex}.tmp"
+        try:
+            directory.mkdir(parents=True, exist_ok=True)
+            temp.write_bytes(encrypted)
+            destination = directory / "model_config.dpapi"
+            os.replace(temp, destination)
+            return destination
+        except OSError as exc:
+            last_error = exc
+        finally:
+            try:
+                temp.unlink(missing_ok=True)
+            except OSError:
+                pass
+    raise last_error
 
 
 def apply_model_config(config: dict) -> None:
