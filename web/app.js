@@ -1,6 +1,20 @@
 (() => {
   'use strict';
 
+  function createThreadId(cryptoSource = globalThis.crypto) {
+    if (typeof cryptoSource?.randomUUID === 'function') return cryptoSource.randomUUID();
+    const bytes = new Uint8Array(16);
+    if (typeof cryptoSource?.getRandomValues === 'function') cryptoSource.getRandomValues(bytes);
+    else for (let i = 0; i < bytes.length; i += 1) bytes[i] = Math.floor(Math.random() * 256);
+    bytes[6] = (bytes[6] & 0x0f) | 0x40;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+    const hex = [...bytes].map(byte => byte.toString(16).padStart(2, '0')).join('');
+    return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+  }
+
+  if (typeof module !== 'undefined' && module.exports) module.exports = { createThreadId };
+  if (typeof document === 'undefined') return;
+
   const form = document.querySelector('#chat-form');
   const questionInput = document.querySelector('#question');
   const sendButton = document.querySelector('#send');
@@ -26,7 +40,7 @@
   let storage;
   try { storage = window.localStorage; } catch (_) { storage = null; }
   let savedTurns = historyStore.load(storage);
-  let threadId = crypto.randomUUID();
+  let threadId = createThreadId();
   let busy = false;
   let serviceKey = '';
   let clientId = '';
@@ -317,7 +331,7 @@
   });
   function resetChat() {
     if (busy) return;
-    threadId = crypto.randomUUID();
+    threadId = createThreadId();
     messages.replaceChildren();
     welcome.hidden = false;
     questionInput.value = '';
