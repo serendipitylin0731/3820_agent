@@ -32,6 +32,9 @@
   const historyPanel = document.querySelector('#history-panel');
   const historyEmpty = document.querySelector('#history-empty');
   const clearHistory = document.querySelector('#clear-history');
+  const searchHistoryPanel = document.querySelector('#search-history-panel');
+  const searchHistoryEmpty = document.querySelector('#search-history-empty');
+  const clearSearchHistory = document.querySelector('#clear-library-history');
   const historyStore = window.ChatHistory;
   const libraryView = document.querySelector('#library-view');
   const libraryToggle = document.querySelector('#library-toggle');
@@ -47,6 +50,7 @@
   try { storage = window.localStorage; } catch (_) { storage = null; }
   let savedTurns = historyStore.load(storage);
   let savedSearches = searchHistoryStore.load(storage);
+  let currentLibraryQuery = '';
   let activeReaderItem = null;
   let lastLibraryScroll = 0;
   let threadId = createThreadId();
@@ -122,7 +126,7 @@
   }
 
   function scrollToLatest() {
-    requestAnimationFrame(() => window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'smooth' }));
+    requestAnimationFrame(() => { conversation.scrollTop = conversation.scrollHeight; });
   }
 
   function newMessage(kind, label) {
@@ -224,9 +228,11 @@
     backgroundTimeline.hidden = true;
     timelineSource.hidden = true;
     historyPanel.hidden = false;
+    searchHistoryPanel.hidden = true;
     backgroundToggle.classList.remove('selected');
     backgroundToggle.removeAttribute('aria-current');
     document.querySelector('#mobile-background').removeAttribute('aria-current');
+    window.scrollTo(0, 0);
   }
 
   function showBackground() {
@@ -240,6 +246,7 @@
     backgroundTimeline.hidden = false;
     timelineSource.hidden = false;
     historyPanel.hidden = true;
+    searchHistoryPanel.hidden = true;
     backgroundToggle.classList.add('selected');
     backgroundToggle.setAttribute('aria-current', 'page');
     document.querySelector('#mobile-background').setAttribute('aria-current', 'page');
@@ -256,6 +263,7 @@
     backgroundTimeline.hidden = true;
     timelineSource.hidden = true;
     historyPanel.hidden = true;
+    searchHistoryPanel.hidden = false;
     backgroundToggle.classList.remove('selected');
     backgroundToggle.removeAttribute('aria-current');
     document.querySelector('#mobile-background').removeAttribute('aria-current');
@@ -292,6 +300,8 @@
     document.body.dataset.view = 'library-reader';
     libraryView.hidden = true;
     libraryReader.hidden = false;
+    historyPanel.hidden = true;
+    searchHistoryPanel.hidden = false;
     document.querySelector('#library-reader-title').textContent = item.title;
     document.querySelector('#reader-collection').textContent = item.collection || '文献资料';
     document.querySelector('#reader-location').textContent = item.page_count
@@ -310,14 +320,19 @@
   }
 
   function renderSearchHistory() {
-    const panel = document.querySelector('#library-search-history');
     const list = document.querySelector('#library-history-list');
-    panel.hidden = savedSearches.length === 0;
+    searchHistoryEmpty.hidden = savedSearches.length > 0;
+    clearSearchHistory.hidden = savedSearches.length === 0;
     list.replaceChildren();
     for (const term of savedSearches) {
-      const button = make('button', '', term);
+      const button = make('button', 'history-item');
       button.type = 'button';
+      button.title = term;
+      button.setAttribute('aria-label', `再次检索：${term}`);
+      button.append(make('span', 'history-item-title', term), make('small', '', '点击重新检索'));
+      if (term === currentLibraryQuery) button.classList.add('current');
       button.addEventListener('click', () => {
+        showLibrary();
         document.querySelector('#library-query').value = term;
         searchLibrary(term);
       });
@@ -460,6 +475,7 @@
     try {
       const response = await checkedFetch(`/library/search?q=${encodeURIComponent(query)}`);
       const payload = await response.json();
+      currentLibraryQuery = query;
       savedSearches = searchHistoryStore.save(storage, savedSearches, query);
       renderSearchHistory();
       libraryStatus.textContent = payload.results.length ? `找到 ${payload.results.length} 条匹配资料` : '没有找到匹配的资料，请更换关键词。';
@@ -594,6 +610,7 @@
     showChat();
     renderHistory();
     questionInput.focus();
+    conversation.scrollTop = 0;
   }
   document.querySelector('#new-chat').addEventListener('click', resetChat);
   document.querySelector('#mobile-new-chat').addEventListener('click', resetChat);
@@ -612,8 +629,9 @@
     if (activeReaderItem?.pdf_id) previewDocument({ ...activeReaderItem, id: activeReaderItem.pdf_id,
       format: 'pdf', pdf_id: null, category: 'pdf' });
   });
-  document.querySelector('#clear-library-history').addEventListener('click', () => {
+  clearSearchHistory.addEventListener('click', () => {
     savedSearches = searchHistoryStore.clear(storage);
+    currentLibraryQuery = '';
     renderSearchHistory();
   });
   backgroundToggle.addEventListener('click', showBackground);

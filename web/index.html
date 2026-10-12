@@ -6,10 +6,10 @@
   <meta name="theme-color" content="#18342c">
   <title>3820 · 战略知识助手</title>
   <link rel="icon" type="image/svg+xml" href="/assets/logo.svg">
-  <link rel="stylesheet" href="/assets/style.css?v=4">
+  <link rel="stylesheet" href="/assets/style.css?v=5">
   <script src="/assets/history_store.js" defer></script>
   <script src="/assets/search_history.js" defer></script>
-  <script src="/assets/app.js?v=4" defer></script>
+  <script src="/assets/app.js?v=5" defer></script>
 </head>
 <body data-view="chat">
   <div class="shell">
@@ -39,6 +39,13 @@
         <p class="history-empty" id="history-empty">暂无记录</p>
         <div class="history-list" id="history-list" aria-label="保存的对话"></div>
         <p class="history-note">保存在当前浏览器，最多 30 轮问答</p>
+      </section>
+
+      <section class="history-panel" id="search-history-panel" aria-labelledby="search-history-title" hidden>
+        <div class="history-heading"><h2 id="search-history-title">历史检索</h2><button id="clear-library-history" type="button" hidden>清空</button></div>
+        <p class="history-empty" id="search-history-empty">暂无记录</p>
+        <div class="history-list" id="library-history-list" aria-label="保存的检索关键词"></div>
+        <p class="history-note">保存在当前浏览器，最多 10 条检索</p>
       </section>
 
       <div class="sidebar-bottom">
@@ -74,10 +81,6 @@
           <input id="library-query" type="search" maxlength="120" placeholder="例如：福州市20年经济社会发展战略设想" required>
           <button type="submit">检索</button>
         </form>
-        <div class="library-search-history" id="library-search-history" hidden>
-          <div class="library-history-heading"><strong>最近检索</strong><button type="button" id="clear-library-history">清空</button></div>
-          <div class="library-history-list" id="library-history-list"></div>
-        </div>
         <p class="library-status" id="library-status" role="status">输入关键词开始检索。</p>
         <div class="library-results" id="library-results"></div>
       </section>
