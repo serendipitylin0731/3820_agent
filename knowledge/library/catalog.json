@@ -869,6 +869,83 @@
       "download_path": "knowledge/library/literature/3820_资料_福州市20年经济社会发展战略设想3820已做OCR.docx"
     },
     {
+      "id": "29e426e3340d87241004",
+      "title": "“3820”战略工程解读 _ 榕城要闻 _ 福州市人民政府门户网站",
+      "path": "knowledge/library/literature/3820_资料_公开网页_3820_fuzhou_explainer.md",
+      "category": "literature",
+      "sha256": "29e426e3340d872410043cbc69f34b011a94133dd509517e5c18311d994fe8c1",
+      "bytes": 3270,
+      "source": "knowledge/data/public_sources/3820_fuzhou_explainer.txt",
+      "searchable": true,
+      "download_path": "knowledge/library/literature/3820_资料_公开网页_3820_fuzhou_explainer.docx"
+    },
+    {
+      "id": "37c066f421c4672b3325",
+      "title": "习近平在福州（十八）丨“‘3820’工程就是习书记给我们提出的‘福州梦’”_最新报道_福州市纪委监委",
+      "path": "knowledge/library/literature/3820_资料_公开网页_fuzhou_interview_18.md",
+      "category": "literature",
+      "sha256": "37c066f421c4672b3325243a73c83a62ffed05682b83e53954278851f8caac4c",
+      "bytes": 17176,
+      "source": "knowledge/data/public_sources/fuzhou_interview_18.txt",
+      "searchable": true,
+      "download_path": "knowledge/library/literature/3820_资料_公开网页_fuzhou_interview_18.docx"
+    },
+    {
+      "id": "2573df89a8f503f3410a",
+      "title": "习近平在福州（十四）丨“近平同志强调要敢做时代的弄潮人”_《习近平在福州》采访实录_福州市纪委监委",
+      "path": "knowledge/library/literature/3820_资料_公开网页_fuzhou_interview_14.md",
+      "category": "literature",
+      "sha256": "2573df89a8f503f3410a997766802a6cca36c12bd6461dfed385fd681b8310f1",
+      "bytes": 29086,
+      "source": "knowledge/data/public_sources/fuzhou_interview_14.txt",
+      "searchable": true,
+      "download_path": "knowledge/library/literature/3820_资料_公开网页_fuzhou_interview_14.docx"
+    },
+    {
+      "id": "b0a66c0e82823df04243",
+      "title": "只要是老百姓关心的事情，习近平同志就不遗余力地去做”——习近平在福建（二十八）_《习近平在福建》采访实录_福州市纪委监委",
+      "path": "knowledge/library/literature/3820_资料_公开网页_fujian_interview_28.md",
+      "category": "literature",
+      "sha256": "b0a66c0e82823df042431a21bc564f7304687d6da89aa8868dca9a459cf53191",
+      "bytes": 16570,
+      "source": "knowledge/data/public_sources/fujian_interview_28.txt",
+      "searchable": true,
+      "download_path": "knowledge/library/literature/3820_资料_公开网页_fujian_interview_28.docx"
+    },
+    {
+      "id": "231b55529cf657cc767c",
+      "title": "福建统计年鉴2011 表22-1 地区生产总值（2010年）",
+      "path": "knowledge/library/literature/3820_资料_公开网页_fujian_yearbook_2011_fuzhou_gdp.md",
+      "category": "literature",
+      "sha256": "231b55529cf657cc767ccd698622ac8b361cd0b3ad6aa0730f2e022903e8f1d9",
+      "bytes": 434,
+      "source": "knowledge/data/public_sources/fujian_yearbook_2011_fuzhou_gdp.txt",
+      "searchable": true,
+      "download_path": "knowledge/library/literature/3820_资料_公开网页_fujian_yearbook_2011_fuzhou_gdp.docx"
+    },
+    {
+      "id": "78b6e92929c081bb6dc7",
+      "title": "闽山闽水物华新 | 《闽山闽水物华新——习近平福建足迹》选编之一 - 经典阅读 - 福州工商学院-马克思主义学院",
+      "path": "knowledge/library/literature/3820_资料_公开网页_fujian_footprints_excerpt.md",
+      "category": "literature",
+      "sha256": "78b6e92929c081bb6dc7cae49b6988144b8495d3c1839ea9c5693acb542a22df",
+      "bytes": 4958,
+      "source": "knowledge/data/public_sources/fujian_footprints_excerpt.txt",
+      "searchable": true,
+      "download_path": "knowledge/library/literature/3820_资料_公开网页_fujian_footprints_excerpt.docx"
+    },
+    {
+      "id": "65623ff964a638fb8f99",
+      "title": "（受权发布）习近平：高举中国特色社会主义伟大旗帜 为全面建设社会主义现代化国家而团结奋斗——在中国共产党第二十次全国代表大会上的报告-新华网",
+      "path": "knowledge/library/literature/3820_资料_公开网页_twentieth_congress_report.md",
+      "category": "literature",
+      "sha256": "65623ff964a638fb8f99a9e2286cadbc1cbf52727c1ccce7c2634a88bc67e4e5",
+      "bytes": 98527,
+      "source": "knowledge/data/public_sources/twentieth_congress_report.txt",
+      "searchable": true,
+      "download_path": "knowledge/library/literature/3820_资料_公开网页_twentieth_congress_report.docx"
+    },
+    {
       "id": "47150e7ad0b00f852afa",
       "title": "0cdf9890d95614347108c00094f33b1d",
       "path": "knowledge/library/media/0cdf9890d95614347108c00094f33b1d.mp4",
@@ -3854,7 +3931,7 @@
   "counts": {
     "courses": 9,
     "documents": 2,
-    "literature": 68,
+    "literature": 75,
     "media": 278,
     "papers": 9,
     "pdf": 4,

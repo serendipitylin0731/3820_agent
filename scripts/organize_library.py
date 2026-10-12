@@ -87,7 +87,7 @@ def build() -> dict:
     by_digest: dict[str, dict] = {}
     duplicate_sources: list[dict] = []
 
-    def add(name: str, payload: bytes, source: str) -> None:
+    def add(name: str, payload: bytes, source: str, display_title: str | None = None) -> None:
         if name.startswith('._') or Path(name).name.startswith('~$'):
             return
         digest = hashlib.sha256(payload).hexdigest()
@@ -102,7 +102,7 @@ def build() -> dict:
         if not target.exists():
             target.write_bytes(payload)
         rel = target.relative_to(ROOT).as_posix()
-        title = target.stem
+        title = display_title or target.stem
         if filename.startswith('原件扫描_page_'):
             title = f'福州市20年经济社会发展战略设想 · 原件扫描第{int(source.rsplit("_", 1)[-1].removesuffix(".png"))}页'
         item = {'id': digest[:20], 'title': title, 'path': rel,
@@ -146,6 +146,17 @@ def build() -> dict:
                                           'reason': 'same 29-slide text, earlier deck version'})
                 continue
             add(source.name, source.read_bytes(), source.relative_to(ROOT).as_posix())
+    public_dir = DATA / 'public_sources'
+    public_manifest = public_dir / 'manifest.json'
+    if public_manifest.is_file():
+        for record in json.loads(public_manifest.read_text(encoding='utf-8')):
+            source = public_dir / f'{record["id"]}.txt'
+            if not source.is_file():
+                continue
+            body = source.read_text(encoding='utf-8', errors='replace').strip()
+            document = f'# {record["title"]}\n\n来源：{record["url"]}\n\n{body}\n'
+            add(f'3820_资料_公开网页_{record["id"]}.md', document.encode('utf-8'),
+                source.relative_to(ROOT).as_posix(), record['title'])
     # Original scan page images and images attached to project documents are retained as media.
     for source in sorted((DATA / 'original_3820' / 'pages').glob('*.png')):
         add(f'原件扫描_{source.name}', source.read_bytes(), source.relative_to(ROOT).as_posix())

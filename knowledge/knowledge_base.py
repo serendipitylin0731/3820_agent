@@ -231,7 +231,8 @@ def _source_paths(settings):
                      any(word in path.name for word in ('教学', '教案', '课件', '课程', '研修')))
     if LIBRARY_CATALOG.is_file():
         for item in json.loads(LIBRARY_CATALOG.read_text(encoding='utf-8')).get('entries', []):
-            if item.get('searchable') and item.get('category') in {'documents', 'papers', 'literature'} \
+            if item.get('searchable') and not item.get('source', '').startswith('knowledge/data/public_sources/') \
+                    and item.get('category') in {'documents', 'papers', 'literature'} \
                     and item['path'].endswith('.md'):
                 path = GUIDE.parent.parent / item['path']
                 if path.is_file() and path != GUIDE:
