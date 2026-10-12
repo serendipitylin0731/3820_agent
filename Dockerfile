@@ -3,10 +3,11 @@ FROM python:3.11-slim
 WORKDIR /app
 COPY requirements.lock .
 RUN pip install --no-cache-dir -r requirements.lock
-COPY app.py graph.py llm_client.py resilience.py config.py contracts.py ./
+COPY app.py graph.py llm_client.py resilience.py config.py contracts.py desktop_runtime.py ./
 COPY agents/ ./agents/
-COPY knowledge/__init__.py knowledge/knowledge_base.py knowledge/fetch_public_sources.py knowledge/domain.py knowledge/indicators.json knowledge/spatial.json knowledge/entities.json knowledge/observations.json knowledge/original_targets.json knowledge/map_labels.json ./knowledge/
+COPY knowledge/*.py knowledge/*.json ./knowledge/
 COPY docs/*.md ./docs/
+COPY web/ ./web/
 COPY tools/ ./tools/
 RUN mkdir -p ./knowledge/data ./var
 EXPOSE 8000
