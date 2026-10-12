@@ -12,10 +12,13 @@ import time
 import uuid
 from ctypes import wintypes
 from pathlib import Path
+from threading import Lock
 
 
 APP_NAME = "3820Agent"
 DESKTOP_FLAG = "AGENT3820_DESKTOP_MODE"
+_save_clock = Lock()
+_last_saved_ns = 0
 
 
 def desktop_mode() -> bool:
@@ -114,7 +117,13 @@ def read_model_config(home: Path | None = None, *, decrypt=None) -> dict:
 
 
 def write_model_config(config: dict, home: Path | None = None, *, encrypt=None) -> Path:
-    payload = {"version": 1, "saved_at_ns": time.time_ns(),
+    global _last_saved_ns
+    # Windows wall-clock calls can return the same nanosecond value for two
+    # quick saves. Make the encrypted revision strictly increase in-process.
+    with _save_clock:
+        _last_saved_ns = max(time.time_ns(), _last_saved_ns + 1)
+        revision = _last_saved_ns
+    payload = {"version": 1, "saved_at_ns": revision,
                **{key: str(config.get(key, "")) for key in
                                ("ARK_API_KEY", "LLM_MODEL", "EMBED_MODEL", "ARK_BASE_URL")}}
     raw = json.dumps(payload, ensure_ascii=False).encode("utf-8")

@@ -73,6 +73,7 @@ def test_encrypted_config_file_round_trip(tmp_path):
 def test_config_write_falls_back_to_second_user_directory(tmp_path, monkeypatch):
     roaming, local = tmp_path / 'roaming', tmp_path / 'local'
     monkeypatch.setattr(desktop_runtime, '_config_dirs', lambda _home: [roaming, local])
+    monkeypatch.setattr(desktop_runtime.time, 'time_ns', lambda: 1000)
     old_config = {'ARK_API_KEY': 'old-secret', 'LLM_MODEL': 'old-chat',
                   'EMBED_MODEL': '', 'ARK_BASE_URL': 'https://example.com/api/v3'}
     write_model_config(old_config, roaming, encrypt=lambda data: data[::-1])
