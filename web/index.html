@@ -6,9 +6,10 @@
   <meta name="theme-color" content="#18342c">
   <title>3820 · 战略知识助手</title>
   <link rel="icon" type="image/svg+xml" href="/assets/logo.svg">
-  <link rel="stylesheet" href="/assets/style.css">
+  <link rel="stylesheet" href="/assets/style.css?v=4">
   <script src="/assets/history_store.js" defer></script>
-  <script src="/assets/app.js?v=3" defer></script>
+  <script src="/assets/search_history.js" defer></script>
+  <script src="/assets/app.js?v=4" defer></script>
 </head>
 <body data-view="chat">
   <div class="shell">
@@ -67,19 +68,26 @@
       <section class="library-view" id="library-view" aria-labelledby="library-title" hidden>
         <span class="document-kicker">3820 / 文献资料库</span>
         <h1 id="library-title">查找资料</h1>
-        <p>按标题或正文关键词查找文档、论文、文献、PDF 与影像。演示文稿和课程资料不参与检索。</p>
+        <p>按标题或正文关键词查找文献与论文。点击预览进入阅读页；原 PDF 与阅读稿合并展示。演示文稿、课程和独立影像不参与检索。</p>
         <form class="library-search-form" id="library-search-form">
           <label class="sr-only" for="library-query">资料关键词</label>
           <input id="library-query" type="search" maxlength="120" placeholder="例如：福州市20年经济社会发展战略设想" required>
           <button type="submit">检索</button>
         </form>
+        <div class="library-search-history" id="library-search-history" hidden>
+          <div class="library-history-heading"><strong>最近检索</strong><button type="button" id="clear-library-history">清空</button></div>
+          <div class="library-history-list" id="library-history-list"></div>
+        </div>
         <p class="library-status" id="library-status" role="status">输入关键词开始检索。</p>
         <div class="library-results" id="library-results"></div>
-        <section class="library-preview" id="library-preview" aria-label="资料预览" hidden>
-          <div class="library-preview-head"><h2 id="library-preview-title"></h2><button type="button" id="library-preview-close">关闭预览</button></div>
-          <div id="library-preview-content"></div>
-        </section>
       </section>
+
+      <article class="library-reader" id="library-reader" aria-labelledby="library-reader-title" hidden>
+        <div class="reader-top"><button type="button" id="reader-back">← 返回检索结果</button><span id="reader-collection"></span></div>
+        <header class="reader-header"><div><span class="document-kicker">资料阅读</span><h1 id="library-reader-title"></h1><p id="reader-location"></p></div><div class="reader-actions"><button type="button" id="reader-download">下载 Word</button><button type="button" id="reader-pdf" hidden>查看原 PDF</button></div></header>
+        <div class="reader-pages" id="reader-pages" hidden><label for="reader-page-select">跳转页码</label><select id="reader-page-select"></select><span id="reader-match"></span></div>
+        <div class="reader-document" id="library-reader-content"></div>
+      </article>
 
       <article class="background-document" id="background-document" aria-labelledby="background-title" hidden>
         <div class="document-cover">

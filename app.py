@@ -189,7 +189,8 @@ def library_preview(doc_id: str):
     content = preview_text(item, path)
     if content is not None:
         return {'id': doc_id, 'title': item['title'], 'format': path.suffix.lower().lstrip('.'),
-                'content': content}
+                'content': content, 'pages': item.get('pages', []),
+                'source_url': item.get('source_url'), 'collection': item.get('collection')}
     if path.suffix.lower() in {'.pdf', '.png', '.jpg', '.jpeg', '.webp', '.mp4'}:
         return FileResponse(path, filename=path.name, content_disposition_type='inline')
     return _error(415, 'unsupported_preview', '该格式暂不支持在线预览')
@@ -205,7 +206,8 @@ def library_download(doc_id: str):
         target = download_file(item, path)
     except FileNotFoundError:
         return _error(404, 'not_found', '下载文件尚未生成')
-    return FileResponse(target, filename=target.name, content_disposition_type='attachment')
+    safe_title = re.sub(r'[<>:"/\\|?*\x00-\x1f]', '_', item['title']).strip(' .')[:150]
+    return FileResponse(target, filename=f'{safe_title}{target.suffix}', content_disposition_type='attachment')
 
 
 @app.get('/metrics')

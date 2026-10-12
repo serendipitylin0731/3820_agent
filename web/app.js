@@ -37,12 +37,18 @@
   const libraryToggle = document.querySelector('#library-toggle');
   const libraryResults = document.querySelector('#library-results');
   const libraryStatus = document.querySelector('#library-status');
-  const libraryPreview = document.querySelector('#library-preview');
-  const libraryPreviewContent = document.querySelector('#library-preview-content');
+  const libraryReader = document.querySelector('#library-reader');
+  const readerContent = document.querySelector('#library-reader-content');
+  const readerPages = document.querySelector('#reader-pages');
+  const readerPageSelect = document.querySelector('#reader-page-select');
+  const searchHistoryStore = window.LibrarySearchHistory;
   let previewBlobUrl = null;
   let storage;
   try { storage = window.localStorage; } catch (_) { storage = null; }
   let savedTurns = historyStore.load(storage);
+  let savedSearches = searchHistoryStore.load(storage);
+  let activeReaderItem = null;
+  let lastLibraryScroll = 0;
   let threadId = createThreadId();
   let busy = false;
   let serviceKey = '';
@@ -210,6 +216,7 @@
   function showChat() {
     document.body.dataset.view = 'chat';
     libraryView.hidden = true;
+    libraryReader.hidden = true;
     libraryToggle.classList.remove('active');
     backgroundDocument.hidden = true;
     conversation.hidden = false;
@@ -225,6 +232,7 @@
   function showBackground() {
     document.body.dataset.view = 'background';
     libraryView.hidden = true;
+    libraryReader.hidden = true;
     libraryToggle.classList.remove('active');
     backgroundDocument.hidden = false;
     conversation.hidden = true;
@@ -238,9 +246,10 @@
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
-  function showLibrary() {
+  function showLibrary(preserveScroll = false) {
     document.body.dataset.view = 'library';
     libraryView.hidden = false;
+    libraryReader.hidden = true;
     conversation.hidden = true;
     composer.hidden = true;
     backgroundDocument.hidden = true;
@@ -251,8 +260,10 @@
     backgroundToggle.removeAttribute('aria-current');
     document.querySelector('#mobile-background').removeAttribute('aria-current');
     libraryToggle.classList.add('active');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-    document.querySelector('#library-query').focus();
+    if (!preserveScroll) {
+      window.scrollTo({ top: 0, behavior: 'auto' });
+      document.querySelector('#library-query').focus();
+    }
   }
 
   function libraryHeaders() {
@@ -272,25 +283,86 @@
   function clearPreview() {
     if (previewBlobUrl) URL.revokeObjectURL(previewBlobUrl);
     previewBlobUrl = null;
-    libraryPreview.hidden = true;
-    libraryPreviewContent.replaceChildren();
+    readerContent.replaceChildren();
   }
 
-  function renderMarkdown(content) {
+  function showReader(item) {
+    if (libraryReader.hidden) lastLibraryScroll = window.scrollY;
+    activeReaderItem = item;
+    document.body.dataset.view = 'library-reader';
+    libraryView.hidden = true;
+    libraryReader.hidden = false;
+    document.querySelector('#library-reader-title').textContent = item.title;
+    document.querySelector('#reader-collection').textContent = item.collection || '文献资料';
+    document.querySelector('#reader-location').textContent = item.page_count
+      ? `原件共 ${item.page_count} 页${item.indexed_page_count < item.page_count ? ` · 阅读稿含 ${item.indexed_page_count} 页文字` : ''}` : '';
+    document.querySelector('#reader-download').textContent = item.format === 'md' ? '下载 Word' : '下载文件';
+    document.querySelector('#reader-pdf').hidden = !item.pdf_id;
+    document.querySelector('#reader-match').textContent = item.match_page ? `已定位至关键词所在第 ${item.match_page} 页` : '';
+    window.scrollTo(0, 0);
+  }
+
+  function closeReader() {
+    clearPreview();
+    activeReaderItem = null;
+    showLibrary(true);
+    requestAnimationFrame(() => window.scrollTo(0, lastLibraryScroll));
+  }
+
+  function renderSearchHistory() {
+    const panel = document.querySelector('#library-search-history');
+    const list = document.querySelector('#library-history-list');
+    panel.hidden = savedSearches.length === 0;
+    list.replaceChildren();
+    for (const term of savedSearches) {
+      const button = make('button', '', term);
+      button.type = 'button';
+      button.addEventListener('click', () => {
+        document.querySelector('#library-query').value = term;
+        searchLibrary(term);
+      });
+      list.append(button);
+    }
+  }
+
+  function renderMarkdown(content, item) {
     const output = make('div', 'library-markdown');
     let code = false;
-    function appendInline(element, value) {
-      const pattern = /(\*\*[^*]+\*\*|__[^_]+__|`[^`]+`)/g;
+    const highlights = item.highlight_terms || [];
+    function appendHighlighted(element, value) {
+      if (!highlights.length) { element.append(document.createTextNode(value)); return; }
+      const pattern = new RegExp(highlights.map(term => term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+        .sort((a, b) => b.length - a.length).join('|'), 'gi');
       let start = 0;
       for (const match of value.matchAll(pattern)) {
         if (match.index > start) element.append(document.createTextNode(value.slice(start, match.index)));
-        const token = match[0];
-        element.append(make(token.startsWith('`') ? 'code' : 'strong', '', token.slice(2, -2)));
-        if (token.startsWith('`')) element.lastChild.textContent = token.slice(1, -1);
-        start = match.index + token.length;
+        element.append(make('mark', '', match[0]));
+        start = match.index + match[0].length;
       }
       if (start < value.length) element.append(document.createTextNode(value.slice(start)));
     }
+    function appendInline(element, value) {
+      const pattern = /(!?\[[^\]]+\]\(https?:\/\/[^)]+\)|\*\*[^*]+\*\*|__[^_]+__|`[^`]+`)/g;
+      let start = 0;
+      for (const match of value.matchAll(pattern)) {
+        if (match.index > start) appendHighlighted(element, value.slice(start, match.index));
+        const token = match[0];
+        const link = token.match(/^(!?)\[([^\]]+)\]\((https?:\/\/[^)]+)\)$/);
+        if (link) {
+          const node = make(link[1] ? 'img' : 'a');
+          if (link[1]) { node.src = link[3]; node.alt = link[2]; node.loading = 'lazy'; }
+          else { node.href = link[3]; node.target = '_blank'; node.rel = 'noopener noreferrer'; appendHighlighted(node, link[2]); }
+          element.append(node);
+        } else {
+          const node = make(token.startsWith('`') ? 'code' : 'strong');
+          appendHighlighted(node, token.startsWith('`') ? token.slice(1, -1) : token.slice(2, -2));
+          element.append(node);
+        }
+        start = match.index + token.length;
+      }
+      if (start < value.length) appendHighlighted(element, value.slice(start));
+    }
+    let firstMark = null;
     for (const line of content.split(/\r?\n/)) {
       if (line.trim().startsWith('```') || line.trim().startsWith('~~~')) {
         code = !code;
@@ -299,39 +371,67 @@
       if (!line.trim()) continue;
       let element;
       const heading = line.match(/^(#{1,6})\s+(.+)$/);
-      if (code) element = make('pre', '', line);
+      const page = line.match(/^## 第\s*(\d+)\s*页/);
+      if (line.trim() === '---') element = make('hr');
+      else if (code) { element = make('pre'); appendHighlighted(element, line); }
       else if (heading) { element = make(`h${Math.min(heading[1].length, 4)}`); appendInline(element, heading[2]); }
       else if (/^\s*>\s?/.test(line)) { element = make('blockquote'); appendInline(element, line.replace(/^\s*>\s?/, '')); }
       else if (/^\s*[-*+]\s+/.test(line)) { element = make('p', 'library-list'); appendInline(element, `• ${line.replace(/^\s*[-*+]\s+/, '')}`); }
       else { element = make('p'); appendInline(element, line); }
+      if (page) element.id = `reader-page-${page[1]}`;
       output.append(element);
+      if (!firstMark) firstMark = element.querySelector('mark');
     }
+    output.dataset.hasMatch = firstMark ? 'true' : 'false';
     return output;
+  }
+
+  function jumpToPage(page) {
+    const element = document.querySelector(`#reader-page-${page}`);
+    if (element) element.scrollIntoView({ block: 'start', behavior: 'auto' });
   }
 
   async function previewDocument(item) {
     clearPreview();
-    libraryPreview.hidden = false;
-    document.querySelector('#library-preview-title').textContent = item.title;
-    libraryPreviewContent.append(make('p', 'library-status', '正在加载预览…'));
+    showReader(item);
+    readerContent.append(make('p', 'library-status', '正在加载预览…'));
+    readerPages.hidden = true;
     try {
       const response = await checkedFetch(`/library/${encodeURIComponent(item.id)}/preview`);
-      libraryPreviewContent.replaceChildren();
+      readerContent.replaceChildren();
       if (['md', 'txt', 'docx'].includes(item.format)) {
         const payload = await response.json();
-        libraryPreviewContent.append(renderMarkdown(payload.content));
+        const pages = payload.pages || [];
+        readerPageSelect.replaceChildren();
+        readerPages.hidden = pages.length === 0;
+        for (const page of pages) {
+          const option = make('option', '', `第 ${page} 页`);
+          option.value = String(page);
+          readerPageSelect.append(option);
+        }
+        if (item.source_url) {
+          const source = make('a', 'reader-source', '查看文献原文 ↗');
+          source.href = item.source_url;
+          source.target = '_blank';
+          source.rel = 'noopener noreferrer';
+          readerContent.append(source);
+        }
+        readerContent.append(renderMarkdown(payload.content, item));
+        requestAnimationFrame(() => {
+          if (item.match_page) { readerPageSelect.value = String(item.match_page); jumpToPage(item.match_page); }
+          else readerContent.querySelector('mark')?.scrollIntoView({ block: 'center', behavior: 'auto' });
+        });
       } else {
         previewBlobUrl = URL.createObjectURL(await response.blob());
         const element = item.format === 'pdf' ? make('iframe', 'library-frame')
           : item.format === 'mp4' ? make('video', 'library-video') : make('img', 'library-image');
-        element.src = previewBlobUrl;
+        element.src = previewBlobUrl + (item.format === 'pdf' && item.match_page ? `#page=${item.match_page}` : '');
         if (item.format === 'mp4') element.controls = true;
         element.title = item.title;
-        libraryPreviewContent.append(element);
+        readerContent.append(element);
       }
-      libraryPreview.scrollIntoView({ behavior: 'smooth', block: 'start' });
     } catch (error) {
-      libraryPreviewContent.replaceChildren(make('p', 'library-status', error.message));
+      readerContent.replaceChildren(make('p', 'library-status', error.message));
     }
   }
 
@@ -348,7 +448,8 @@
       link.remove();
       setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
     } catch (error) {
-      libraryStatus.textContent = error.message;
+      if (libraryReader.hidden) libraryStatus.textContent = error.message;
+      else readerContent.prepend(make('p', 'library-status', error.message));
     }
   }
 
@@ -359,11 +460,15 @@
     try {
       const response = await checkedFetch(`/library/search?q=${encodeURIComponent(query)}`);
       const payload = await response.json();
+      savedSearches = searchHistoryStore.save(storage, savedSearches, query);
+      renderSearchHistory();
       libraryStatus.textContent = payload.results.length ? `找到 ${payload.results.length} 条匹配资料` : '没有找到匹配的资料，请更换关键词。';
       for (const item of payload.results) {
         const card = make('article', 'library-card');
         const label = { documents: '文字文档', papers: '本地论文', literature: '文献', pdf: 'PDF', media: '图片与视频' }[item.category];
         card.append(make('span', 'library-type', label || item.format), make('h2', '', item.title));
+        if (item.collection) card.append(make('small', 'library-collection', item.collection));
+        if (item.match_page) card.append(make('small', 'library-match-page', `匹配于第 ${item.match_page} 页`));
         if (item.snippet) card.append(make('p', '', item.snippet));
         const actions = make('div', 'library-card-actions');
         const preview = make('button', '', '预览');
@@ -492,13 +597,25 @@
   }
   document.querySelector('#new-chat').addEventListener('click', resetChat);
   document.querySelector('#mobile-new-chat').addEventListener('click', resetChat);
-  libraryToggle.addEventListener('click', showLibrary);
-  document.querySelector('#mobile-library').addEventListener('click', showLibrary);
+  libraryToggle.addEventListener('click', () => showLibrary());
+  document.querySelector('#mobile-library').addEventListener('click', () => showLibrary());
   document.querySelector('#library-search-form').addEventListener('submit', event => {
     event.preventDefault();
     searchLibrary(document.querySelector('#library-query').value.trim());
   });
-  document.querySelector('#library-preview-close').addEventListener('click', clearPreview);
+  document.querySelector('#reader-back').addEventListener('click', closeReader);
+  readerPageSelect.addEventListener('change', () => jumpToPage(readerPageSelect.value));
+  document.querySelector('#reader-download').addEventListener('click', () => {
+    if (activeReaderItem) downloadDocument(activeReaderItem);
+  });
+  document.querySelector('#reader-pdf').addEventListener('click', () => {
+    if (activeReaderItem?.pdf_id) previewDocument({ ...activeReaderItem, id: activeReaderItem.pdf_id,
+      format: 'pdf', pdf_id: null, category: 'pdf' });
+  });
+  document.querySelector('#clear-library-history').addEventListener('click', () => {
+    savedSearches = searchHistoryStore.clear(storage);
+    renderSearchHistory();
+  });
   backgroundToggle.addEventListener('click', showBackground);
   document.querySelector('#mobile-background').addEventListener('click', showBackground);
   document.querySelector('#back-to-chat').addEventListener('click', showChat);
@@ -513,6 +630,7 @@
     serviceKey = document.querySelector('#service-key').value;
   });
   renderSuggestions();
+  renderSearchHistory();
   showChat();
   renderHistory();
 })();

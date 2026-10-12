@@ -10,6 +10,7 @@ import io
 import json
 import re
 import shutil
+import unicodedata
 from collections import Counter
 from pathlib import Path
 from zipfile import ZipFile
@@ -22,6 +23,13 @@ ARCHIVES = ROOT / 'new_things'
 DATA = ROOT / 'knowledge' / 'data'
 CATEGORIES = {'documents', 'papers', 'literature', 'courses', 'pdf', 'presentations', 'media'}
 ALLOWED = {'documents', 'papers', 'literature', 'pdf', 'media'}
+PAGE_MARKER = re.compile(r'^【第(\d+)页(?:·([^】]+))?】\s*(.*)$')
+SOURCE_META = re.compile(r'^(?:来源链接|抓取时间|提取方式)\s*[:：]|^来源\s*[:：]\s*(?:微信|https?://)')
+IMPORT_NOTE = re.compile(r'^（.*(?:自动提取|未经人工校对).*[）)]$')
+SITE_BANNER = ('学习贯彻习近平新时代中国特色社会主义思想', '学习贯彻党的二十届四中全会精神',
+               '学习贯彻全国组织工作会议精神')
+WEB_FOOTER = re.compile(r'^(?:发布时间：.*?编辑：.*|(?:京|闽)ICP备\d+号(?:-\d+)?|责任编辑：.*)$')
+MIRROR_SUFFIX = re.compile(r'\s*[（(](?:z-library|1lib|z-lib)[^）)]*[）)]', re.I)
 
 
 def category(name: str) -> str:
@@ -51,7 +59,108 @@ def clean_name(name: str) -> str:
         name += 'x'
     if name.lower().endswith('.ppt'):
         name += 'x'
+    if name.lower().endswith('.pdf'):
+        stem = MIRROR_SUFFIX.sub('', Path(name).stem)
+        stem = re.sub(r'[（(]已做\s*OCR[）)]|3820已做\s*OCR', '', stem, flags=re.I)
+        name = stem.strip() + '.pdf'
     return name
+
+
+def clean_title(value: str) -> str:
+    value = MIRROR_SUFFIX.sub('', value).strip()
+    value = re.sub(r'[（(]已做\s*OCR[）)]|3820已做\s*OCR', '', value, flags=re.I)
+    value = re.sub(r'^论文[:：]\s*', '', value)
+    value = re.sub(r'\s*[_]\s*(?=[^_]{1,18}$)', ' · ', value)
+    return value.strip(' _-')
+
+
+def _normal_line(line: str) -> str:
+    full = '０１２３４５６７８９ＡＢＣＤＥＦＧＨＩＪＫＬＭＮＯＰＱＲＳＴＵＶＷＸＹＺａｂｃｄｅｆｇｈｉｊｋｌｍｎｏｐｑｒｓｔｕｖｗｘｙｚ'
+    ascii_chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'
+    line = line.translate(str.maketrans(full, ascii_chars)).replace('\ufeff', '')
+    line = ''.join(char for char in line if unicodedata.category(char) not in {'Co', 'Cs', 'Cf'})
+    return line.strip()
+
+
+def _join_wrapped(lines: list[str]) -> str:
+    result = ''
+    for line in lines:
+        if result and re.search(r'[A-Za-z0-9]$', result) and re.match(r'^[A-Za-z0-9]', line):
+            result += ' '
+        result += line
+    return result
+
+
+def sanitize_markdown(raw: str) -> tuple[str, str, str | None, list[int]]:
+    """Remove importer notes; turn real PDF page boundaries into readable sections."""
+    lines = raw.replace('\r\n', '\n').splitlines()
+    heading = clean_title(_normal_line(lines[0]).lstrip('# ').strip()) if lines else '未命名文献'
+    source_url = None
+    body = []
+    for line in lines[1:]:
+        line = _normal_line(line)
+        if line.startswith('来源链接：') or line.startswith('来源链接:'):
+            source_url = re.sub(r'^来源链接\s*[:：]\s*', '', line)
+        elif re.match(r'^来源\s*[:：]\s*https?://', line):
+            source_url = re.sub(r'^来源\s*[:：]\s*', '', line)
+        if SOURCE_META.match(line) or IMPORT_NOTE.match(line) or line in SITE_BANNER or WEB_FOOTER.match(line):
+            continue
+        body.append(line)
+    while body and not body[0]:
+        body.pop(0)
+
+    has_pages = any(PAGE_MARKER.match(line) for line in body)
+    if not has_pages:
+        clean = []
+        last_blank = False
+        for line in body:
+            if line in {'封面', '书名页'}:
+                continue
+            if not line:
+                if not last_blank:
+                    clean.append('')
+                last_blank = True
+            else:
+                clean.append(line)
+                last_blank = False
+        return f'# {heading}\n\n' + '\n'.join(clean).strip() + '\n', heading, source_url, []
+
+    output = [f'# {heading}', '']
+    paragraph: list[str] = []
+    pages = []
+
+    def flush():
+        if paragraph:
+            output.extend([_join_wrapped(paragraph), ''])
+            paragraph.clear()
+
+    for line in body:
+        marker = PAGE_MARKER.match(line)
+        if marker:
+            flush()
+            page = int(marker.group(1))
+            pages.append(page)
+            label = f'## 第 {page} 页'
+            if marker.group(2):
+                label += f' · {marker.group(2)}'
+            output.extend(['---', '', label, ''])
+            line = marker.group(3).strip()
+        if not line:
+            flush()
+            continue
+        if line in {'目 录', '目录'} or re.match(r'^第[一二三四五六七八九十0-9]+[章节]\s', line):
+            flush()
+            output.extend([f'### {line}', ''])
+            continue
+        if re.search(r'\.{4,}\s*\d+\s*$', line):
+            flush()
+            output.extend([line, ''])
+            continue
+        paragraph.append(line)
+        if re.search(r'[。！？!?]$|\]$', line):
+            flush()
+    flush()
+    return '\n'.join(output).rstrip() + '\n', heading, source_url, pages
 
 
 def markdown_to_docx(source: Path, destination: Path) -> None:
@@ -62,7 +171,7 @@ def markdown_to_docx(source: Path, destination: Path) -> None:
         if line.lstrip().startswith(('```', '~~~')):
             in_code = not in_code
             continue
-        if not line.strip():
+        if not line.strip() or line.strip() == '---':
             continue
         if in_code:
             doc.add_paragraph(line, style='No Spacing')
@@ -80,6 +189,12 @@ def markdown_to_docx(source: Path, destination: Path) -> None:
 
 
 def build() -> dict:
+    archives = sorted(ARCHIVES.glob('*.zip'))
+    if len(archives) < 3 or not (DATA / 'public_sources' / 'manifest.json').is_file() \
+            or not any((DATA / 'original_3820' / 'pages').glob('*.png')):
+        raise RuntimeError('原始压缩包和扫描/网页缓存不完整，停止重建，保留现有资料目录')
+    if LIBRARY.is_dir():
+        shutil.rmtree(LIBRARY)
     LIBRARY.mkdir(parents=True, exist_ok=True)
     for group in CATEGORIES:
         (LIBRARY / group).mkdir(exist_ok=True)
@@ -90,11 +205,18 @@ def build() -> dict:
     def add(name: str, payload: bytes, source: str, display_title: str | None = None) -> None:
         if name.startswith('._') or Path(name).name.startswith('~$'):
             return
+        group = category(name)
+        source_url = None
+        pages = []
+        if Path(name).suffix.lower() == '.md':
+            clean, document_title, source_url, pages = sanitize_markdown(payload.decode('utf-8-sig', errors='replace'))
+            payload = clean.encode('utf-8')
+        else:
+            document_title = clean_title(display_title or Path(name).stem)
         digest = hashlib.sha256(payload).hexdigest()
         if digest in by_digest:
             duplicate_sources.append({'source': source, 'same_as': by_digest[digest]['path']})
             return
-        group = category(name)
         filename = clean_name(name)
         target = LIBRARY / group / filename
         if target.exists() and hashlib.sha256(target.read_bytes()).hexdigest() != digest:
@@ -102,12 +224,23 @@ def build() -> dict:
         if not target.exists():
             target.write_bytes(payload)
         rel = target.relative_to(ROOT).as_posix()
-        title = display_title or target.stem
+        title = clean_title(display_title or document_title)
         if filename.startswith('原件扫描_page_'):
             title = f'福州市20年经济社会发展战略设想 · 原件扫描第{int(source.rsplit("_", 1)[-1].removesuffix(".png"))}页'
+        searchable = group in ALLOWED and not filename.startswith('原件扫描_page_')
+        if name == '0cdf9890d95614347108c00094f33b1d.mp4':
+            searchable = False  # The inspected footage is a training site visit.
         item = {'id': digest[:20], 'title': title, 'path': rel,
                 'category': group, 'sha256': digest, 'bytes': len(payload),
-                'source': source, 'searchable': group in ALLOWED}
+                'source': source, 'searchable': searchable}
+        if source_url:
+            item['source_url'] = source_url
+        if pages:
+            item['pages'] = pages
+        if name.startswith('3820_习近平在福州_'):
+            item['collection'] = '《习近平在福州》采访实录'
+        elif name.startswith('3820_习近平在福建_'):
+            item['collection'] = '《习近平在福建》采访实录'
         entries.append(item)
         by_digest[digest] = item
         if target.suffix.lower() == '.md':
@@ -117,7 +250,7 @@ def build() -> dict:
             item['download_path'] = word.relative_to(ROOT).as_posix()
 
     # Source ZIP 1 contains the text corpus, an inner PDF archive and duplicate lessons.
-    for archive in sorted(ARCHIVES.glob('*.zip')):
+    for archive in archives:
         with ZipFile(archive) as z:
             for info in z.infolist():
                 if info.is_dir():
@@ -136,6 +269,8 @@ def build() -> dict:
                                 continue  # A Markdown transcription of the EPUB is in the text corpus.
                             add(inner_info.filename, inner.read(inner_info), f'{archive.name}/{name}/{inner_info.filename}')
                 elif Path(name).suffix.lower() in {'.md', '.doc', '.docx', '.pdf', '.ppt', '.pptx', '.mp4', '.png', '.jpg'}:
+                    if Path(name).name == '3820_knowledge.md':
+                        continue  # An importer seed note, not an independent source.
                     add(name, payload, f'{archive.name}/{name}')
 
     for source in sorted(DATA.iterdir()):
@@ -150,6 +285,9 @@ def build() -> dict:
     public_manifest = public_dir / 'manifest.json'
     if public_manifest.is_file():
         for record in json.loads(public_manifest.read_text(encoding='utf-8')):
+            if record['id'] in {'3820_fuzhou_explainer', 'fuzhou_interview_18',
+                                'fuzhou_interview_14', 'fujian_interview_28'}:
+                continue  # The same article is present in the supplied article corpus.
             source = public_dir / f'{record["id"]}.txt'
             if not source.is_file():
                 continue
@@ -162,15 +300,27 @@ def build() -> dict:
         add(f'原件扫描_{source.name}', source.read_bytes(), source.relative_to(ROOT).as_posix())
     for source in sorted((ROOT / 'docs' / 'media').glob('*')):
         if source.is_file():
-            add(source.name, source.read_bytes(), source.relative_to(ROOT).as_posix())
+            continue  # Project guide images are not independent literature.
 
-    # The guide remains in docs/, its authoritative location. It is exposed through the catalog.
-    for source in sorted((ROOT / 'docs').glob('基于3820战略工程内容的多智能体系统搭建指南.md')):
-        digest = hashlib.sha256(source.read_bytes()).hexdigest()
-        entries.append({'id': digest[:20], 'title': source.stem, 'path': source.relative_to(ROOT).as_posix(),
-                        'category': 'documents', 'sha256': digest, 'bytes': source.stat().st_size,
-                        'source': 'project guide', 'searchable': True,
-                        'download_path': (source.with_suffix('.docx')).relative_to(ROOT).as_posix()})
+    pdf_text_pairs = {
+        '习近平党建思想的时代特质': '习近平党建思想的时代特质',
+        '习近平关于基层治理论述摘编': '习近平关于基层治理论述摘编',
+        '习近平总书记关于党的建设的重要思想概论': '习近平总书记关于党的建设的重要思想概论',
+        '福州市20年经济社会发展战略设想': '福州市20年经济社会发展战略设想',
+    }
+    texts = [item for item in entries if item['path'].endswith('.md')]
+    for item in entries:
+        if item['category'] != 'pdf':
+            continue
+        for pdf_prefix, text_prefix in pdf_text_pairs.items():
+            if item['title'].startswith(pdf_prefix):
+                pair = next((text for text in texts if text['title'].startswith(text_prefix)
+                             and text.get('pages')), None)
+                if pair:
+                    item['text_path'] = pair['path']
+                    item['pages'] = pair['pages']
+                    pair['pdf_id'] = item['id']
+                break
 
     entries.sort(key=lambda item: (item['category'], item['title'], item['path']))
     catalog = {'version': 1, 'entries': entries, 'duplicates': duplicate_sources,
