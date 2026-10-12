@@ -6,6 +6,7 @@ knowledge/data/*
 var/
 dist/
 build/
+/3820_agent_web/
 *.spec.bak
 
 .venv/
