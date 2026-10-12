@@ -1,5 +1,5 @@
 #define AppName "3820 战略知识助手"
-#define AppVersion "0.7.0"
+#define AppVersion "0.7.1"
 #define AppUserModelID "edu.sjtu.serendipity.3820Agent"
 
 [Setup]
