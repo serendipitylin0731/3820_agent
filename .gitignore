@@ -3,6 +3,9 @@
 !.env.example
 knowledge/data/*
 !knowledge/data/.gitkeep
+knowledge/library/*
+!knowledge/library/catalog.json
+new_things/
 var/
 dist/
 build/
