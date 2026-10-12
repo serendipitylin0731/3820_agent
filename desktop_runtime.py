@@ -8,6 +8,7 @@ import ctypes
 import json
 import os
 import sys
+import time
 import uuid
 from ctypes import wintypes
 from pathlib import Path
@@ -93,25 +94,28 @@ def read_model_config(home: Path | None = None, *, decrypt=None) -> dict:
     paths = [path for path in paths if path.is_file()]
     if not paths:
         return {}
-    # If roaming storage is blocked and a later save used LocalAppData, load
-    # the latest valid file instead of a stale roaming copy.
-    paths.sort(key=lambda path: path.stat().st_mtime_ns, reverse=True)
     error = None
+    candidates = []
     for path in paths:
         try:
             raw = (decrypt or (lambda value: _dpapi(value, decrypt=True)))(path.read_bytes())
             parsed = json.loads(raw.decode("utf-8"))
             if not isinstance(parsed, dict) or parsed.get("version") != 1:
                 raise ValueError("模型配置格式无效")
-            return {key: str(parsed.get(key, "")) for key in
-                    ("ARK_API_KEY", "LLM_MODEL", "EMBED_MODEL", "ARK_BASE_URL")}
+            stamp = int(parsed.get("saved_at_ns", path.stat().st_mtime_ns))
+            config = {key: str(parsed.get(key, "")) for key in
+                      ("ARK_API_KEY", "LLM_MODEL", "EMBED_MODEL", "ARK_BASE_URL")}
+            candidates.append((stamp, config))
         except (OSError, ValueError, UnicodeError) as exc:
             error = exc
+    if candidates:
+        return max(candidates, key=lambda item: item[0])[1]
     raise error
 
 
 def write_model_config(config: dict, home: Path | None = None, *, encrypt=None) -> Path:
-    payload = {"version": 1, **{key: str(config.get(key, "")) for key in
+    payload = {"version": 1, "saved_at_ns": time.time_ns(),
+               **{key: str(config.get(key, "")) for key in
                                ("ARK_API_KEY", "LLM_MODEL", "EMBED_MODEL", "ARK_BASE_URL")}}
     raw = json.dumps(payload, ensure_ascii=False).encode("utf-8")
     encrypted = (encrypt or (lambda value: _dpapi(value, decrypt=False)))(raw)
