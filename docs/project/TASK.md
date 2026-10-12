@@ -190,7 +190,7 @@ M1、M3 的本地数据能力已完成基础实现，指南表 1、表 4 的结�
 
 ## 当前代码的运行记录
 
-详细搭建说明见 [INSTRUCTION.md](INSTRUCTION.md)；项目概览与两个版本的运行命令见 [README.md](../../README.md)。Python 3.11 环境中执行：
+详细搭建说明见 [INSTRUCTION.md](INSTRUCTION.md)；项目概览与网页服务的运行命令见 [README.md](../../README.md)。Python 3.11 环境中执行：
 
 ~~~bash
 python -m venv .venv

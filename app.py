@@ -3,14 +3,12 @@ import hmac
 import json
 import logging
 import re
-import secrets
 import time
 import uuid
 from collections import defaultdict, deque
 from contextlib import asynccontextmanager
 from pathlib import Path
 from threading import Lock
-from urllib.parse import urlsplit
 
 from fastapi import FastAPI, Request, Response
 from fastapi.exceptions import RequestValidationError
@@ -22,9 +20,6 @@ from contracts import AgentResult, ChatError, ChatRequest, ChatResponse, ErrorIn
 from graph import ask
 from knowledge.knowledge_base import retrieval_metrics
 from resilience import timeout_error
-from desktop_app.runtime import (apply_model_config, desktop_mode, profile_dir,
-                             read_model_config, write_model_config)
-from pydantic import BaseModel, Field
 
 logger = logging.getLogger('3820_agent')
 _counters = defaultdict(int)
@@ -36,33 +31,6 @@ _peak_active = 0
 _agent_errors = 0
 _timeout_requests = 0
 _SCOPES = {'/chat':'chat', '/metrics':'metrics'}
-_desktop_token = secrets.token_urlsafe(32)
-
-
-class DesktopConfigRequest(BaseModel):
-    api_key: str = Field(default='', max_length=512)
-    llm_model: str = Field(max_length=128)
-    embed_model: str = Field(default='', max_length=128)
-    base_url: str = Field(default='https://ark.cn-beijing.volces.com/api/v3', max_length=256)
-
-
-def _desktop_origin_ok(request: Request) -> bool:
-    if not desktop_mode():
-        return False
-    host = request.headers.get('host', '')
-    if host not in {'127.0.0.1:3820', 'localhost:3820', '127.0.0.1', 'localhost'}:
-        return False
-    origin = request.headers.get('origin')
-    return origin is None or origin in {f'http://{host}', f'https://{host}'}
-
-
-def _saved_desktop_config():
-    try:
-        return read_model_config()
-    except (OSError, ValueError, UnicodeError):
-        return {}
-
-
 def _error(status, code, message, request_id=None):
     payload = ChatError(request_id=request_id or str(uuid.uuid4()),
                         error=ErrorInfo(code=code, message=message))
@@ -141,10 +109,6 @@ async def protect_and_measure(request: Request, call_next):
 
     if request.url.path in ('/', '/health', '/favicon.ico') or request.url.path.startswith('/assets/'):
         return finish(await call_next(request))
-    if request.url.path == '/desktop/config':
-        if not _desktop_origin_ok(request):
-            return finish(_error(403, 'forbidden', '此功能仅供本机安装版使用', request_id))
-        return finish(await call_next(request))
     principal, auth_error = _authenticate(request, settings)
     if auth_error:
         return finish(_error(auth_error, 'unauthorized' if auth_error == 401 else 'forbidden',
@@ -206,49 +170,6 @@ def home():
 @app.get('/favicon.ico', include_in_schema=False)
 def favicon():
     return Response(status_code=204)
-
-
-@app.get('/desktop/config')
-def desktop_config(response: Response):
-    config = _saved_desktop_config()
-    response.headers['Cache-Control'] = 'no-store'
-    return {'configured': bool(config.get('ARK_API_KEY') and config.get('LLM_MODEL')),
-            'llm_model': config.get('LLM_MODEL', ''),
-            'embed_model': config.get('EMBED_MODEL', ''),
-            'base_url': config.get('ARK_BASE_URL') or 'https://ark.cn-beijing.volces.com/api/v3',
-            'data_dir': str(profile_dir() / 'knowledge' / 'data'),
-            'token': _desktop_token}
-
-
-@app.post('/desktop/config')
-def save_desktop_config(req: DesktopConfigRequest, request: Request, response: Response):
-    if not hmac.compare_digest(request.headers.get('x-desktop-settings', ''), _desktop_token):
-        return _error(403, 'forbidden', '设置请求无效', request.state.request_id)
-    try:
-        previous = _saved_desktop_config()
-        key = req.api_key.strip() or previous.get('ARK_API_KEY', '')
-        model = req.llm_model.strip()
-        embed = req.embed_model.strip()
-        base_url = req.base_url.strip()
-        if urlsplit(base_url).scheme != 'https':
-            raise ValueError('API 地址必须使用 HTTPS')
-        if not key or not model or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._:-]{0,127}', model):
-            raise ValueError('请填写 API Key 和有效的对话模型 ID')
-        if embed and not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._:-]{0,127}', embed):
-            raise ValueError('向量模型 ID 格式无效')
-        from config import Settings
-        Settings(ark_api_key=key, llm_model=model, embed_model=embed or None,
-                 ark_base_url=base_url)
-        config = {'ARK_API_KEY': key, 'LLM_MODEL': model,
-                  'EMBED_MODEL': embed, 'ARK_BASE_URL': base_url}
-        write_model_config(config)
-        apply_model_config(config)
-    except (ValueError, OSError) as exc:
-        logger.warning('保存桌面模型配置失败 error_type=%s', type(exc).__name__)
-        return _error(400, 'invalid_config', '模型配置无效或无法保存', request.state.request_id)
-    response.headers['Cache-Control'] = 'no-store'
-    return {'configured': True, 'llm_model': model, 'embed_model': embed,
-            'base_url': base_url}
 
 
 @app.get('/metrics')
