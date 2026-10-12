@@ -7,7 +7,7 @@ import tempfile
 import uuid
 from pathlib import Path
 
-from desktop_runtime import prepare_desktop
+from desktop_app.runtime import prepare_desktop
 
 APP_USER_MODEL_ID = 'edu.sjtu.serendipity.3820Agent'
 
@@ -71,7 +71,7 @@ def main():
         _set_app_user_model_id()
         _enable_high_dpi()
         import tkinter as tk
-        from desktop_gui import DesktopApp
+        from desktop_app.gui import DesktopApp
 
         root = tk.Tk()
         _set_tk_scale(root)
@@ -79,7 +79,7 @@ def main():
             root.withdraw()
         DesktopApp(root, home)
         if smoke:
-            from desktop_runtime import read_model_config, write_model_config
+            from desktop_app.runtime import read_model_config, write_model_config
             with tempfile.TemporaryDirectory(prefix='config-smoke-', dir=home) as directory:
                 config = {'ARK_API_KEY': 'build-smoke-key',
                           'LLM_MODEL': 'build-smoke-chat', 'EMBED_MODEL': '',

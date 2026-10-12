@@ -4,9 +4,9 @@ from fastapi.testclient import TestClient
 import pytest
 
 import app as api
-import desktop_runtime
+from desktop_app import runtime as desktop_runtime
 from config import Settings
-from desktop_runtime import read_model_config, write_model_config
+from desktop_app.runtime import read_model_config, write_model_config
 from knowledge.knowledge_base import _source_paths
 
 

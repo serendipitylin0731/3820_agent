@@ -50,8 +50,7 @@ secrets/
 *.pfx
 **/*.pfx
 README.md
-TASK.md
-DESIGN.md
+docs/project/
 requirements.txt
 .python-version
 .gitignore

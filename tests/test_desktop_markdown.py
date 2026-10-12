@@ -2,7 +2,7 @@
 
 import pytest
 
-from desktop_markdown import parse_markdown
+from desktop_app.markdown import parse_markdown
 
 
 pytestmark = pytest.mark.offline

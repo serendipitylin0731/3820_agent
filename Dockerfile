@@ -3,7 +3,8 @@ FROM python:3.11-slim
 WORKDIR /app
 COPY requirements.lock .
 RUN pip install --no-cache-dir -r requirements.lock
-COPY app.py graph.py llm_client.py resilience.py config.py contracts.py desktop_runtime.py ./
+COPY app.py graph.py llm_client.py resilience.py config.py contracts.py ./
+COPY desktop_app/ ./desktop_app/
 COPY agents/ ./agents/
 COPY knowledge/*.py knowledge/*.json ./knowledge/
 COPY docs/*.md ./docs/

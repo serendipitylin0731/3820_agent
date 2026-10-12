@@ -2,8 +2,8 @@ import json
 
 import pytest
 
-from desktop_gui import collect_sources
-from desktop_history import LIMIT, conversations, load_history, save_history
+from desktop_app.gui import collect_sources
+from desktop_app.history import LIMIT, conversations, load_history, save_history
 
 
 pytestmark = pytest.mark.offline
@@ -33,7 +33,7 @@ def test_model_note_is_restored_with_desktop_history(tmp_path):
 
 
 def test_legacy_model_preface_moves_to_small_note(tmp_path):
-    from desktop_history import LEGACY_PREFIX
+    from desktop_app.history import LEGACY_PREFIX
     saved = save_history(tmp_path, [{'thread_id': 'old', 'question': '问题',
                                      'answer': LEGACY_PREFIX + '开发区推动开放。', 'sources': []}])
     assert saved[0]['answer'] == '开发区推动开放。'

@@ -6,7 +6,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from desktop_gui import DesktopApp, _readonly_text
+from desktop_app.gui import DesktopApp, _readonly_text
 
 
 try:

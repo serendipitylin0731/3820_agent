@@ -17,9 +17,9 @@ from tkinter import filedialog, messagebox, ttk
 from PIL import Image, ImageTk
 
 from config import Settings
-from desktop_history import conversations, load_history, save_history
-from desktop_markdown import render_markdown
-from desktop_runtime import apply_model_config, read_model_config, write_model_config
+from desktop_app.history import conversations, load_history, save_history
+from desktop_app.markdown import render_markdown
+from desktop_app.runtime import apply_model_config, read_model_config, write_model_config
 
 
 INK = '#18342c'
@@ -142,7 +142,7 @@ class DesktopApp:
         self._logo_images = {}
         self.root.iconphoto(True, self._logo_image(64))
         if self.root.tk.call('tk', 'windowingsystem') == 'win32':
-            self.root.iconbitmap(str(Path(__file__).with_name('packaging') / '3820Agent.ico'))
+            self.root.iconbitmap(str(Path(__file__).resolve().parents[1] / 'packaging' / '3820Agent.ico'))
         width = min(round(1160 * scale), max(760, self.root.winfo_screenwidth() - 80))
         height = min(round(780 * scale), max(540, self.root.winfo_screenheight() - 80))
         self.root.geometry(f'{width}x{height}')
@@ -359,7 +359,7 @@ class DesktopApp:
 
     def _logo_image(self, size):
         if size not in self._logo_images:
-            path = Path(__file__).with_name('packaging') / 'logo.png'
+            path = Path(__file__).resolve().parents[1] / 'packaging' / 'logo.png'
             with Image.open(path) as source:
                 bitmap = source.resize((size, size), Image.Resampling.LANCZOS)
             self._logo_images[size] = ImageTk.PhotoImage(bitmap, master=self.root)
@@ -672,7 +672,7 @@ class DesktopApp:
         self._paint_background_button(True)
 
     def _load_document(self):
-        path = Path(__file__).with_name('docs') / '3820背景.md'
+        path = Path(__file__).resolve().parents[1] / 'docs' / '3820背景.md'
         content = path.read_text(encoding='utf-8')
         widget = self.doc_text
         render_markdown(widget, content, document=True)

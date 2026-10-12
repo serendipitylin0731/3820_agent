@@ -43,7 +43,7 @@ def test_reported_question_is_grounded(offline_graph, question, terms):
 def test_readme_and_instructions_have_distinct_roles():
     root = Path(__file__).resolve().parents[1]
     readme = (root / 'README.md').read_text(encoding='utf-8')
-    instructions = (root / 'INSTRUCTION.md').read_text(encoding='utf-8')
+    instructions = (root / 'docs' / 'project' / 'INSTRUCTION.md').read_text(encoding='utf-8')
     assert '两个版本如何运行' in readme
     assert 'serendipity_lin@sjtu.edu.cn' in readme
     assert '# 10 附录' in instructions

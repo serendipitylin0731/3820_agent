@@ -7,8 +7,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from desktop_gui import DesktopApp, _readonly_text
-from desktop_history import save_history
+from desktop_app.gui import DesktopApp, _readonly_text
+from desktop_app.history import save_history
 
 
 try:

@@ -22,7 +22,7 @@ from contracts import AgentResult, ChatError, ChatRequest, ChatResponse, ErrorIn
 from graph import ask
 from knowledge.knowledge_base import retrieval_metrics
 from resilience import timeout_error
-from desktop_runtime import (apply_model_config, desktop_mode, profile_dir,
+from desktop_app.runtime import (apply_model_config, desktop_mode, profile_dir,
                              read_model_config, write_model_config)
 from pydantic import BaseModel, Field
 

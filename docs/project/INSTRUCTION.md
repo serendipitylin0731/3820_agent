@@ -1,6 +1,6 @@
 # 基于“3820”战略工程内容的多智能体系统搭建指南
 
-> 本文件保存此前 README 的详细搭建步骤及原指南转写。当前项目概览、两个版本的运行方式和最新安装包说明以 [README.md](README.md) 为准。
+> 本文件保存此前 README 的详细搭建步骤及原指南转写。当前项目概览、两个版本的运行方式和最新安装包说明以 [README.md](../../README.md) 为准。
 
 ## Windows 安装版
 
@@ -13,14 +13,14 @@ Windows 10/11（x64）用户可以下载 `3820Agent-Setup-x64.exe`，双击安�
 维护者需要重新生成安装包时，在 Windows x64 + Python 3.11 上运行：
 
 ```powershell
-python -m pip install -r requirements-desktop.txt
+python -m pip install -r requirements/desktop.txt
 python -m pytest -m offline -q
 python -m PyInstaller --noconfirm packaging/3820Agent.spec
 .\dist\3820Agent\3820Agent.exe --smoke-test
 & 'C:\Program Files (x86)\Inno Setup 6\ISCC.exe' packaging\3820Agent.iss
 ```
 
-最终文件位于 `dist\installer\3820Agent-Setup-x64.exe`。仓库中的 [Windows 构建工作流](.github/workflows/windows-installer.yml) 会在 Windows runner 上执行离线测试、原生窗口与问答引擎的可执行文件冒烟测试，以及安装包生成和安装后测试，并提供可下载的构建产物；构建不需要开发者的 API Key。PyInstaller 需要在 Windows 上运行才能生成 Windows 可执行文件。
+最终文件位于 `dist\installer\3820Agent-Setup-x64.exe`。仓库中的 [Windows 构建工作流](../../.github/workflows/windows-installer.yml) 会在 Windows runner 上执行离线测试、原生窗口与问答引擎的可执行文件冒烟测试，以及安装包生成和安装后测试，并提供可下载的构建产物；构建不需要开发者的 API Key。PyInstaller 需要在 Windows 上运行才能生成 Windows 可执行文件。
 
 <a id="current-implementation"></a>
 
@@ -59,7 +59,7 @@ EMBED_MODEL=doubao-embedding-vision-251215
 
 ### 第三步：准备知识库
 
-程序读取原指南、`knowledge/data/` 中的 Word/PPT、已提取的 PPT 图片文字、公开资料文字、原件扫描 OCR，以及结构化指标数据。当前工作区已有资料和向量索引；**新克隆的仓库只有 `knowledge/data/.gitkeep`**，需要把有权使用的原始资料重新放入 `knowledge/data/`。资料清单与来源定位见 [资料清单](docs/资料清单.md) 和 [原件核对](docs/原件核对.md)。
+程序读取原指南、`knowledge/data/` 中的 Word/PPT、已提取的 PPT 图片文字、公开资料文字、原件扫描 OCR，以及结构化指标数据。当前工作区已有资料和向量索引；**新克隆的仓库只有 `knowledge/data/.gitkeep`**，需要把有权使用的原始资料重新放入 `knowledge/data/`。资料清单与来源定位见 [资料清单](../资料清单.md) 和 [原件核对](../原件核对.md)。
 
 需要重建向量索引时，先确认 `.env` 中的 `EMBED_MODEL`，再执行：
 
@@ -87,7 +87,7 @@ EMBED_MODEL=doubao-embedding-vision-251215
 .venv/bin/python -m scripts.evaluate_expanded
 ```
 
-第一项不需要在线服务；后两项会实际调用豆包与向量服务，要求本机资料、索引和密钥可用。扩展题集包含页面示例和补充问题，完整问答记录写入 Git 忽略的 `var/qa_expanded_report.json`。评测结果见 [问答评测](docs/问答评测.md)；接口与模型补充行为见 [DESIGN.md](DESIGN.md)，实施和部署流程见 [TASK.md](TASK.md)。原件档案身份、全部指标的原始口径、复杂图片 OCR、2000/2010 年定性目标判据及生产部署仍需进一步核验。
+第一项不需要在线服务；后两项会实际调用豆包与向量服务，要求本机资料、索引和密钥可用。扩展题集包含页面示例和补充问题，完整问答记录写入 Git 忽略的 `var/qa_expanded_report.json`。评测结果见 [问答评测](../问答评测.md)；接口与模型补充行为见 [DESIGN.md](DESIGN.md)，实施和部署流程见 [TASK.md](TASK.md)。原件档案身份、全部指标的原始口径、复杂图片 OCR、2000/2010 年定性目标判据及生产部署仍需进一步核验。
 
 ---
 
@@ -396,7 +396,7 @@ EMBED_MODEL=doubao-embedding-vision-251215
 
 系统采用“一个总控、四个专业、一组支撑、一层横切”的分层架构（图1）：主智能体负责意图理解、任务拆分、路由分发与结果汇总；规划、指标、空间、评估四个专业智能体承接对应子任务。当前示例代码中的多类型任务按顺序执行；如需并行，需另行实现并测试并发调度、共享状态合并和部分失败处理。支撑层提供知识库RAG检索、指标数据库、空间数据与API、评估规则库；横切能力层提供Checkpoint、重试与降级、日志与链路追踪、密钥管理与内容安全等能力。
 
-![基于“3820”战略工程内容的多智能体系统架构（示意）](./media/image1.png)
+![基于“3820”战略工程内容的多智能体系统架构（示意）](../media/image1.png)
 
 *图1 基于“3820”战略工程内容的多智能体系统架构（示意）*
 

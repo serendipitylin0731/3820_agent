@@ -54,30 +54,42 @@ Windows PowerShell 的环境创建和启动命令分别使用 `py -3.11 -m venv 
 
 安装 0.7.0 或更新版后，窗口、任务栏、开始菜单和桌面快捷方式使用同一枚 Logo。若任务栏仍保留旧版固定图标，请先取消旧固定项，再从新安装的开始菜单快捷方式重新固定。
 
-## 实现概览
+## 实现方式
 
 ```mermaid
-flowchart LR
-    Q[自然语言问题] --> R[主智能体：拆分与路由]
-    R --> K[知识库检索]
-    R --> I[指标与评估]
-    R --> S[空间与规划]
-    K --> A[回答合成]
-    I --> A
-    S --> A
-    A --> W[网页端 / Windows 桌面端]
-    A --> D[豆包补充：仅在缺少直接资料时]
+flowchart LR;
+    Q["自然语言问题"] --> R["拆分与路由"];
+    R -->|规划问题| K["规划资料检索"];
+    K --> P["规划分析"];
+    R -->|指标问题| I["指标查询"];
+    R -->|空间问题| S["空间查询"];
+    R -->|评估问题| E["目标评估"];
+    P --> A["答案合成"];
+    I --> A;
+    S --> A;
+    E --> A;
+    A --> W["网页端与 Windows 桌面端"];
+    A -->|相关问题缺少直接依据| D["豆包补充"];
+    D --> W;
 ```
 
-后端使用 FastAPI 提供浏览器界面和问答接口；LangGraph 编排问题拆分、检索、专业模块和回答合成。常见规划问题优先匹配[背景导读](docs/3820背景.md)中经过整理、附有来源的主题章节；原件扫描和用户导入的 Word/PPT/文本仍供细节检索，避免 OCR 噪声盖过明确材料。无直接依据的问题可由豆包补充，回答下方说明来源边界。知识库可选用豆包向量模型建立本地向量索引。经济指标由 `knowledge/indicators.json` 提供，规划目标由指南表 4 与原件扫描目标表分别提供。桌面版使用 Tk 原生控件并直接调用同一问答图，不启动 HTTP 服务。
+一次提问按以下步骤处理：
+
+1. **拆分与路由**：`agents/agent_main.py` 将问题拆成规划、指标、空间、评估子任务，并用数据契约校验。配置了豆包对话模型时可由模型辅助拆分；未配置或模型输出无效时使用本地规则。`graph.py` 用 LangGraph 串联拆分、按需检索、子任务执行和答案合成，并用 SQLite 保存可恢复的会话快照。
+2. **准备与检索资料**：`knowledge/knowledge_base.py` 把指南、文本、Word、PPT 及已有的 OCR 结果切成带文件、页码或段落、版本信息的片段。常见规划问题先匹配人工整理且附有来源的[背景导读](docs/3820背景.md)章节；其他细节再检索原件扫描及导入资料。默认使用本地文本匹配；配置向量模型并构建 FAISS 索引后，可按相似距离检索。索引与当前资料或模型不一致时须重建，检索会退回文本匹配。
+3. **执行领域子任务**：指标模块从 `knowledge/indicators.json` 读取实际值，从指南表 4 和原件扫描目标表读取各自的规划目标；空间模块读取结构化空间资料；规划模块根据检索到的直接片段形成结构化报告；评估模块仅在比较年份、指标口径和判据足够明确时计算。不同来源的 GDP、GNP 或统计版本保留各自口径，不直接混算。
+4. **合成与标注答案**：`agents/answer_writer.py` 汇总子任务结果和来源，优先生成有资料支撑的回答。仅当“3820”或福州发展相关问题缺少直接依据、且用户配置了对话模型时，才可能由豆包补充；这种回答标为模型参考内容，不伪造资料引用。依据不足或子任务失败会在结果中保留对应状态。
+
+浏览器版由 `app.py` 使用 FastAPI 提供静态页面和 `/chat` 接口；Windows 桌面版由 `desktop.py`、`desktop_app/gui.py` 使用 Tk 原生控件，直接调用同一问答图，无需启动 HTTP 服务。两个版本的对话历史分别保存在浏览器本地存储和当前 Windows 用户的数据目录。
 
 | 路径 | 用途 |
 | --- | --- |
 | `app.py`、`web/` | 浏览器版服务与界面 |
-| `desktop.py`、`desktop_gui.py` | Windows 原生桌面入口与界面 |
+| `desktop.py`、`desktop_app/` | Windows 原生桌面入口、界面与配置模块 |
 | `graph.py`、`agents/` | 多智能体编排、领域处理和答案合成 |
 | `knowledge/` | 资料解析、检索、指标和来源数据 |
-| `docs/` | 原始指南、背景导读、资料清单与核对记录 |
+| `docs/` | 原始指南、背景导读、资料清单与核对记录；`docs/project/` 保存项目过程文档 |
+| `requirements/` | 桌面打包与 OCR 的可选依赖清单 |
 | `packaging/` | Windows 可执行文件及安装器配置 |
 | `tests/` | 离线功能、回答与界面检查 |
 
@@ -91,6 +103,6 @@ flowchart LR
 
 问答质量还可用 `python -m scripts.evaluate_qa` 和 `python -m scripts.evaluate_expanded` 在已配置豆包模型的环境中复测。题目、检查范围与最近一次结果见[问答评测记录](docs/问答评测.md)。
 
-Windows x64 维护者可以依次执行 `python -m pip install -r requirements-desktop.txt`、`python -m PyInstaller --noconfirm packaging/3820Agent.spec`，再用 Inno Setup 编译 `packaging/3820Agent.iss`。仓库的 Windows CI 会检查可执行文件、DPI 设置、安装后启动和快捷方式图标。
+Windows x64 维护者可以依次执行 `python -m pip install -r requirements/desktop.txt`、`python -m PyInstaller --noconfirm packaging/3820Agent.spec`，再用 Inno Setup 编译 `packaging/3820Agent.iss`。仓库的 Windows CI 会检查可执行文件、DPI 设置、安装后启动和快捷方式图标。
 
-完整搭建步骤与早期设计转写保存在 [INSTRUCTION.md](INSTRUCTION.md)；原始指南在 [docs/基于3820战略工程内容的多智能体系统搭建指南.md](docs/基于3820战略工程内容的多智能体系统搭建指南.md)。资料索引见 [docs/资料清单.md](docs/资料清单.md)，原件与不同统计版本的记录见 [docs/原件核对.md](docs/原件核对.md)。
+完整搭建步骤与早期设计转写保存在 [INSTRUCTION.md](docs/project/INSTRUCTION.md)；原始指南在 [docs/基于3820战略工程内容的多智能体系统搭建指南.md](docs/基于3820战略工程内容的多智能体系统搭建指南.md)。资料索引见 [docs/资料清单.md](docs/资料清单.md)，原件与不同统计版本的记录见 [docs/原件核对.md](docs/原件核对.md)。
