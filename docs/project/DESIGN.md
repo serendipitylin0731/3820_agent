@@ -5,8 +5,8 @@
 ## 配置边界
 
 - [config.py](../../config.py) 集中读取项目根目录的 `.env` 与进程环境变量；进程环境变量优先。导入模块不读取密钥，也不连接模型。
-- `ARK_API_KEY`、`LLM_MODEL` 用于在线模型调用，`EMBED_MODEL` 用于可选向量索引；缺失时服务仍能用本地规则和已提取的文本检索运行。知识库自动读取指南、`knowledge/data/` 内的 Word/PPT、`knowledge/data/ppt_ocr/` 内的 PPT 图片 OCR、`knowledge/data/public_sources/` 内的网页文本和 `knowledge/data/original_3820/` 内的扫描 OCR；`PPT_PATH` 仅用于添加目录外的一份 PPT。`SERVICE_API_KEY` 设置后，`/chat` 等受保护接口需要 `X-API-Key`；首页、静态资源、`/health` 和 `/favicon.ico` 可直接访问。可选 `SERVICE_CLIENTS_JSON` 定义多个客户端及 `chat`、`metrics` 权限；历史配置中的 `docs` 范围仍可读取但不提供文档页面。调用时还需 `X-Client-ID`；客户端会话在 Checkpoint 中隔离。
-- `ARK_BASE_URL`、`TOP_K`、`REQUEST_TIMEOUT`、`LOG_LEVEL` 已由调用方使用。`CHECKPOINT_PATH` 配置 SQLite 会话快照；`INDEX_PATH` 指向持久化向量索引；`VECTOR_MAX_DISTANCE` 设置后启用向量检索，并应按当前资料和模型校准。`MAX_BODY_BYTES` 和 `RATE_LIMIT_PER_MINUTE` 控制单实例入口。
+- `ARK_API_KEY`、`LLM_MODEL` 用于在线模型调用，`EMBED_MODEL` 为旧版向量索引构建配置；缺失时服务仍能用本地规则和文本检索运行。当前聊天读取指南、`knowledge/library/` 中允许检索的 Markdown、`knowledge/data/public_sources/` 网页文本及 `knowledge/data/original_3820/` 扫描 OCR。PPT 和课程资料不进入聊天或资料检索；旧 PPT OCR 只作提取记录。`SERVICE_API_KEY` 设置后，`/chat` 与 `/library/*` 等受保护接口需要 `X-API-Key`；首页、静态资源、`/health` 和 `/favicon.ico` 可直接访问。可选 `SERVICE_CLIENTS_JSON` 定义多个客户端及 `chat`、`metrics`、`docs` 权限；`docs` 权限允许资料检索、预览和下载。调用时还需 `X-Client-ID`；客户端会话在 Checkpoint 中隔离。
+- `ARK_BASE_URL`、`TOP_K`、`REQUEST_TIMEOUT`、`LOG_LEVEL` 已由调用方使用。`CHECKPOINT_PATH` 配置 SQLite 会话快照；`INDEX_PATH` 指向旧版向量索引。分类目录存在时忽略旧索引，防止检索到已排除资料。`MAX_BODY_BYTES` 和 `RATE_LIMIT_PER_MINUTE` 控制单实例入口。
 - `get_settings()` 会缓存一次运行配置；修改环境变量后应重启服务。测试可直接调用 `load_settings(environ=..., dotenv_path=...)`，不读取本机密钥。
 
 ## 字段和状态
@@ -29,8 +29,9 @@
 
 - `graph.py` 用 `SubTask` 校验主智能体拆分结果，非法任务不能进入工具层。
 - `agents/answer_writer.py` 使用豆包 API 将角色结果组织成自然语言；生成文本必须保留关键数值与“待核对”“无法评估”等证据边界，模型失败或遗漏时退回自然语言模板。官方理论资料仅对理论分析类问题作为候选背景，实际使用的条目加入 `theory_context` 结果及来源；不得把新时代概念写成 1992 年规划的原始依据。来源与选用规则见 [理论资料](../理论资料.md)。
-- 规划类问题先用本地知识库回答。若没有直接依据或最终答案仍明确表示无法定位，且问题属于“3820”或福州发展范围，`knowledge/model_fallback.py` 会直接调用已配置的豆包模型。回答以“知识库资料中暂未查找到，以下是豆包模型提供的参考回答：”开头；`results.model` 不附资料来源，不声称模型已经联网。指标冲突与目标达成判据不足保持原有证据边界；无关问题不调用模型补充。
-- PPT 图片 OCR 以原 PPT 的校验值、实际幻灯片页号和文字校验值绑定；源文件变化时旧 OCR 不进入检索。投资示意图问答优先引用扫描预览第 27 页，地图主要名称经图像人工转录存于 `knowledge/map_labels.json`。
+- 规划类问题先用本地知识库回答。若没有直接依据或最终答案仍明确表示无法定位，且问题属于“3820”或福州发展范围，`knowledge/model_fallback.py` 会调用已配置的豆包模型。回答正文直接给出内容，模型补充说明在下方小字展示；`results.model` 不附资料来源，不声称模型已经联网。指标冲突与目标达成判据不足保持原有证据边界；无关问题不调用模型补充。
+- PPT 图片 OCR 的旧提取结果仍保存，但当前不进入检索。投资示意图问答优先引用扫描预览第 27 页，地图主要名称经图像人工转录存于 `knowledge/map_labels.json`。
+- `knowledge/library_search.py` 只根据清单中允许公开的 ID 定位文件；课程和 PPT 即使知道路径，也无法经 `/library/*` 预览或下载。
 - `app.py` 用 `ChatRequest`、`ChatResponse` 和 `ChatError` 校验 HTTP 边界；旧角色结果经适配后放入 `AgentResult.data`，不会凭空生成来源。
 - `/metrics` 展示单进程内的请求、延迟、HTTP 错误、超时及检索质量比率；节点日志只保留请求/会话标识、角色、节点、耗时和异常类型，避免输出问题正文与密钥。生产环境需要独立监控和集中日志。
 - `knowledge/knowledge_base.py` 的 `search` 返回 `KnowledgeResult` 和 `KnowledgeHit`；`graph.py` 把角色输出转为 `AgentResult`，来源保持 `verified=false`。

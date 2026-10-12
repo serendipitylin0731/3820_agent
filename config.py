@@ -21,7 +21,6 @@ class Settings(BaseModel):
     ark_base_url: str = "https://ark.cn-beijing.volces.com/api/v3"
     llm_model: str | None = None
     embed_model: str | None = None
-    ppt_path: Path | None = None
     top_k: int = Field(default=5, ge=1, le=100)
     request_timeout: float = Field(default=30.0, gt=0, le=300)
     checkpoint_path: Path = Path("var/checkpoints.sqlite3")
@@ -73,13 +72,6 @@ class Settings(BaseModel):
             raise ConfigurationError("缺少 EMBED_MODEL；请填写实际开通的向量模型 ID")
         return self.embed_model
 
-    def require_source_path(self) -> Path:
-        if self.ppt_path is None:
-            raise ConfigurationError("缺少 PPT_PATH；请配置可引用的知识资料路径")
-        if not self.ppt_path.is_file():
-            raise ConfigurationError("PPT_PATH 指向的资料文件不存在")
-        return self.ppt_path
-
     def require_service_ready(self) -> None:
         self.require_api_key()
         self.require_chat_model()
@@ -91,7 +83,6 @@ _ENV_FIELDS = {
     "ARK_BASE_URL": "ark_base_url",
     "LLM_MODEL": "llm_model",
     "EMBED_MODEL": "embed_model",
-    "PPT_PATH": "ppt_path",
     "TOP_K": "top_k",
     "REQUEST_TIMEOUT": "request_timeout",
     "CHECKPOINT_PATH": "checkpoint_path",

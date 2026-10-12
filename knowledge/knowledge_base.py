@@ -19,6 +19,7 @@ from tenacity import Retrying, retry_if_exception, stop_after_attempt, wait_expo
 
 GUIDE = Path(__file__).resolve().parent.parent / 'docs' / '基于3820战略工程内容的多智能体系统搭建指南.md'
 DATA_DIR = Path(__file__).resolve().parent / 'data'
+LIBRARY_CATALOG = Path(__file__).resolve().parent / 'library' / 'catalog.json'
 WORD_NS = '{http://schemas.openxmlformats.org/wordprocessingml/2006/main}'
 EMBEDDING_SCHEMA = 2
 ORIGINAL_ARTICLE_URL = 'https://article.xuexi.cn/articles/pdf/index.html?art_id=1854475750850039511'
@@ -221,18 +222,20 @@ def load_ppt_image_ocr_chunks(path, metadata, root):
 
 
 def _source_paths(settings):
-    files = [path for path in DATA_DIR.iterdir() if path.is_file() and path.suffix.lower() in
-             {'.ppt', '.pptx', '.doc', '.docx'}] if DATA_DIR.is_dir() else []
-    if settings.ppt_path and settings.ppt_path.is_file():
-        files.append(settings.ppt_path)
+    # Slides and teaching materials are archived but never enter retrieval.
+    files = []
     extra = os.environ.get('AGENT3820_EXTRA_DATA_DIR')
     if extra and Path(extra).is_dir():
         files.extend(path for path in Path(extra).iterdir() if path.is_file() and
-                     path.suffix.lower() in {'.pptx', '.docx', '.txt'})
-    # 两份演示文稿的 29 页文字完全重复；保留页码齐全的 PPTX。
-    names = {path.name for path in files}
-    if '3820视频.pptx' in names:
-        files = [path for path in files if path.name != '3820PPT+视频.ppt']
+                     path.suffix.lower() in {'.txt', '.md'} and not
+                     any(word in path.name for word in ('教学', '教案', '课件', '课程', '研修')))
+    if LIBRARY_CATALOG.is_file():
+        for item in json.loads(LIBRARY_CATALOG.read_text(encoding='utf-8')).get('entries', []):
+            if item.get('searchable') and item.get('category') in {'documents', 'papers', 'literature'} \
+                    and item['path'].endswith('.md'):
+                path = GUIDE.parent.parent / item['path']
+                if path.is_file() and path != GUIDE:
+                    files.append(path)
     public_dir = DATA_DIR / 'public_sources'
     if public_dir.is_dir():
         files.extend(public_dir.glob('*.txt'))
@@ -244,10 +247,7 @@ def _source_paths(settings):
         for name in ('manifest.json', 'catalog.json'):
             if (scan_dir / name).is_file():
                 files.append(scan_dir / name)
-    ppt_ocr_dir = DATA_DIR / 'ppt_ocr'
-    if (ppt_ocr_dir / 'manifest.json').is_file():
-        files.append(ppt_ocr_dir / 'manifest.json')
-        files.extend(ppt_ocr_dir.glob('*/slide_*.txt'))
+    files.append(LIBRARY_CATALOG) if LIBRARY_CATALOG.is_file() else None
     return tuple(sorted({path.resolve() for path in files}, key=str))
 
 
@@ -269,25 +269,40 @@ def _load_knowledge_base(_guide_version, signatures):
     scan_manifest = scan_dir / 'manifest.json'
     scan_metadata = (json.loads(scan_manifest.read_text(encoding='utf-8'))
                      if scan_manifest.is_file() else None)
-    ppt_ocr_dir = DATA_DIR / 'ppt_ocr'
-    ppt_ocr_manifest = ppt_ocr_dir / 'manifest.json'
-    ppt_ocr_decks = ({deck['source_file']: deck for deck in
-                      json.loads(ppt_ocr_manifest.read_text(encoding='utf-8'))['decks']}
-                     if ppt_ocr_manifest.is_file() else {})
     for name, _, _ in signatures:
         path = Path(name)
-        if path.suffix.lower() in {'.ppt', '.pptx'}:
-            hits.extend(load_ppt_chunks(path))
-            hits.extend(load_ppt_image_ocr_chunks(path, ppt_ocr_decks.get(path.name), ppt_ocr_dir))
-        elif path.suffix.lower() in {'.doc', '.docx'}:
-            hits.extend(load_word_chunks(path))
+        if path.suffix.lower() == '.md':
+            hits.extend(load_library_markdown_chunks(path))
         elif path.suffix.lower() == '.txt' and path.parent == scan_dir / 'pages':
             if scan_metadata:
                 hits.extend(load_scan_page_chunk(path, scan_metadata))
-        elif path.suffix.lower() == '.txt' and path.is_relative_to(ppt_ocr_dir):
-            continue
         elif path.suffix.lower() == '.txt':
             hits.extend(load_public_text_chunks(path, metadata.get(path.stem, {})))
+    return hits
+
+
+def load_library_markdown_chunks(path):
+    """Split long Markdown transcriptions into bounded searchable passages."""
+    content = Path(path).read_text(encoding='utf-8-sig', errors='replace')
+    sections = re.split(r'\n\s*\n', content)
+    hits, block, offset = [], '', 1
+    version = _version(path)
+
+    def append(text, number):
+        if text.strip():
+            hits.append(KnowledgeHit(chunk_id=f'{Path(path).name}:block:{number}', content=text.strip(),
+                                     source=SourceRef(source_file=_display_path(path),
+                                                      page_or_slide=f'片段{number}',
+                                                      data_version=version, verified=False)))
+
+    for section in sections:
+        for piece in (section[i:i + 1200] for i in range(0, len(section), 1200)):
+            if len(block) + len(piece) > 1200 and block:
+                append(block, offset)
+                offset += 1
+                block = ''
+            block += ('\n\n' if block else '') + piece
+    append(block, offset)
     return hits
 
 
@@ -350,7 +365,7 @@ def search(query, *, chunks=None, top_k=5, min_score=0.35):
         _record_retrieval('insufficient_evidence')
         return KnowledgeResult(status='insufficient_evidence')
     settings = get_settings()
-    if chunks is None and settings.vector_max_distance is not None and (settings.index_path / 'index.faiss').is_file():
+    if chunks is None and not LIBRARY_CATALOG.is_file() and settings.vector_max_distance is not None and (settings.index_path / 'index.faiss').is_file():
         try:
             vector = vector_search(query, top_k=top_k, max_distance=settings.vector_max_distance,
                                    directory=settings.index_path)

@@ -102,7 +102,10 @@ def build() -> dict:
         if not target.exists():
             target.write_bytes(payload)
         rel = target.relative_to(ROOT).as_posix()
-        item = {'id': digest[:20], 'title': target.stem, 'path': rel,
+        title = target.stem
+        if filename.startswith('原件扫描_page_'):
+            title = f'福州市20年经济社会发展战略设想 · 原件扫描第{int(source.rsplit("_", 1)[-1].removesuffix(".png"))}页'
+        item = {'id': digest[:20], 'title': title, 'path': rel,
                 'category': group, 'sha256': digest, 'bytes': len(payload),
                 'source': source, 'searchable': group in ALLOWED}
         entries.append(item)

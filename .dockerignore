@@ -54,8 +54,10 @@ docs/project/
 requirements.txt
 .python-version
 .gitignore
-docs/*.docx
 docs/media/
 tests/
 pytest.ini
 knowledge/data/
+knowledge/library/*
+!knowledge/library/catalog.json
+new_things/

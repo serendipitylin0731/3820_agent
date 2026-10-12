@@ -19,6 +19,7 @@ from config import ConfigurationError, get_settings
 from contracts import AgentResult, ChatError, ChatRequest, ChatResponse, ErrorInfo
 from graph import ask
 from knowledge.knowledge_base import retrieval_metrics
+from knowledge.library_search import download_file, preview_text, public_record, search_documents
 from resilience import timeout_error
 
 logger = logging.getLogger('3820_agent')
@@ -170,6 +171,41 @@ def home():
 @app.get('/favicon.ico', include_in_schema=False)
 def favicon():
     return Response(status_code=204)
+
+
+@app.get('/library/search')
+def library_search(q: str = ''):
+    if len(q) > 120:
+        return _error(422, 'invalid_request', '关键词过长')
+    return {'results': search_documents(q), 'query': q.strip()}
+
+
+@app.get('/library/{doc_id}/preview')
+def library_preview(doc_id: str):
+    found = public_record(doc_id)
+    if found is None:
+        return _error(404, 'not_found', '资料不存在')
+    item, path = found
+    content = preview_text(item, path)
+    if content is not None:
+        return {'id': doc_id, 'title': item['title'], 'format': path.suffix.lower().lstrip('.'),
+                'content': content}
+    if path.suffix.lower() in {'.pdf', '.png', '.jpg', '.jpeg', '.webp', '.mp4'}:
+        return FileResponse(path, filename=path.name, content_disposition_type='inline')
+    return _error(415, 'unsupported_preview', '该格式暂不支持在线预览')
+
+
+@app.get('/library/{doc_id}/download')
+def library_download(doc_id: str):
+    found = public_record(doc_id)
+    if found is None:
+        return _error(404, 'not_found', '资料不存在')
+    item, path = found
+    try:
+        target = download_file(item, path)
+    except FileNotFoundError:
+        return _error(404, 'not_found', '下载文件尚未生成')
+    return FileResponse(target, filename=target.name, content_disposition_type='attachment')
 
 
 @app.get('/metrics')

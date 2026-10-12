@@ -33,6 +33,13 @@
   const historyEmpty = document.querySelector('#history-empty');
   const clearHistory = document.querySelector('#clear-history');
   const historyStore = window.ChatHistory;
+  const libraryView = document.querySelector('#library-view');
+  const libraryToggle = document.querySelector('#library-toggle');
+  const libraryResults = document.querySelector('#library-results');
+  const libraryStatus = document.querySelector('#library-status');
+  const libraryPreview = document.querySelector('#library-preview');
+  const libraryPreviewContent = document.querySelector('#library-preview-content');
+  let previewBlobUrl = null;
   let storage;
   try { storage = window.localStorage; } catch (_) { storage = null; }
   let savedTurns = historyStore.load(storage);
@@ -202,6 +209,8 @@
 
   function showChat() {
     document.body.dataset.view = 'chat';
+    libraryView.hidden = true;
+    libraryToggle.classList.remove('active');
     backgroundDocument.hidden = true;
     conversation.hidden = false;
     composer.hidden = false;
@@ -215,6 +224,8 @@
 
   function showBackground() {
     document.body.dataset.view = 'background';
+    libraryView.hidden = true;
+    libraryToggle.classList.remove('active');
     backgroundDocument.hidden = false;
     conversation.hidden = true;
     composer.hidden = true;
@@ -225,6 +236,149 @@
     backgroundToggle.setAttribute('aria-current', 'page');
     document.querySelector('#mobile-background').setAttribute('aria-current', 'page');
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function showLibrary() {
+    document.body.dataset.view = 'library';
+    libraryView.hidden = false;
+    conversation.hidden = true;
+    composer.hidden = true;
+    backgroundDocument.hidden = true;
+    backgroundTimeline.hidden = true;
+    timelineSource.hidden = true;
+    historyPanel.hidden = true;
+    backgroundToggle.classList.remove('selected');
+    backgroundToggle.removeAttribute('aria-current');
+    document.querySelector('#mobile-background').removeAttribute('aria-current');
+    libraryToggle.classList.add('active');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    document.querySelector('#library-query').focus();
+  }
+
+  function libraryHeaders() {
+    const headers = {};
+    if (serviceKey) headers['X-API-Key'] = serviceKey;
+    if (clientId) headers['X-Client-ID'] = clientId;
+    return headers;
+  }
+
+  async function checkedFetch(url) {
+    const response = await fetch(url, { headers: libraryHeaders() });
+    if (response.status === 401 || response.status === 403) settingsDialog.showModal();
+    if (!response.ok) throw new Error(`请求失败（HTTP ${response.status}）`);
+    return response;
+  }
+
+  function clearPreview() {
+    if (previewBlobUrl) URL.revokeObjectURL(previewBlobUrl);
+    previewBlobUrl = null;
+    libraryPreview.hidden = true;
+    libraryPreviewContent.replaceChildren();
+  }
+
+  function renderMarkdown(content) {
+    const output = make('div', 'library-markdown');
+    let code = false;
+    function appendInline(element, value) {
+      const pattern = /(\*\*[^*]+\*\*|__[^_]+__|`[^`]+`)/g;
+      let start = 0;
+      for (const match of value.matchAll(pattern)) {
+        if (match.index > start) element.append(document.createTextNode(value.slice(start, match.index)));
+        const token = match[0];
+        element.append(make(token.startsWith('`') ? 'code' : 'strong', '', token.slice(2, -2)));
+        if (token.startsWith('`')) element.lastChild.textContent = token.slice(1, -1);
+        start = match.index + token.length;
+      }
+      if (start < value.length) element.append(document.createTextNode(value.slice(start)));
+    }
+    for (const line of content.split(/\r?\n/)) {
+      if (line.trim().startsWith('```') || line.trim().startsWith('~~~')) {
+        code = !code;
+        continue;
+      }
+      if (!line.trim()) continue;
+      let element;
+      const heading = line.match(/^(#{1,6})\s+(.+)$/);
+      if (code) element = make('pre', '', line);
+      else if (heading) { element = make(`h${Math.min(heading[1].length, 4)}`); appendInline(element, heading[2]); }
+      else if (/^\s*>\s?/.test(line)) { element = make('blockquote'); appendInline(element, line.replace(/^\s*>\s?/, '')); }
+      else if (/^\s*[-*+]\s+/.test(line)) { element = make('p', 'library-list'); appendInline(element, `• ${line.replace(/^\s*[-*+]\s+/, '')}`); }
+      else { element = make('p'); appendInline(element, line); }
+      output.append(element);
+    }
+    return output;
+  }
+
+  async function previewDocument(item) {
+    clearPreview();
+    libraryPreview.hidden = false;
+    document.querySelector('#library-preview-title').textContent = item.title;
+    libraryPreviewContent.append(make('p', 'library-status', '正在加载预览…'));
+    try {
+      const response = await checkedFetch(`/library/${encodeURIComponent(item.id)}/preview`);
+      libraryPreviewContent.replaceChildren();
+      if (['md', 'txt', 'docx'].includes(item.format)) {
+        const payload = await response.json();
+        libraryPreviewContent.append(renderMarkdown(payload.content));
+      } else {
+        previewBlobUrl = URL.createObjectURL(await response.blob());
+        const element = item.format === 'pdf' ? make('iframe', 'library-frame')
+          : item.format === 'mp4' ? make('video', 'library-video') : make('img', 'library-image');
+        element.src = previewBlobUrl;
+        if (item.format === 'mp4') element.controls = true;
+        element.title = item.title;
+        libraryPreviewContent.append(element);
+      }
+      libraryPreview.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } catch (error) {
+      libraryPreviewContent.replaceChildren(make('p', 'library-status', error.message));
+    }
+  }
+
+  async function downloadDocument(item) {
+    try {
+      const response = await checkedFetch(`/library/${encodeURIComponent(item.id)}/download`);
+      const blobUrl = URL.createObjectURL(await response.blob());
+      const link = make('a');
+      link.href = blobUrl;
+      const filename = item.format === 'md' ? `${item.title}.docx` : `${item.title}.${item.format}`;
+      link.download = filename;
+      document.body.append(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
+    } catch (error) {
+      libraryStatus.textContent = error.message;
+    }
+  }
+
+  async function searchLibrary(query) {
+    clearPreview();
+    libraryResults.replaceChildren();
+    libraryStatus.textContent = '正在检索资料…';
+    try {
+      const response = await checkedFetch(`/library/search?q=${encodeURIComponent(query)}`);
+      const payload = await response.json();
+      libraryStatus.textContent = payload.results.length ? `找到 ${payload.results.length} 条匹配资料` : '没有找到匹配的资料，请更换关键词。';
+      for (const item of payload.results) {
+        const card = make('article', 'library-card');
+        const label = { documents: '文字文档', papers: '本地论文', literature: '文献', pdf: 'PDF', media: '图片与视频' }[item.category];
+        card.append(make('span', 'library-type', label || item.format), make('h2', '', item.title));
+        if (item.snippet) card.append(make('p', '', item.snippet));
+        const actions = make('div', 'library-card-actions');
+        const preview = make('button', '', '预览');
+        preview.type = 'button';
+        preview.addEventListener('click', () => previewDocument(item));
+        const download = make('button', '', item.format === 'md' ? '下载 Word' : '下载');
+        download.type = 'button';
+        download.addEventListener('click', () => downloadDocument(item));
+        actions.append(preview, download);
+        card.append(actions);
+        libraryResults.append(card);
+      }
+    } catch (error) {
+      libraryStatus.textContent = error.message;
+    }
   }
 
   function renderHistory() {
@@ -338,6 +492,13 @@
   }
   document.querySelector('#new-chat').addEventListener('click', resetChat);
   document.querySelector('#mobile-new-chat').addEventListener('click', resetChat);
+  libraryToggle.addEventListener('click', showLibrary);
+  document.querySelector('#mobile-library').addEventListener('click', showLibrary);
+  document.querySelector('#library-search-form').addEventListener('submit', event => {
+    event.preventDefault();
+    searchLibrary(document.querySelector('#library-query').value.trim());
+  });
+  document.querySelector('#library-preview-close').addEventListener('click', clearPreview);
   backgroundToggle.addEventListener('click', showBackground);
   document.querySelector('#mobile-background').addEventListener('click', showBackground);
   document.querySelector('#back-to-chat').addEventListener('click', showChat);

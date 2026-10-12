@@ -35,12 +35,13 @@ def test_word_uses_paragraph_and_table_positions(tmp_path):
     assert [hit.source.page_or_slide for hit in chunks] == ['段落1', '段落2']
 
 
-def test_duplicate_deck_is_excluded(tmp_path, monkeypatch):
+def test_slides_are_excluded_from_chat_retrieval(tmp_path, monkeypatch):
     for name in ('3820PPT+视频.ppt', '3820视频.pptx'):
         (tmp_path / name).touch()
     monkeypatch.setattr(kb, 'DATA_DIR', tmp_path)
+    monkeypatch.setattr(kb, 'LIBRARY_CATALOG', tmp_path / 'missing.json')
     paths = kb._source_paths(Settings())
-    assert [path.name for path in paths] == ['3820视频.pptx']
+    assert not paths
 
 
 def test_scan_ocr_page_retains_preview_page_and_unverified_status(tmp_path):

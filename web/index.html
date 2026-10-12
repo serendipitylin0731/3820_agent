@@ -8,7 +8,7 @@
   <link rel="icon" type="image/svg+xml" href="/assets/logo.svg">
   <link rel="stylesheet" href="/assets/style.css">
   <script src="/assets/history_store.js" defer></script>
-  <script src="/assets/app.js?v=2" defer></script>
+  <script src="/assets/app.js?v=3" defer></script>
 </head>
 <body data-view="chat">
   <div class="shell">
@@ -20,6 +20,7 @@
 
       <div class="sidebar-section-label">工作台</div>
       <button class="nav-item active" type="button" id="new-chat"><span class="nav-icon" aria-hidden="true">✦</span> 新建对话 <span class="nav-arrow" aria-hidden="true">↗</span></button>
+      <button class="nav-item" type="button" id="library-toggle"><span class="nav-icon" aria-hidden="true">⌕</span> 资料检索 <span class="nav-arrow" aria-hidden="true">↗</span></button>
       <div class="timeline-wrap">
         <button class="background-toggle" id="background-toggle" type="button" aria-controls="background-document"><span>3820 背景</span><span class="toggle-arrow" aria-hidden="true">↗</span></button>
         <ol class="timeline" id="background-timeline" hidden>
@@ -48,7 +49,7 @@
     <main class="main">
       <header class="topbar">
         <span class="eyebrow">3820 / 知识工作台</span>
-        <div class="topbar-right"><span class="topbar-status">开发者：_serendipity</span><button class="mobile-new-chat" id="mobile-new-chat" type="button">新对话</button><button class="mobile-background" id="mobile-background" type="button">3820 背景</button></div>
+        <div class="topbar-right"><span class="topbar-status">开发者：_serendipity</span><button class="mobile-new-chat" id="mobile-new-chat" type="button">新对话</button><button class="mobile-library" id="mobile-library" type="button">资料检索</button><button class="mobile-background" id="mobile-background" type="button">3820 背景</button></div>
       </header>
 
       <div class="conversation" id="conversation" role="log" aria-label="问答记录" aria-live="polite">
@@ -62,6 +63,23 @@
         </section>
         <div id="messages"></div>
       </div>
+
+      <section class="library-view" id="library-view" aria-labelledby="library-title" hidden>
+        <span class="document-kicker">3820 / 文献资料库</span>
+        <h1 id="library-title">查找资料</h1>
+        <p>按标题或正文关键词查找文档、论文、文献、PDF 与影像。演示文稿和课程资料不参与检索。</p>
+        <form class="library-search-form" id="library-search-form">
+          <label class="sr-only" for="library-query">资料关键词</label>
+          <input id="library-query" type="search" maxlength="120" placeholder="例如：福州市20年经济社会发展战略设想" required>
+          <button type="submit">检索</button>
+        </form>
+        <p class="library-status" id="library-status" role="status">输入关键词开始检索。</p>
+        <div class="library-results" id="library-results"></div>
+        <section class="library-preview" id="library-preview" aria-label="资料预览" hidden>
+          <div class="library-preview-head"><h2 id="library-preview-title"></h2><button type="button" id="library-preview-close">关闭预览</button></div>
+          <div id="library-preview-content"></div>
+        </section>
+      </section>
 
       <article class="background-document" id="background-document" aria-labelledby="background-title" hidden>
         <div class="document-cover">

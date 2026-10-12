@@ -6,7 +6,9 @@ RUN pip install --no-cache-dir -r requirements.lock
 COPY app.py graph.py llm_client.py resilience.py config.py contracts.py ./
 COPY agents/ ./agents/
 COPY knowledge/*.py knowledge/*.json ./knowledge/
+COPY knowledge/library/catalog.json ./knowledge/library/catalog.json
 COPY docs/*.md ./docs/
+COPY docs/*.docx ./docs/
 COPY web/ ./web/
 COPY tools/ ./tools/
 RUN mkdir -p ./knowledge/data ./var
