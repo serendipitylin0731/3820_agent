@@ -26,7 +26,7 @@ SECTIONS = {
     '01 起点与问题': ('https://slj.fuzhou.gov.cn/zwgk/ztxx/djgz/3820zlgcsxjs/202402/t20240219_4778720.htm', '背景导读·01 起点与问题'),
     '02 规划如何形成': ('https://zygh.fuzhou.gov.cn/zwgk/ztzl/xjpxsdzgtsshzysxxxzt/202105/t20210511_4096820.htm', '背景导读·02 规划如何形成'),
     '03 三步目标': ('https://www.fuzhou.gov.cn/gzdt/rcyw/202205/t20220519_4364544.htm', '3820 战略工程三阶段目标'),
-    '04 江海布局': ('https://article.xuexi.cn/articles/pdf/index.html?art_id=1854475750850039511', '预览第40页：战略布局'),
+    '04 江海布局': ('knowledge/library/media/原件扫描_page_0040.png', '预览第40页：战略布局'),
     '05 重点工程': ('docs/3820背景.md', '背景导读·05 重点工程'),
     '06 城市与生活': ('https://slj.fuzhou.gov.cn/zwgk/ztxx/djgz/3820zlgcsxjs/202402/t20240219_4778720.htm', '背景导读·06 城市与生活'),
     '07 阶段回看': ('https://slj.fuzhou.gov.cn/zwgk/ztxx/djgz/3820zlgcsxjs/202402/t20240219_4778720.htm', '背景导读·07 阶段回看'),
@@ -104,16 +104,30 @@ def direct_hits(question: str) -> list[KnowledgeHit]:
             score=1.0, score_kind='similarity',
         )]
     version = hashlib.sha256(BACKGROUND.read_bytes()).hexdigest()[:16]
-    return [KnowledgeHit(
+    hits = [KnowledgeHit(
         chunk_id=f'background:{title}', content=_section(title),
         source=SourceRef(source_file=SECTIONS[title][0], section=SECTIONS[title][1],
                          page_or_slide=None, data_version=version, verified=True),
         score=1.0, score_kind='similarity',
     ) for title in section_titles(question)]
+    if ('闽江口金三角' in question and
+            any(term in question for term in ('涉及', '哪些区域', '范围', '分布', '包括'))):
+        map_data = json.loads((BACKGROUND.parents[1] / 'knowledge' / 'map_labels.json').read_text(encoding='utf-8'))
+        hits.append(KnowledgeHit(
+            chunk_id='reviewed:investment_map',
+            content=f"{map_data['title']}：" + '、'.join(map_data['labels']) + '。',
+            source=SourceRef.model_validate(map_data['source_ref']),
+            score=1.0, score_kind='similarity',
+        ))
+    return hits
 
 
 def source_sections(question: str) -> list[str]:
-    return [SECTIONS[title][1] for title in section_titles(question)]
+    sections = [SECTIONS[title][1] for title in section_titles(question)]
+    if ('闽江口金三角' in question and
+            any(term in question for term in ('涉及', '哪些区域', '范围', '分布', '包括'))):
+        sections.append('福州市闽江口金三角经济圈投资示意图')
+    return sections
 
 
 def answer_passage(question: str) -> str | None:
@@ -173,6 +187,10 @@ def answer_passage(question: str) -> str | None:
         else:
             passage = '\n\n'.join(paragraphs[:2])
         passages.append(re.sub(r'\*\*(.*?)\*\*', r'\1', passage))
+    if ('闽江口金三角' in question and
+            any(term in question for term in ('涉及', '哪些区域', '范围', '分布', '包括'))):
+        map_data = json.loads((BACKGROUND.parents[1] / 'knowledge' / 'map_labels.json').read_text(encoding='utf-8'))
+        passages.append('原件投资示意图标注的区域和投资区包括：' + '、'.join(map_data['labels']) + '。')
     if any(term in question for term in ('什么是3820', '3820工程是什么', '3820战略工程是什么')):
         introduction = BACKGROUND.read_text(encoding='utf-8').split('## 01', 1)[0].split('\n\n', 1)[-1].strip()
         passages.insert(0, introduction)

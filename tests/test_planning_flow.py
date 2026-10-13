@@ -105,6 +105,31 @@ def test_picture_question_routes_to_evidence_search(monkeypatch):
     assert [task['type'] for task in tasks] == ['planning']
 
 
+def test_economic_circle_question_uses_local_scans_without_partial_failure(monkeypatch):
+    import graph
+    from agents import agent_main
+    question = '福州当时为什么要建设闽江口金三角经济圈？涉及哪些区域？'
+    monkeypatch.setattr(agent_main, 'get_settings',
+                        lambda: Settings(ark_api_key='fake', llm_model='fake'))
+    monkeypatch.setattr(agent_main, 'chat',
+                        lambda *_args, **_kwargs: '[{"type":"spatial","question":"涉及哪些区域",'
+                                                 '"keyword":"闽江口金三角"},'
+                                                 '{"type":"planning","question":"建设原因"}]')
+    tasks = agent_main.split_task(question)
+    assert [task['type'] for task in tasks] == ['planning']
+    fetched = graph.retrieve_node({'question': question})
+    assert {source['source_file'] for source in fetched['kb_sources']} == {
+        'knowledge/library/media/原件扫描_page_0027.png',
+        'knowledge/library/media/原件扫描_page_0040.png',
+    }
+    executed = graph.execute_node({'question': question, 'sub_tasks': tasks, **fetched})
+    assert executed['results']['planning']['status'] == 'ok'
+    assert {source['source_file'] for source in executed['results']['planning']['sources']} == {
+        'knowledge/library/media/原件扫描_page_0027.png',
+        'knowledge/library/media/原件扫描_page_0040.png',
+    }
+
+
 def test_airport_history_uses_planning_instead_of_spatial_lookup(monkeypatch):
     from agents import agent_main
     monkeypatch.setattr(agent_main, 'get_settings', lambda: Settings())

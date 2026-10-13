@@ -52,6 +52,13 @@ def _local_split(question):
 
 def _normalize_tasks(tasks, question):
     """对模型拆分做领域校验，防止无关问题被误映射为某项指标。"""
+    # The economic circle is a strategic layout, not a single spatial feature.
+    # Model-generated spatial lookups for broad area questions otherwise fail and
+    # turn an otherwise complete answer into a misleading partial response.
+    if ('闽江口金三角' in question and
+            any(term in question for term in ('为什么', '为何', '涉及', '哪些区域', '范围', '布局', '建设')) and
+            not any(label.lower() in question.lower() for _, label in KEYWORDS)):
+        return [{'type': 'planning', 'question': question}]
     if (any(task['type'] == 'spatial' for task in tasks) and not any(
             term in question for term in ('3820', '福州', '闽江', '机场', '港口',
                                          '园区', '马尾', '苍霞', '元洪', '福清',
