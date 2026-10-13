@@ -217,7 +217,6 @@
       }
     });
     actions.append(copy);
-    if (payload.request_id) actions.append(make('span', 'request-id', `请求 ID：${payload.request_id}`));
     container.body.append(actions);
     if (scroll) scrollToLatest();
   }
