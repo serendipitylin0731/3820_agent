@@ -48,9 +48,10 @@ def cited_record(source_file: str) -> tuple[dict, Path] | None:
     if not source_file or len(source_file) > 500:
         return None
     if source_file == 'docs/基于3820战略工程内容的多智能体系统搭建指南.md':
-        path = ROOT / 'docs' / '基于3820战略工程内容的多智能体系统搭建指南.docx'
+        path = ROOT / source_file
         return ({'title': '基于3820战略工程内容的多智能体系统搭建指南',
-                 'category': 'documents'}, path) if path.is_file() else None
+                 'category': 'documents',
+                 'download_path': 'docs/基于3820战略工程内容的多智能体系统搭建指南.docx'}, path) if path.is_file() else None
     if source_file == 'docs/3820背景.md':
         path = ROOT / source_file
         return ({'title': '3820背景', 'category': 'documents'}, path) if path.is_file() else None
@@ -66,11 +67,6 @@ def cited_record(source_file: str) -> tuple[dict, Path] | None:
         path = _safe_path(item['path'])
         if not path.is_file():
             return None
-        if path.suffix.lower() == '.md':
-            try:
-                path = download_file(item, path)
-            except FileNotFoundError:
-                return None
         return item, path
     return None
 

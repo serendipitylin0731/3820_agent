@@ -5,6 +5,7 @@ import logging
 import re
 import time
 import uuid
+from urllib.parse import quote
 from collections import defaultdict, deque
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -192,7 +193,8 @@ def library_preview(doc_id: str):
                 'content': content, 'pages': item.get('pages', []),
                 'source_url': item.get('source_url'), 'collection': item.get('collection')}
     if path.suffix.lower() in {'.pdf', '.png', '.jpg', '.jpeg', '.webp', '.mp4', '.mov', '.m4v'}:
-        return FileResponse(path, filename=path.name, content_disposition_type='inline')
+        return FileResponse(path, filename=path.name, content_disposition_type='inline',
+                            headers={'X-Source-Title': quote(item['title'])})
     return _error(415, 'unsupported_preview', '该格式暂不支持在线预览')
 
 
@@ -227,11 +229,53 @@ def open_cited_source(file: str):
     found = cited_record(file)
     if found is None:
         return _error(404, 'not_found', '该来源没有可访问的原件')
-    _, path = found
+    item, path = found
+    if path.suffix.lower() == '.md' and item.get('download_path'):
+        try:
+            path = download_file(item, path)
+        except FileNotFoundError:
+            return _error(404, 'not_found', '下载文件尚未生成')
     inline = path.suffix.lower() in {'.pdf', '.png', '.jpg', '.jpeg', '.webp', '.mp4', '.mov', '.m4v', '.md'}
     return FileResponse(path, filename=path.name,
                         content_disposition_type='inline' if inline else 'attachment',
                         media_type='text/plain; charset=utf-8' if path.suffix.lower() == '.md' else None)
+
+
+@app.get('/sources/preview')
+def preview_cited_source(file: str):
+    found = cited_record(file)
+    if found is None:
+        return _error(404, 'not_found', '该来源没有可预览的原件')
+    item, path = found
+    if item.get('category') == 'presentations':
+        text_path = item.get('text_path')
+        if not text_path:
+            return _error(404, 'not_found', '演示文稿尚未生成预览文字')
+        from knowledge.library_search import _safe_path
+        derived = _safe_path(text_path)
+        if not derived.is_file():
+            return _error(404, 'not_found', '演示文稿尚未生成预览文字')
+        content = derived.read_text(encoding='utf-8-sig', errors='replace')
+        pages = [int(number) for number in re.findall(r'(?m)^## 第\s*(\d+)\s*页', content)]
+        return {'title': item['title'], 'format': 'md', 'content': content, 'pages': pages}
+    content = preview_text(item, path)
+    if content is not None:
+        return {'title': item['title'], 'format': path.suffix.lower().lstrip('.'),
+                'content': content, 'pages': item.get('pages', []),
+                'source_url': item.get('source_url')}
+    if path.suffix.lower() in {'.pdf', '.png', '.jpg', '.jpeg', '.webp', '.mp4', '.mov', '.m4v'}:
+        return FileResponse(path, filename=path.name, content_disposition_type='inline',
+                            headers={'X-Source-Title': quote(item['title'])})
+    return _error(415, 'unsupported_preview', '该格式暂不支持在线预览')
+
+
+@app.get('/sources/text')
+def cited_media_text(file: str):
+    found = cited_record(file)
+    if found is None:
+        return _error(404, 'not_found', '资料不存在')
+    content = media_text(found[0])
+    return {'content': content} if content is not None else _error(404, 'not_found', '该资料没有可读取的文字')
 
 
 @app.get('/metrics')

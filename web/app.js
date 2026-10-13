@@ -57,6 +57,7 @@
   let currentLibraryQuery = '';
   let activeReaderItem = null;
   let lastLibraryScroll = 0;
+  let readerReturnView = 'library';
   let threadId = createThreadId();
   let busy = false;
   let serviceKey = '';
@@ -188,45 +189,24 @@
     return [...unique.values()];
   }
 
-  function sourceLink(file) {
+  function sourceLink(source) {
+    const file = source.source_file;
     if (!/^https?:\/\//i.test(file)) {
       const label = file === 'docs/3820背景.md' ? 'docs/3820背景'
         : file.replace(/\.md$/i, '.docx');
       const button = make('button', 'source-open', label);
       button.type = 'button';
-      button.title = '打开来源文件';
-      button.addEventListener('click', async () => {
-        const office = /\.(docx?|pptx?)$/i.test(label);
-        const tab = office ? null : window.open('', '_blank');
-        button.disabled = true;
-        try {
-          const response = await checkedFetch(`/sources/open?file=${encodeURIComponent(file)}`);
-          const blobUrl = URL.createObjectURL(await response.blob());
-          if (office) {
-            const link = make('a');
-            link.href = blobUrl;
-            link.download = label.split('/').pop();
-            document.body.append(link);
-            link.click();
-            link.remove();
-          } else if (tab) {
-            tab.location.href = blobUrl;
-          } else {
-            const link = make('a');
-            link.href = blobUrl;
-            link.target = '_blank';
-            document.body.append(link);
-            link.click();
-            link.remove();
-          }
-          setTimeout(() => URL.revokeObjectURL(blobUrl), 600000);
-        } catch (error) {
-          tab?.close();
-          button.title = error.message;
-          button.textContent = `${label} · 暂时无法打开`;
-        } finally {
-          button.disabled = false;
-        }
+      button.title = '预览来源资料';
+      button.addEventListener('click', () => {
+        const originalFormat = file.split('.').pop().toLowerCase();
+        const page = typeof source.page_or_slide === 'number' ? source.page_or_slide
+          : Number(String(source.page_or_slide || '').match(/第\s*(\d+)\s*页/)?.[1]) || null;
+        previewDocument({ title: file.split('/').pop().replace(/\.[^.]+$/, ''),
+          category: ['ppt', 'pptx'].includes(originalFormat) ? 'presentations'
+            : ['png', 'jpg', 'jpeg', 'webp', 'mp4', 'mov', 'm4v'].includes(originalFormat) ? 'media' : 'documents',
+          format: ['ppt', 'pptx'].includes(originalFormat) ? 'md' : originalFormat,
+          download_format: originalFormat === 'md' && file !== 'docs/3820背景.md' ? 'docx' : originalFormat,
+          source_file: file, match_page: page, highlight_terms: [], collection: '问答引用资料' });
       });
       return button;
     }
@@ -252,7 +232,7 @@
       for (const source of sources) {
         const item = make('li');
         const main = make('div', 'source-title');
-        main.append(sourceLink(source.source_file));
+        main.append(sourceLink(source));
         const position = [source.section, source.page_or_slide, source.data_version].filter(value => value !== null && value !== undefined && value !== '').join(' · ');
         if (position) main.append(make('div', 'source-meta', position));
         item.append(main);
@@ -405,19 +385,28 @@
   }
 
   function showReader(item) {
-    if (libraryReader.hidden) lastLibraryScroll = window.scrollY;
+    if (libraryReader.hidden) {
+      readerReturnView = document.body.dataset.view === 'chat' ? 'chat' : 'library';
+      if (readerReturnView === 'library') lastLibraryScroll = window.scrollY;
+    }
     activeReaderItem = item;
     document.body.dataset.view = 'library-reader';
     selectNavigation('library');
     libraryView.hidden = true;
     libraryReader.hidden = false;
+    conversation.hidden = true;
+    composer.hidden = true;
+    backgroundDocument.hidden = true;
+    backgroundTimeline.hidden = true;
+    timelineSource.hidden = true;
     historyPanel.hidden = true;
     searchHistoryPanel.hidden = false;
     document.querySelector('#library-reader-title').textContent = item.title;
     document.querySelector('#reader-collection').textContent = item.collection || '文献资料';
     document.querySelector('#reader-location').textContent = item.page_count
       ? `原件共 ${item.page_count} 页${item.indexed_page_count < item.page_count ? ` · 阅读稿含 ${item.indexed_page_count} 页文字` : ''}` : '';
-    document.querySelector('#reader-download').textContent = item.format === 'md' ? '下载 Word' : '下载文件';
+    document.querySelector('#reader-download').textContent = item.download_format === 'docx' ||
+      (!item.download_format && item.format === 'md') ? '下载 Word' : '下载原件';
     document.querySelector('#reader-pdf').hidden = !item.pdf_id;
     document.querySelector('#reader-match').textContent = item.match_page ? `已定位至关键词所在第 ${item.match_page} 页` : '';
     window.scrollTo(0, 0);
@@ -426,8 +415,13 @@
   function closeReader() {
     clearPreview();
     activeReaderItem = null;
-    showLibrary(true);
-    requestAnimationFrame(() => window.scrollTo(0, lastLibraryScroll));
+    if (readerReturnView === 'chat') {
+      showChat();
+      requestAnimationFrame(scrollToLatest);
+    } else {
+      showLibrary(true);
+      requestAnimationFrame(() => window.scrollTo(0, lastLibraryScroll));
+    }
   }
 
   function renderSearchHistory() {
@@ -523,10 +517,16 @@
     readerContent.append(make('p', 'library-status', '正在加载预览…'));
     readerPages.hidden = true;
     try {
-      const response = await checkedFetch(`/library/${encodeURIComponent(item.id)}/preview`);
+      const sourceQuery = item.source_file ? `?file=${encodeURIComponent(item.source_file)}` : '';
+      const response = await checkedFetch(item.source_file ? `/sources/preview${sourceQuery}`
+        : `/library/${encodeURIComponent(item.id)}/preview`);
       readerContent.replaceChildren();
       if (['md', 'txt', 'docx'].includes(item.format)) {
         const payload = await response.json();
+        if (payload.title) {
+          item.title = payload.title;
+          document.querySelector('#library-reader-title').textContent = payload.title;
+        }
         const pages = payload.pages || [];
         readerPageSelect.replaceChildren();
         readerPages.hidden = pages.length === 0;
@@ -548,6 +548,11 @@
           else readerContent.querySelector('mark')?.scrollIntoView({ block: 'center', behavior: 'auto' });
         });
       } else {
+        const sourceTitle = response.headers.get('X-Source-Title');
+        if (sourceTitle) {
+          item.title = decodeURIComponent(sourceTitle);
+          document.querySelector('#library-reader-title').textContent = item.title;
+        }
         previewBlobUrl = URL.createObjectURL(await response.blob());
         const element = item.format === 'pdf' ? make('iframe', 'library-frame')
           : ['mp4', 'mov', 'm4v'].includes(item.format) ? make('video', 'library-video') : make('img', 'library-image');
@@ -557,7 +562,8 @@
         readerContent.append(element);
         if (item.category === 'media') {
           try {
-            const transcript = await checkedFetch(`/library/${encodeURIComponent(item.id)}/text`);
+            const transcript = await checkedFetch(item.source_file ? `/sources/text${sourceQuery}`
+              : `/library/${encodeURIComponent(item.id)}/text`);
             const payload = await transcript.json();
             const section = make('section', 'media-transcript');
             section.append(make('h2', '', ['mp4', 'mov', 'm4v'].includes(item.format)
@@ -574,11 +580,13 @@
 
   async function downloadDocument(item) {
     try {
-      const response = await checkedFetch(`/library/${encodeURIComponent(item.id)}/download`);
+      const response = await checkedFetch(item.source_file
+        ? `/sources/open?file=${encodeURIComponent(item.source_file)}`
+        : `/library/${encodeURIComponent(item.id)}/download`);
       const blobUrl = URL.createObjectURL(await response.blob());
       const link = make('a');
       link.href = blobUrl;
-      const filename = item.format === 'md' ? `${item.title}.docx` : `${item.title}.${item.format}`;
+      const filename = `${item.title}.${item.download_format || (item.format === 'md' ? 'docx' : item.format)}`;
       link.download = filename;
       document.body.append(link);
       link.click();

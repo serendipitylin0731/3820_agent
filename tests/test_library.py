@@ -25,6 +25,7 @@ def test_public_search_preview_download_and_private_exclusions(tmp_path, monkeyp
     course.write_text('闽江口课程资料', encoding='utf-8')
     ppt = slides / '闽江口课件.pptx'
     ppt.write_bytes(b'ppt-file')
+    (derived / 'ppt.txt').write_text('# 闽江口课件\n\n## 第 3 页\n\n闽江口规划', encoding='utf-8')
     image = media / '闽江口规划.png'
     image.write_bytes(b'png-file')
     video = media / '闽江口纪录.mp4'
@@ -43,9 +44,11 @@ def test_public_search_preview_download_and_private_exclusions(tmp_path, monkeyp
     video_item = item(video, 'media', 'video', True)
     image_item['text_path'] = 'knowledge/library/derived/image.txt'
     video_item['text_path'] = 'knowledge/library/derived/video.txt'
+    ppt_item = item(ppt, 'presentations', 'ppt', False)
+    ppt_item['text_path'] = 'knowledge/library/derived/ppt.txt'
     catalog.write_text(json.dumps({'entries': [item(paper, 'papers', 'paper', True),
                                                 item(course, 'courses', 'course', False),
-                                                item(ppt, 'presentations', 'ppt', False),
+                                                ppt_item,
                                                 image_item, video_item]}), encoding='utf-8')
     monkeypatch.setattr(library, 'ROOT', root)
     monkeypatch.setattr(library, 'CATALOG', catalog)
@@ -57,6 +60,7 @@ def test_public_search_preview_download_and_private_exclusions(tmp_path, monkeyp
             response = client.get('/library/search', params={'q': '闽江口'})
             assert response.status_code == 200
             assert {'paper', 'image', 'video'} <= {item['id'] for item in response.json()['results']}
+            assert 'ppt' not in {item['id'] for item in response.json()['results']}
             assert any('金三角' in item['snippet'] for item in response.json()['results'])
             assert client.get('/library/paper/preview').json()['content'].startswith('# 3820战略论文')
             download = client.get('/library/paper/download')
@@ -70,7 +74,13 @@ def test_public_search_preview_download_and_private_exclusions(tmp_path, monkeyp
             assert client.get('/sources/open', params={'file': video_item['path']}).content == b'mp4-file'
             assert client.get('/sources/open', params={'file': item(paper, 'papers', 'paper', True)['path']}).content == b'word-download'
             assert client.get('/sources/open', params={'file': item(ppt, 'presentations', 'ppt', False)['path']}).content == b'ppt-file'
+            citation = client.get('/sources/preview', params={'file': ppt_item['path']}).json()
+            assert citation['pages'] == [3] and '闽江口规划' in citation['content']
+            assert '金三角' in client.get('/sources/preview', params={'file': item(paper, 'papers', 'paper', True)['path']}).json()['content']
+            assert client.get('/sources/preview', params={'file': image_item['path']}).content == b'png-file'
+            assert '沿江布局' in client.get('/sources/text', params={'file': image_item['path']}).json()['content']
             assert client.get('/sources/open', params={'file': item(course, 'courses', 'course', False)['path']}).status_code == 404
+            assert client.get('/sources/preview', params={'file': item(course, 'courses', 'course', False)['path']}).status_code == 404
             assert client.get('/sources/open', params={'file': '../../.env'}).status_code == 404
             for identifier in ('course', 'ppt', '..', 'missing'):
                 assert client.get(f'/library/{identifier}/download').status_code == 404
