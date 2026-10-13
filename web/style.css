@@ -48,6 +48,7 @@ body[data-view="chat"] .conversation>.welcome,body[data-view="chat"] .conversati
 body[data-view="chat"] .message.user{display:flex;flex-direction:column;align-items:flex-end}
 body[data-view="chat"] .composer-wrap{position:relative;bottom:auto;flex:0 0 auto;z-index:1}
 body[data-view="library"] #search-history-panel,body[data-view="library-reader"] #search-history-panel{display:flex;flex:1 1 auto;max-height:none;min-height:0}
+.reader-progress{display:block;width:min(560px,100%);height:12px;margin:24px auto;accent-color:#28664a;border:0;border-radius:999px;overflow:hidden}.reader-progress::-webkit-progress-bar{background:#e7efe5;border-radius:999px}.reader-progress::-webkit-progress-value{background:#28664a;border-radius:999px}.reader-progress::-moz-progress-bar{background:#28664a;border-radius:999px}
 @media(max-width:760px){
   body[data-view="chat"] .conversation>.welcome,body[data-view="chat"] .conversation>#messages{width:calc(100% - 32px)}
   body[data-view="chat"] .shell{display:flex;flex-direction:column;height:100dvh;min-height:0}

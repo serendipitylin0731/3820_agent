@@ -383,6 +383,25 @@
     return response;
   }
 
+  async function blobWithProgress(response, progress) {
+    const total = Number(response.headers.get('Content-Length'));
+    if (!response.body || !Number.isFinite(total) || total <= 0) {
+      progress.removeAttribute('value');
+      return response.blob();
+    }
+    const reader = response.body.getReader();
+    const parts = [];
+    let received = 0;
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      parts.push(value);
+      received += value.byteLength;
+      progress.value = Math.min(100, received / total * 100);
+    }
+    return new Blob(parts, { type: response.headers.get('Content-Type') || '' });
+  }
+
   function clearPreview() {
     slideRequestGeneration += 1;
     if (previewBlobUrl) URL.revokeObjectURL(previewBlobUrl);
@@ -556,14 +575,23 @@
   async function previewDocument(item) {
     clearPreview();
     showReader(item);
-    if (item.format !== 'slides') readerContent.append(make('p', 'library-status', '正在加载预览…'));
+    const binary = !['slides', 'md', 'txt', 'docx'].includes(item.format);
+    const progress = binary ? make('progress', 'reader-progress') : null;
+    if (progress) {
+      progress.max = 100;
+      progress.value = 0;
+      progress.setAttribute('aria-label', '资料加载进度');
+      readerContent.append(progress);
+    } else if (item.format !== 'slides') {
+      readerContent.append(make('p', 'library-status', '正在加载预览…'));
+    }
     readerPages.hidden = true;
     readerSlideNav.hidden = true;
     try {
       const sourceQuery = item.source_file ? `?file=${encodeURIComponent(item.source_file)}` : '';
       const response = await checkedFetch(item.source_file ? `/sources/preview${sourceQuery}`
         : `/library/${encodeURIComponent(item.id)}/preview`);
-      readerContent.replaceChildren();
+      if (!binary) readerContent.replaceChildren();
       if (item.format === 'slides') {
         const payload = await response.json();
         item.title = payload.title || item.title;
@@ -614,13 +642,13 @@
           item.title = decodeURIComponent(sourceTitle);
           document.querySelector('#library-reader-title').textContent = item.title;
         }
-        previewBlobUrl = URL.createObjectURL(await response.blob());
+        previewBlobUrl = URL.createObjectURL(await blobWithProgress(response, progress));
         const element = item.format === 'pdf' ? make('iframe', 'library-frame')
           : ['mp4', 'mov', 'm4v'].includes(item.format) ? make('video', 'library-video') : make('img', 'library-image');
         element.src = previewBlobUrl + (item.format === 'pdf' && item.match_page ? `#page=${item.match_page}` : '');
         if (['mp4', 'mov', 'm4v'].includes(item.format)) element.controls = true;
         element.title = item.title;
-        readerContent.append(element);
+        readerContent.replaceChildren(element);
         if (item.category === 'media') {
           try {
             const transcript = await checkedFetch(item.source_file ? `/sources/text${sourceQuery}`
