@@ -43,6 +43,38 @@ def public_record(doc_id: str) -> tuple[dict, Path] | None:
     return None
 
 
+def cited_record(source_file: str) -> tuple[dict, Path] | None:
+    """Resolve a chat citation through catalog paths, never an arbitrary file path."""
+    if not source_file or len(source_file) > 500:
+        return None
+    if source_file == 'docs/基于3820战略工程内容的多智能体系统搭建指南.md':
+        path = ROOT / 'docs' / '基于3820战略工程内容的多智能体系统搭建指南.docx'
+        return ({'title': '基于3820战略工程内容的多智能体系统搭建指南',
+                 'category': 'documents'}, path) if path.is_file() else None
+    if source_file == 'docs/3820背景.md':
+        path = ROOT / source_file
+        return ({'title': '3820背景', 'category': 'documents'}, path) if path.is_file() else None
+    if not CATALOG.is_file():
+        return None
+    records = json.loads(CATALOG.read_text(encoding='utf-8')).get('entries', [])
+    for item in records:
+        if item.get('path') != source_file:
+            continue
+        if not (item.get('searchable') and item.get('category') in PUBLIC_CATEGORIES) \
+                and item.get('category') != 'presentations':
+            return None
+        path = _safe_path(item['path'])
+        if not path.is_file():
+            return None
+        if path.suffix.lower() == '.md':
+            try:
+                path = download_file(item, path)
+            except FileNotFoundError:
+                return None
+        return item, path
+    return None
+
+
 @lru_cache(maxsize=512)
 def _text(path: Path) -> str:
     if path.suffix.lower() in TEXT_SUFFIXES:

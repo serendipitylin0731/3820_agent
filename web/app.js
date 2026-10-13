@@ -190,7 +190,45 @@
 
   function sourceLink(file) {
     if (!/^https?:\/\//i.test(file)) {
-      return document.createTextNode(file.replace(/\.md$/i, '.docx'));
+      const label = file === 'docs/3820背景.md' ? 'docs/3820背景'
+        : file.replace(/\.md$/i, '.docx');
+      const button = make('button', 'source-open', label);
+      button.type = 'button';
+      button.title = '打开来源文件';
+      button.addEventListener('click', async () => {
+        const office = /\.(docx?|pptx?)$/i.test(label);
+        const tab = office ? null : window.open('', '_blank');
+        button.disabled = true;
+        try {
+          const response = await checkedFetch(`/sources/open?file=${encodeURIComponent(file)}`);
+          const blobUrl = URL.createObjectURL(await response.blob());
+          if (office) {
+            const link = make('a');
+            link.href = blobUrl;
+            link.download = label.split('/').pop();
+            document.body.append(link);
+            link.click();
+            link.remove();
+          } else if (tab) {
+            tab.location.href = blobUrl;
+          } else {
+            const link = make('a');
+            link.href = blobUrl;
+            link.target = '_blank';
+            document.body.append(link);
+            link.click();
+            link.remove();
+          }
+          setTimeout(() => URL.revokeObjectURL(blobUrl), 600000);
+        } catch (error) {
+          tab?.close();
+          button.title = error.message;
+          button.textContent = `${label} · 暂时无法打开`;
+        } finally {
+          button.disabled = false;
+        }
+      });
+      return button;
     }
     try {
       const url = new URL(file);

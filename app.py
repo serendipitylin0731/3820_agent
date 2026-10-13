@@ -19,7 +19,7 @@ from config import ConfigurationError, get_settings
 from contracts import AgentResult, ChatError, ChatRequest, ChatResponse, ErrorInfo
 from graph import ask
 from knowledge.knowledge_base import retrieval_metrics
-from knowledge.library_search import download_file, media_text, preview_text, public_record, search_documents
+from knowledge.library_search import cited_record, download_file, media_text, preview_text, public_record, search_documents
 from resilience import timeout_error
 
 logger = logging.getLogger('3820_agent')
@@ -220,6 +220,18 @@ def library_download(doc_id: str):
         return _error(404, 'not_found', '下载文件尚未生成')
     safe_title = re.sub(r'[<>:"/\\|?*\x00-\x1f]', '_', item['title']).strip(' .')[:150]
     return FileResponse(target, filename=f'{safe_title}{target.suffix}', content_disposition_type='attachment')
+
+
+@app.get('/sources/open')
+def open_cited_source(file: str):
+    found = cited_record(file)
+    if found is None:
+        return _error(404, 'not_found', '该来源没有可访问的原件')
+    _, path = found
+    inline = path.suffix.lower() in {'.pdf', '.png', '.jpg', '.jpeg', '.webp', '.mp4', '.mov', '.m4v', '.md'}
+    return FileResponse(path, filename=path.name,
+                        content_disposition_type='inline' if inline else 'attachment',
+                        media_type='text/plain; charset=utf-8' if path.suffix.lower() == '.md' else None)
 
 
 @app.get('/metrics')

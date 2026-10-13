@@ -66,6 +66,12 @@ def test_public_search_preview_download_and_private_exclusions(tmp_path, monkeyp
             assert '沿江布局' in client.get('/library/image/text').json()['content']
             assert client.get('/library/video/download').content == b'mp4-file'
             assert '00:00:03' in client.get('/library/video/text').json()['content']
+            assert client.get('/sources/open', params={'file': image_item['path']}).content == b'png-file'
+            assert client.get('/sources/open', params={'file': video_item['path']}).content == b'mp4-file'
+            assert client.get('/sources/open', params={'file': item(paper, 'papers', 'paper', True)['path']}).content == b'word-download'
+            assert client.get('/sources/open', params={'file': item(ppt, 'presentations', 'ppt', False)['path']}).content == b'ppt-file'
+            assert client.get('/sources/open', params={'file': item(course, 'courses', 'course', False)['path']}).status_code == 404
+            assert client.get('/sources/open', params={'file': '../../.env'}).status_code == 404
             for identifier in ('course', 'ppt', '..', 'missing'):
                 assert client.get(f'/library/{identifier}/download').status_code == 404
                 assert client.get(f'/library/{identifier}/preview').status_code == 404
