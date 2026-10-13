@@ -1,0 +1,5 @@
+# Optional local indexing tools. The server only needs the generated catalog,
+# media files and derived text, so these are not required on a deployed host.
+-r ocr.txt
+faster-whisper==1.2.1
+opencv-python-headless==4.11.0.86

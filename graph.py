@@ -70,9 +70,11 @@ def route_node(state):
 def retrieve_node(state):
     started = time.monotonic()
     question = _query(state)
+    media_request = any(term in question for term in
+                        ('示意图', '地图', '幻灯片', 'PPT', '图片', '图像', '照片', '扫描件', '视频', '录像', '画面'))
     direct = direct_hits(question)
     if direct and (direct[0].chunk_id == 'reviewed:investment_map' or
-                   not any(term in question for term in ('示意图', '地图', '幻灯片', 'PPT', '图片'))):
+                   not media_request):
         found = KnowledgeResult(status='ok', hits=direct)
         log_event('retrieval_finished', state.get('request_id', ''), state.get('thread_id', ''),
                   node='retrieve_node', duration_ms=round((time.monotonic() - started) * 1000, 1))
@@ -80,14 +82,14 @@ def retrieve_node(state):
                 'kb_sources': [hit.source.model_dump() for hit in direct],
                 'kb_error': None, 'kb_error_code': None}
     query = ('福州市20年经济社会发展战略设想 战略布局'
-             if '布局' in question and any(term in question for term in ('3820', '战略'))
+             if not media_request and '布局' in question and any(term in question for term in ('3820', '战略'))
              else '福州市20年经济社会发展战略设想 3820工程 调查研究 战略规划'
-             if any(term in question for term in ('马克思', '习近平新时代', '方法论', '新发展理念'))
+             if not media_request and any(term in question for term in ('马克思', '习近平新时代', '方法论', '新发展理念'))
              else question)
     for attempt in range(2):
         try:
             found = search(query, top_k=get_settings().top_k)
-            if direct:
+            if direct and not media_request:
                 found = found.model_copy(update={'status': 'ok',
                     'hits': [*direct, *[hit for hit in found.hits
                                       if hit.chunk_id not in {item.chunk_id for item in direct}]][:get_settings().top_k]})
@@ -104,7 +106,7 @@ def retrieve_node(state):
         except Exception as exc:
             if attempt == 0 and transient_error(exc):
                 continue
-            if direct:
+            if direct and not media_request:
                 found = KnowledgeResult(status='ok', hits=direct)
                 return {'kb_context': format_context(found),
                         'kb_sources': [hit.source.model_dump() for hit in direct],

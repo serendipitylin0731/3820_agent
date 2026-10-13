@@ -35,13 +35,45 @@ def test_word_uses_paragraph_and_table_positions(tmp_path):
     assert [hit.source.page_or_slide for hit in chunks] == ['段落1', '段落2']
 
 
-def test_slides_are_excluded_from_chat_retrieval(tmp_path, monkeypatch):
-    for name in ('3820PPT+视频.ppt', '3820视频.pptx'):
-        (tmp_path / name).touch()
-    monkeypatch.setattr(kb, 'DATA_DIR', tmp_path)
-    monkeypatch.setattr(kb, 'LIBRARY_CATALOG', tmp_path / 'missing.json')
-    paths = kb._source_paths(Settings())
-    assert not paths
+def test_media_and_ppt_sidecars_are_used_by_chat_and_page_ranking(tmp_path, monkeypatch):
+    import json
+    root = tmp_path
+    docs = root / 'docs'
+    docs.mkdir()
+    guide = docs / 'guide.md'
+    guide.write_text('# 1 Guide\n', encoding='utf-8')
+    library = root / 'knowledge' / 'library'
+    derived = library / 'derived'
+    derived.mkdir(parents=True)
+    entries = []
+    for identifier, title, suffix, category, text in [
+        ('img40', '原件扫描第40页', '.png', 'media', '# 原件扫描第40页\n\n闽江口规划'),
+        ('img41', '原件扫描第41页', '.png', 'media', '# 原件扫描第41页\n\n闽江口规划'),
+        ('video', '3820纪录片', '.mp4', 'media', '# 3820纪录片\n\n[音频 00:00:03] 闽江口规划'),
+        ('slide', '3820视频', '.pptx', 'presentations', '# 3820视频\n\n## 第 3 页\n\n闽江口规划'),
+    ]:
+        path = derived / f'{identifier}.txt'
+        path.write_text(text, encoding='utf-8')
+        entries.append({'id': identifier, 'title': title, 'category': category,
+                        'path': f'knowledge/library/{identifier}{suffix}',
+                        'text_path': f'knowledge/library/derived/{identifier}.txt',
+                        'searchable': category == 'media'})
+    catalog = library / 'catalog.json'
+    catalog.write_text(json.dumps({'entries': entries}), encoding='utf-8')
+    monkeypatch.setattr(kb, 'GUIDE', guide)
+    monkeypatch.setattr(kb, 'DATA_DIR', root / 'knowledge' / 'data')
+    monkeypatch.setattr(kb, 'LIBRARY_CATALOG', catalog)
+    kb._load_knowledge_base.cache_clear()
+    try:
+        paths = kb._source_paths(Settings())
+        assert all((derived / f'{identifier}.txt').resolve() in paths
+                   for identifier in ('img40', 'img41', 'video', 'slide'))
+        chunks = kb.get_knowledge_base()
+        assert kb.search('原件扫描第40页图片写了什么', chunks=chunks).hits[0].source.page_or_slide == 40
+        assert kb.search('3820视频PPT第3页讲了什么', chunks=chunks).hits[0].source.section == '演示文稿'
+        assert kb.search('3820纪录片视频讲了什么', chunks=chunks).hits[0].source.section == '视频语音与画面文字'
+    finally:
+        kb._load_knowledge_base.cache_clear()
 
 
 def test_scan_ocr_page_retains_preview_page_and_unverified_status(tmp_path):

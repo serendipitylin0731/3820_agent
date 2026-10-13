@@ -1,5 +1,6 @@
 """规划分析：先使用经整理的可追溯材料，避免把 OCR 噪声当答案。"""
 import json
+import re
 from pathlib import Path
 from pydantic import BaseModel, ConfigDict, Field
 from knowledge.curated import answer_passage, source_sections
@@ -79,6 +80,28 @@ def run_planning(question, kb_text):
             suggestions='分析建议：必要时查看所列原件和公开资料。',
             source_sections=sections,
         ).model_dump()
+    if any(term in question for term in ('图片', '图像', '照片', '扫描件', '视频', '录像',
+                                         '画面', '幻灯片', 'PPT')):
+        media_sections = ('图片文字识别', '视频语音与画面文字', '演示文稿')
+        passages = []
+        used_sections = []
+        for block in re.split(r'\n\n(?=\[)', kb_text):
+            section = next((name for name in media_sections if block.startswith(f'[{name} ')), None)
+            if section:
+                used_sections.append(section)
+                passages.append(re.sub(r'^\[[^\]]+\]\s*', '', block).strip()[:650])
+            if len(passages) == 3:
+                break
+        if passages:
+            return PlanningReport(
+                background='资料未提及',
+                stage_goals='资料未提及',
+                implementation_paths='；'.join(passages).rstrip('。') + '。',
+                evidence='所列图片、视频或演示文稿的提取文字及对应位置。',
+                risks='自动语音转写和图片文字识别可能存在错字，具体表述以原件为准。',
+                suggestions='阅读或播放来源文件可以核对文字和上下文。',
+                source_sections=list(dict.fromkeys(used_sections)),
+            ).model_dump()
     # Search overlap alone is not proof: OCR contains many long, unrelated
     # passages that share common words with the question.
     return {'insufficient_evidence': '现有资料没有直接支持该具体问题的片段。'}

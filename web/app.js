@@ -189,7 +189,9 @@
   }
 
   function sourceLink(file) {
-    if (!/^https?:\/\//i.test(file)) return document.createTextNode(file);
+    if (!/^https?:\/\//i.test(file)) {
+      return document.createTextNode(file.replace(/\.md$/i, '.docx'));
+    }
     try {
       const url = new URL(file);
       if (!['http:', 'https:'].includes(url.protocol)) return document.createTextNode(file);
@@ -510,11 +512,22 @@
       } else {
         previewBlobUrl = URL.createObjectURL(await response.blob());
         const element = item.format === 'pdf' ? make('iframe', 'library-frame')
-          : item.format === 'mp4' ? make('video', 'library-video') : make('img', 'library-image');
+          : ['mp4', 'mov', 'm4v'].includes(item.format) ? make('video', 'library-video') : make('img', 'library-image');
         element.src = previewBlobUrl + (item.format === 'pdf' && item.match_page ? `#page=${item.match_page}` : '');
-        if (item.format === 'mp4') element.controls = true;
+        if (['mp4', 'mov', 'm4v'].includes(item.format)) element.controls = true;
         element.title = item.title;
         readerContent.append(element);
+        if (item.category === 'media') {
+          try {
+            const transcript = await checkedFetch(`/library/${encodeURIComponent(item.id)}/text`);
+            const payload = await transcript.json();
+            const section = make('section', 'media-transcript');
+            section.append(make('h2', '', ['mp4', 'mov', 'm4v'].includes(item.format)
+              ? '语音转写与画面文字' : '图片文字识别'));
+            section.append(renderMarkdown(payload.content, item));
+            readerContent.append(section);
+          } catch (_) { /* The original image or video remains available. */ }
+        }
       }
     } catch (error) {
       readerContent.replaceChildren(make('p', 'library-status', error.message));
@@ -558,7 +571,8 @@
       libraryStatus.textContent = payload.results.length ? `找到 ${payload.results.length} 条匹配资料，按相关度排序` : '没有找到匹配的资料，请更换关键词。';
       for (const item of payload.results) {
         const card = make('article', 'library-card');
-        const label = { documents: '文字文档', papers: '本地论文', literature: '文献', pdf: 'PDF', media: '图片与视频' }[item.category];
+        const label = item.category === 'media' ? (['mp4', 'mov', 'm4v'].includes(item.format) ? '视频' : '图片')
+          : { documents: '文字文档', papers: '本地论文', literature: '文献', pdf: 'PDF' }[item.category];
         card.append(make('span', 'library-type', label || item.format), make('h2', '', item.title));
         if (item.collection) card.append(make('small', 'library-collection', item.collection));
         if (item.match_page) card.append(make('small', 'library-match-page', `匹配于第 ${item.match_page} 页`));

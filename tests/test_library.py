@@ -14,7 +14,9 @@ def test_public_search_preview_download_and_private_exclusions(tmp_path, monkeyp
     public = root / 'knowledge' / 'library' / 'papers'
     private = root / 'knowledge' / 'library' / 'courses'
     slides = root / 'knowledge' / 'library' / 'presentations'
-    for folder in (public, private, slides):
+    media = root / 'knowledge' / 'library' / 'media'
+    derived = root / 'knowledge' / 'library' / 'derived'
+    for folder in (public, private, slides, media, derived):
         folder.mkdir(parents=True)
     paper = public / '3820战略论文.md'
     paper.write_text('# 3820战略论文\n\n闽江口金三角经济圈有明确的空间布局。', encoding='utf-8')
@@ -23,6 +25,12 @@ def test_public_search_preview_download_and_private_exclusions(tmp_path, monkeyp
     course.write_text('闽江口课程资料', encoding='utf-8')
     ppt = slides / '闽江口课件.pptx'
     ppt.write_bytes(b'ppt-file')
+    image = media / '闽江口规划.png'
+    image.write_bytes(b'png-file')
+    video = media / '闽江口纪录.mp4'
+    video.write_bytes(b'mp4-file')
+    (derived / 'image.txt').write_text('# 闽江口规划\n\n图片显示沿江布局', encoding='utf-8')
+    (derived / 'video.txt').write_text('# 闽江口纪录\n\n[音频 00:00:03] 闽江口规划', encoding='utf-8')
 
     def item(path, category, identifier, searchable):
         return {'id': identifier, 'title': path.stem, 'path': path.relative_to(root).as_posix(),
@@ -31,9 +39,14 @@ def test_public_search_preview_download_and_private_exclusions(tmp_path, monkeyp
                 'download_path': (public / '3820战略论文.docx').relative_to(root).as_posix() if identifier == 'paper' else None}
 
     catalog = root / 'knowledge' / 'library' / 'catalog.json'
+    image_item = item(image, 'media', 'image', True)
+    video_item = item(video, 'media', 'video', True)
+    image_item['text_path'] = 'knowledge/library/derived/image.txt'
+    video_item['text_path'] = 'knowledge/library/derived/video.txt'
     catalog.write_text(json.dumps({'entries': [item(paper, 'papers', 'paper', True),
                                                 item(course, 'courses', 'course', False),
-                                                item(ppt, 'presentations', 'ppt', False)]}), encoding='utf-8')
+                                                item(ppt, 'presentations', 'ppt', False),
+                                                image_item, video_item]}), encoding='utf-8')
     monkeypatch.setattr(library, 'ROOT', root)
     monkeypatch.setattr(library, 'CATALOG', catalog)
     library._read_catalog.cache_clear()
@@ -43,12 +56,16 @@ def test_public_search_preview_download_and_private_exclusions(tmp_path, monkeyp
         with TestClient(api.app) as client:
             response = client.get('/library/search', params={'q': '闽江口'})
             assert response.status_code == 200
-            assert [item['id'] for item in response.json()['results']] == ['paper']
-            assert '金三角' in response.json()['results'][0]['snippet']
+            assert {'paper', 'image', 'video'} <= {item['id'] for item in response.json()['results']}
+            assert any('金三角' in item['snippet'] for item in response.json()['results'])
             assert client.get('/library/paper/preview').json()['content'].startswith('# 3820战略论文')
             download = client.get('/library/paper/download')
             assert download.content == b'word-download'
             assert 'attachment' in download.headers['content-disposition']
+            assert client.get('/library/image/preview').status_code == 200
+            assert '沿江布局' in client.get('/library/image/text').json()['content']
+            assert client.get('/library/video/download').content == b'mp4-file'
+            assert '00:00:03' in client.get('/library/video/text').json()['content']
             for identifier in ('course', 'ppt', '..', 'missing'):
                 assert client.get(f'/library/{identifier}/download').status_code == 404
                 assert client.get(f'/library/{identifier}/preview').status_code == 404

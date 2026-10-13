@@ -216,6 +216,10 @@ def search_documents(query: str, limit: int = 30) -> list[dict]:
             score = max(title_score, passage_score + exact_mentions * 5)
             if title_score and passage_score:
                 score += min(12.0, passage_score / 10.0)
+            if (item['category'] == 'media' and
+                    Path(item['path']).name.startswith('原件扫描_page_') and
+                    not any(term in query for term in ('图片', '图像', '扫描', '第', '页'))):
+                score *= 0.55  # Keep page images available without crowding their parent document.
             lowered = content.lower()
             highlights = ([query] if query.lower() in lowered else
                           sorted((term for term in terms if len(term) > 1 and term in lowered),
@@ -245,6 +249,13 @@ def preview_text(item: dict, path: Path) -> str | None:
     if path.suffix.lower() in TEXT_SUFFIXES | {'.docx'}:
         return _text(path)
     return None
+
+
+def media_text(item: dict) -> str | None:
+    if item.get('category') != 'media' or not item.get('text_path'):
+        return None
+    path = _safe_path(item['text_path'])
+    return _text(path) if path.is_file() else None
 
 
 def download_file(item: dict, path: Path) -> Path:

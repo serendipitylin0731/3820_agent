@@ -131,6 +131,9 @@ def _normalize_tasks(tasks, question):
         tasks = [task for task in tasks if task['type'] != 'spatial']
         if not any(task['type'] == 'planning' for task in tasks):
             tasks.append({'type': 'planning', 'question': question})
+    if any(term in question for term in ('图片', '图像', '照片', '扫描件', '视频', '录像', '画面', '幻灯片', 'PPT')):
+        if not any(task['type'] == 'planning' for task in tasks):
+            tasks.append({'type': 'planning', 'question': question})
     if any(task['type'] == 'planning' for task in tasks):
         tasks = [task for task in tasks if task['type'] != 'planning'] + [
             {'type': 'planning', 'question': question}]

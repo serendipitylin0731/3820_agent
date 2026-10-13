@@ -10,7 +10,7 @@
 - **查询指标**：直接读取指南表 1 收录的 1990、1995、2000、2010 年 GDP、GNP、城乡收入、产业结构等 13 项指标。1995 年 GDP 阶段目标采用指南表 4 已列出的 204.80 亿元；原始扫描目标表另列 1995 年 GNP 目标 221 亿元，回答会说明两者是不同指标。不同统计版本的数值分别保留和标明来源。
 - **分析空间与路径**：结合规划原件及整理资料，回答闽江口金三角经济圈、福州经济技术开发区、老市区、机场和“海上福州”等问题。
 - **自然语言回答**：服务先理解同义问法、常见阶段问句笔误和同一会话最近几轮的追问，再由主智能体拆分问题，交给指标、规划、空间和评估模块处理，最后合成自然语言。知识库没有直接匹配的材料时，可用用户配置的豆包模型补充；这类回答下方会以小字说明来源边界，不在回答正文展示检索失败提示。
-- **资料检索**：与问答并列的入口按标题和正文关键词查找文献、论文及 PDF 对应的阅读稿，支持标点与空格差异、相近写法及少量错字，按标题和局部正文的相关度降序展示。点击结果直接进入独立阅读页，匹配文字会高亮；有原始页码的文献可跳到命中页，也可打开对应 PDF。阅读稿下载为 Word，原 PDF 可单独查看和下载。最近 10 条检索词保存在当前浏览器，在检索页侧边栏中可重新点击检索。PPT、课程、独立视频和原件扫描单页只归档，不作为独立检索结果。
+- **资料检索**：与问答并列的入口按标题和正文关键词查找文献、论文、PDF、图片和视频；图片使用 OCR 文字，视频使用语音转写及画面 OCR 文字。结果按相关度排序，可预览原图、播放原视频并下载。文字阅读稿支持关键词高亮和原始页码跳转，下载为 Word。最近 10 条检索词保存在当前浏览器。PPT 的逐页文字参与问答，但 PPT 和课程资料不在资料检索页公开。
 - **保存对话**：当前浏览器保存最近 30 轮问答。每次打开默认进入新对话，旧对话可从侧边栏打开并直接看到最新回答；输入框始终位于聊天界面底部。
 
 回答包含的历史数字应结合页面显示的指标名称、年份和统计版本理解。系统不会把 GDP 与 GNP、规划目标与后来完成值混为一项。
@@ -47,7 +47,16 @@ EMBED_MODEL=你的向量模型ID
 .venv/bin/python scripts/organize_library.py
 ```
 
-`knowledge/library/catalog.json` 随代码提交，约 1.4 GiB 的资料正文和影像、`new_things/` 原始压缩包、`knowledge/data/` 中的 OCR/网页抓取缓存均不入 Git。**仅拉取代码无法在服务器上预览或下载这些资料**；部署时需另外把本机的 `knowledge/library/` 整目录复制到服务器项目同名路径。聊天还使用 `knowledge/data/public_sources/` 和 `knowledge/data/original_3820/` 的文字缓存，也应一并复制。复制后重启服务即可读取新清单。目录分类、去重结果和访问范围见[资料清单](docs/资料清单.md)。
+`knowledge/library/catalog.json` 随代码提交，约 1.7 GiB 的资料正文和影像、`new_things/` 原始压缩包、`knowledge/data/` 中的 OCR/网页抓取缓存均不入 Git。**仅拉取代码无法在服务器上预览或下载这些资料**；部署时需另外把本机的 `knowledge/library/` 整目录复制到服务器项目同名路径。聊天还使用 `knowledge/data/public_sources/` 和 `knowledge/data/original_3820/` 的文字缓存，也应一并复制。复制后重启服务即可读取新清单。目录分类、去重结果和访问范围见[资料清单](docs/资料清单.md)。
+
+首次在资料齐全的本机建立图片、视频和 PPT 索引时，先安装可选依赖及 `ffmpeg`、`ffprobe`，再运行：
+
+```bash
+.venv/bin/python -m pip install -r requirements/multimedia.txt
+.venv/bin/python scripts/index_multimedia.py --model base --frame-interval 30
+```
+
+这一步从 PPT 提取内嵌视频，生成 `knowledge/library/derived/` 中的 OCR、语音转写和逐页文字，并更新目录清单。视频首次转写需要本机可用的 faster-whisper `base` 模型；运行中的服务器只读取生成结果，不必安装这些转写依赖。更新服务器时必须同时复制新的 `knowledge/library/` 整目录和目录清单；只有代码更新不会带来影像本体及提取文字。语音和 OCR 可能有识别错误，回答应结合原件核对。
 
 Windows PowerShell 的环境创建和启动命令分别使用 `py -3.11 -m venv .venv`、`.venv\Scripts\python.exe -m pip install -r requirements.lock` 和 `.venv\Scripts\python.exe -m uvicorn app:app --host 127.0.0.1 --port 8000`。
 
@@ -85,11 +94,11 @@ flowchart LR;
 一次提问按以下步骤处理：
 
 1. **理解、拆分与路由**：`knowledge/query_understanding.py` 将常见同义说法、阶段问句笔误和同一会话最近四轮的追问整理成独立问句；遇到规则无法识别的简短主题问法时，可用已配置的豆包模型从限定主题中分类，分类结果只用于选择资料，不充当事实依据。`agents/agent_main.py` 再将问题拆成规划、指标、空间、评估子任务并校验。`graph.py` 用 LangGraph 串联检索、执行和答案合成，并用 SQLite 保存可恢复的会话快照及最近问句。不同会话的上下文不混用。
-2. **准备与检索资料**：`scripts/organize_library.py` 从本地压缩包和既有资料生成分类目录及去重清单。`knowledge/knowledge_base.py` 读取指南、允许检索的 Markdown、公开网页文字和原件扫描 OCR，切成带来源的片段；PPT 与课程资料不进入聊天检索。资料库目录存在时使用本地文本检索，避免继续使用此前可能包含课程 PPT 的旧向量索引。
+2. **准备与检索资料**：`scripts/organize_library.py` 从本地压缩包和既有资料生成分类目录及去重清单；`scripts/index_multimedia.py` 为图片、视频和 PPT 生成带位置的提取文字。`knowledge/knowledge_base.py` 读取指南、文献、公开网页、图片 OCR、视频转写和 PPT 逐页文字，切成带原件文件名与页码或时间戳的片段。课程文档不进入问答；PPT 只进入问答。资料库目录存在时使用本地文本检索，避免继续使用旧向量索引。
 3. **执行领域子任务**：指标模块从 `knowledge/indicators.json` 读取实际值，从指南表 4 和原件扫描目标表读取各自的规划目标；空间模块读取结构化空间资料；规划模块根据检索到的直接片段形成结构化报告；评估模块仅在比较年份、指标口径和判据足够明确时计算。不同来源的 GDP、GNP 或统计版本保留各自口径，不直接混算。
 4. **合成与标注答案**：`agents/answer_writer.py` 汇总子任务结果和来源，优先生成有资料支撑的回答。仅当“3820”或福州发展相关问题缺少直接依据、且用户配置了对话模型时，才可能由豆包补充；这种回答标为模型参考内容，不伪造资料引用。依据不足或子任务失败会在结果中保留对应状态。
 
-`app.py` 使用 FastAPI 提供静态页面、`/chat` 以及 `/library/search`、`/library/{id}/preview`、`/library/{id}/download` 接口。服务端只允许清单中标记公开的文件访问，不能通过修改前端请求取出 PPT 或课程资料。对话历史保存在当前浏览器的本地存储中。
+`app.py` 使用 FastAPI 提供静态页面、`/chat` 以及 `/library/search`、`/library/{id}/preview`、`/library/{id}/text`、`/library/{id}/download` 接口。服务端只允许清单中标记公开的文件访问，不能通过修改前端请求取出 PPT 或课程资料。对话历史保存在当前浏览器的本地存储中。
 
 同义问法、连续追问和模糊检索的实际测试记录见[问答与资料检索审计](docs/project/检索与问答审计.md)。
 

@@ -222,8 +222,9 @@ def load_ppt_image_ocr_chunks(path, metadata, root):
 
 
 def _source_paths(settings):
-    # Slides and teaching materials are archived but never enter retrieval.
+    # Teaching documents stay private; media and slides use prepared text sidecars.
     files = []
+    indexed_scan_pages = set()
     extra = os.environ.get('AGENT3820_EXTRA_DATA_DIR')
     if extra and Path(extra).is_dir():
         files.extend(path for path in Path(extra).iterdir() if path.is_file() and
@@ -231,6 +232,13 @@ def _source_paths(settings):
                      any(word in path.name for word in ('教学', '教案', '课件', '课程', '研修')))
     if LIBRARY_CATALOG.is_file():
         for item in json.loads(LIBRARY_CATALOG.read_text(encoding='utf-8')).get('entries', []):
+            if item.get('category') in {'media', 'presentations'} and item.get('text_path'):
+                path = GUIDE.parent.parent / item['text_path']
+                if path.is_file():
+                    files.append(path)
+                    source = item.get('source', '')
+                    if source.startswith('knowledge/data/original_3820/pages/'):
+                        indexed_scan_pages.add((GUIDE.parent.parent / source).with_suffix('.txt').resolve())
             if item.get('searchable') and not item.get('source', '').startswith('knowledge/data/public_sources/') \
                     and item.get('category') in {'documents', 'papers', 'literature'} \
                     and item['path'].endswith('.md'):
@@ -244,7 +252,8 @@ def _source_paths(settings):
             files.append(public_dir / 'manifest.json')
     scan_dir = DATA_DIR / 'original_3820'
     if scan_dir.is_dir():
-        files.extend((scan_dir / 'pages').glob('page_*.txt'))
+        files.extend(path for path in (scan_dir / 'pages').glob('page_*.txt')
+                     if path.resolve() not in indexed_scan_pages)
         for name in ('manifest.json', 'catalog.json'):
             if (scan_dir / name).is_file():
                 files.append(scan_dir / name)
@@ -262,6 +271,11 @@ def get_knowledge_base():
 @lru_cache(maxsize=4)
 def _load_knowledge_base(_guide_version, signatures):
     hits = load_markdown(GUIDE)
+    media_by_text = {}
+    if LIBRARY_CATALOG.is_file():
+        media_by_text = {(GUIDE.parent.parent / item['text_path']).resolve(): item
+                         for item in json.loads(LIBRARY_CATALOG.read_text(encoding='utf-8')).get('entries', [])
+                         if item.get('category') in {'media', 'presentations'} and item.get('text_path')}
     public_dir = DATA_DIR / 'public_sources'
     manifest_path = public_dir / 'manifest.json'
     metadata = ({item['id']: item for item in json.loads(manifest_path.read_text(encoding='utf-8'))}
@@ -272,7 +286,9 @@ def _load_knowledge_base(_guide_version, signatures):
                      if scan_manifest.is_file() else None)
     for name, _, _ in signatures:
         path = Path(name)
-        if path.suffix.lower() == '.md':
+        if path in media_by_text:
+            hits.extend(load_derived_chunks(path, media_by_text[path]))
+        elif path.suffix.lower() == '.md':
             hits.extend(load_library_markdown_chunks(path))
         elif path.suffix.lower() == '.txt' and path.parent == scan_dir / 'pages':
             if scan_metadata:
@@ -280,6 +296,50 @@ def _load_knowledge_base(_guide_version, signatures):
         elif path.suffix.lower() == '.txt':
             hits.extend(load_public_text_chunks(path, metadata.get(path.stem, {})))
     return hits
+
+
+def load_derived_chunks(path, item):
+    """Keep original media/PPT as the cited source, with slide or timestamp."""
+    text = Path(path).read_text(encoding='utf-8-sig', errors='replace').strip()
+    source_file = item['path']
+    version = _version(path)
+    suffix = Path(source_file).suffix.lower()
+    chunks = []
+
+    def add(content, position, section):
+        if content.strip():
+            chunks.append(KnowledgeHit(chunk_id=f'{item["id"]}:{len(chunks) + 1}',
+                                       content=f'{item["title"]}\n{content.strip()}',
+                                       source=SourceRef(source_file=source_file, page_or_slide=position,
+                                                        section=section, data_version=version,
+                                                        verified=False)))
+
+    if suffix in {'.ppt', '.pptx'}:
+        markers = list(re.finditer(r'(?m)^## 第 (\d+) 页\s*$', text))
+        for index, marker in enumerate(markers):
+            end = markers[index + 1].start() if index + 1 < len(markers) else len(text)
+            add(text[marker.end():end], int(marker.group(1)), '演示文稿')
+    elif suffix in {'.mp4', '.mov', '.m4v'}:
+        block, start = [], None
+        for line in text.splitlines():
+            match = re.match(r'^\[(音频|画面) (\d\d:\d\d:\d\d)\] (.+)$', line)
+            if not match:
+                continue
+            if block and sum(map(len, block)) + len(line) > 700:
+                add('\n'.join(block), start, '视频语音与画面文字')
+                block = []
+            if not block:
+                start = match.group(2)
+            block.append(line)
+        if block:
+            add('\n'.join(block), start, '视频语音与画面文字')
+        if not chunks:
+            add('未提取到可检索的语音或画面文字；可打开原视频查看。', None, '视频语音与画面文字')
+    else:
+        page = re.search(r'原件扫描第(\d+)页', item['title'])
+        add(text.removeprefix(f"# {item['title']}").strip() or '未识别到文字；可打开原图查看。',
+            int(page.group(1)) if page else None, '图片文字识别')
+    return chunks
 
 
 def load_library_markdown_chunks(path):
@@ -382,13 +442,54 @@ def search(query, *, chunks=None, top_k=5, min_score=0.35):
             return result
     chunks = get_knowledge_base() if chunks is None else chunks
     query_tokens = _tokens(query)
+    media_request = any(term in query for term in
+                        ('示意图', '地图', '幻灯片', 'PPT', '图片', '图像', '照片', '扫描件', '视频', '录像', '画面'))
+    # Explicit format and page references are more reliable than character overlap
+    # with lengthy OCR/transcripts.  In particular, "第40页" must retrieve page 40.
+    if re.search(r'PPT|ppt|幻灯片|演示文稿', query):
+        requested_section = '演示文稿'
+    elif any(word in query for word in ('视频', '录像', '影片')):
+        requested_section = '视频语音与画面文字'
+    elif any(word in query for word in ('图片', '图像', '照片', '扫描件', '扫描页')):
+        requested_section = '图片文字识别'
+    else:
+        requested_section = None
+    page_match = re.search(r'第\s*(\d+)\s*页', query)
+    requested_page = int(page_match.group(1)) if page_match else None
     ranked = []
     for hit in chunks:
         overlap = len(query_tokens & _tokens(hit.content))
         score = overlap / max(1, len(query_tokens))
+        if media_request and hit.source.section in {
+                '图片文字识别', '视频语音与画面文字', '演示文稿'}:
+            if requested_section == hit.source.section:
+                score += 0.9
+            elif requested_section:
+                score -= 0.7
+            else:
+                score += 0.2
+            if requested_page is not None:
+                score += 2.0 if hit.source.page_or_slide == requested_page else -0.8
+            title = hit.content.split('\n', 1)[0]
+            deck = re.search(r'《([^》]+)》内嵌视频', title)
+            name = deck.group(1) if deck else Path(hit.source.source_file).stem
+            if len(name) >= 4 and name in query:
+                score += 1.0
         if score >= min_score:
             ranked.append((score, hit))
     ranked.sort(key=lambda x: x[0], reverse=True)
+    if requested_section and any(hit.source.section == requested_section for _, hit in ranked):
+        ranked = [(score, hit) for score, hit in ranked if hit.source.section == requested_section]
+    if requested_page is not None and any(hit.source.page_or_slide == requested_page for _, hit in ranked):
+        ranked = [(score, hit) for score, hit in ranked if hit.source.page_or_slide == requested_page]
+    if requested_section and ranked:
+        def named_source(hit):
+            title = hit.content.split('\n', 1)[0]
+            match = re.search(r'《([^》]+)》内嵌视频', title)
+            name = match.group(1) if match else Path(hit.source.source_file).stem
+            return len(name) >= 4 and name in query
+        if any(named_source(hit) for _, hit in ranked):
+            ranked = [(score, hit) for score, hit in ranked if named_source(hit)]
     hits = [hit.model_copy(update={'score': round(score, 4), 'score_kind': 'similarity'})
             for score, hit in ranked[:top_k]]
     result = KnowledgeResult(status='ok', hits=hits) if hits else KnowledgeResult(status='insufficient_evidence')

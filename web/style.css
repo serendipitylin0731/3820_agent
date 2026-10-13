@@ -26,6 +26,7 @@ dialog{border:1px solid #dce8dc;border-radius:15px;width:min(450px,calc(100% - 3
 
 .suggestion-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 13px;color:#67816f;font-size:11px;font-weight:700;letter-spacing:.06em}.suggestion-heading button{border:0;background:transparent;color:#2c7452;padding:5px 2px;font-size:11px;font-weight:700}.suggestion-heading button:hover{text-decoration:underline;text-underline-offset:3px}
 .library-suggestions{margin:23px 0 25px}.library-suggestion-list{display:flex;flex-wrap:wrap;gap:9px}.library-suggestion-list button{border:1px solid #dce6db;background:#fff;border-radius:8px;padding:10px 13px;color:#315b42;font-size:12px;text-align:left;line-height:1.4}.library-suggestion-list button:hover,.library-suggestion-list button:focus-visible{border-color:#80ab8d;background:#eef5ec;outline:none}
+.media-transcript{margin-top:28px;padding-top:22px;border-top:1px solid #e3ebe1}.media-transcript h2{font-size:16px;color:#315b42;margin:0 0 15px}.media-transcript .library-markdown{font-size:14px;line-height:1.85}
 
 body[data-view="chat"] .timeline-wrap{flex:0 0 auto;overflow:visible}
 body[data-view="chat"] .history-panel{flex:1 1 auto;max-height:none;min-height:0}

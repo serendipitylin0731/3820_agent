@@ -19,7 +19,7 @@ from config import ConfigurationError, get_settings
 from contracts import AgentResult, ChatError, ChatRequest, ChatResponse, ErrorInfo
 from graph import ask
 from knowledge.knowledge_base import retrieval_metrics
-from knowledge.library_search import download_file, preview_text, public_record, search_documents
+from knowledge.library_search import download_file, media_text, preview_text, public_record, search_documents
 from resilience import timeout_error
 
 logger = logging.getLogger('3820_agent')
@@ -191,9 +191,21 @@ def library_preview(doc_id: str):
         return {'id': doc_id, 'title': item['title'], 'format': path.suffix.lower().lstrip('.'),
                 'content': content, 'pages': item.get('pages', []),
                 'source_url': item.get('source_url'), 'collection': item.get('collection')}
-    if path.suffix.lower() in {'.pdf', '.png', '.jpg', '.jpeg', '.webp', '.mp4'}:
+    if path.suffix.lower() in {'.pdf', '.png', '.jpg', '.jpeg', '.webp', '.mp4', '.mov', '.m4v'}:
         return FileResponse(path, filename=path.name, content_disposition_type='inline')
     return _error(415, 'unsupported_preview', '该格式暂不支持在线预览')
+
+
+@app.get('/library/{doc_id}/text')
+def library_media_text(doc_id: str):
+    found = public_record(doc_id)
+    if found is None:
+        return _error(404, 'not_found', '资料不存在')
+    item, _ = found
+    content = media_text(item)
+    if content is None:
+        return _error(404, 'not_found', '该资料没有可读取的文字')
+    return {'id': doc_id, 'content': content}
 
 
 @app.get('/library/{doc_id}/download')
