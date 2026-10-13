@@ -37,7 +37,11 @@
   const clearSearchHistory = document.querySelector('#clear-library-history');
   const historyStore = window.ChatHistory;
   const libraryView = document.querySelector('#library-view');
+  const newChatToggle = document.querySelector('#new-chat');
   const libraryToggle = document.querySelector('#library-toggle');
+  const libraryQuery = document.querySelector('#library-query');
+  const librarySuggestions = document.querySelector('#library-suggestions');
+  const librarySuggestionList = document.querySelector('#library-suggestion-list');
   const libraryResults = document.querySelector('#library-results');
   const libraryStatus = document.querySelector('#library-status');
   const libraryReader = document.querySelector('#library-reader');
@@ -57,6 +61,17 @@
   let busy = false;
   let serviceKey = '';
   let clientId = '';
+  let librarySearchGeneration = 0;
+
+  const searchSuggestions = [
+    '福州市20年经济社会发展战略设想', '3820战略工程编制过程',
+    '三年八年二十年', '闽江口金三角经济圈',
+    '海上福州', '福州经济技术开发区',
+    '长乐国际机场', '福州港口建设',
+    '习近平在福州 调查研究', '1995年国民生产总值',
+    '福州对外开放', '3820战略工程实施成效',
+  ];
+  let previousSearchSuggestions = [];
 
   const exampleQuestions = [
     { category: '战略规划', label: '三个阶段分别要做什么？', question: '3820工程分为哪三个阶段？各阶段的主要目标是什么？' },
@@ -115,6 +130,29 @@
       button.append(make('span', 'suggestion-category', example.category), make('span', '', example.label), arrow);
       button.addEventListener('click', () => sendQuestion(example.question));
       suggestions.append(button);
+    }
+  }
+
+  function renderLibrarySuggestions() {
+    const shuffled = [...searchSuggestions];
+    for (let index = shuffled.length - 1; index > 0; index -= 1) {
+      const randomIndex = Math.floor(Math.random() * (index + 1));
+      [shuffled[index], shuffled[randomIndex]] = [shuffled[randomIndex], shuffled[index]];
+    }
+    const chosen = shuffled.slice(0, 4);
+    if (previousSearchSuggestions.length && chosen.every(term => previousSearchSuggestions.includes(term))) {
+      chosen[0] = shuffled.find(term => !previousSearchSuggestions.includes(term));
+    }
+    previousSearchSuggestions = chosen;
+    librarySuggestionList.replaceChildren();
+    for (const term of chosen) {
+      const button = make('button', '', `${term} ↗`);
+      button.type = 'button';
+      button.addEventListener('click', () => {
+        libraryQuery.value = term;
+        searchLibrary(term);
+      });
+      librarySuggestionList.append(button);
     }
   }
 
@@ -221,11 +259,23 @@
     if (scroll) scrollToLatest();
   }
 
+  function selectNavigation(view) {
+    for (const [button, selected] of [
+      [newChatToggle, view === 'chat'],
+      [libraryToggle, view === 'library'],
+    ]) {
+      button.classList.toggle('active', selected);
+      if (selected) button.setAttribute('aria-current', 'page');
+      else button.removeAttribute('aria-current');
+    }
+  }
+
   function showChat() {
+    librarySearchGeneration += 1;
     document.body.dataset.view = 'chat';
     libraryView.hidden = true;
     libraryReader.hidden = true;
-    libraryToggle.classList.remove('active');
+    selectNavigation('chat');
     backgroundDocument.hidden = true;
     conversation.hidden = false;
     composer.hidden = false;
@@ -240,10 +290,11 @@
   }
 
   function showBackground() {
+    librarySearchGeneration += 1;
     document.body.dataset.view = 'background';
     libraryView.hidden = true;
     libraryReader.hidden = true;
-    libraryToggle.classList.remove('active');
+    selectNavigation('background');
     backgroundDocument.hidden = false;
     conversation.hidden = true;
     composer.hidden = true;
@@ -259,6 +310,7 @@
 
   function showLibrary(preserveScroll = false) {
     document.body.dataset.view = 'library';
+    selectNavigation('library');
     libraryView.hidden = false;
     libraryReader.hidden = true;
     conversation.hidden = true;
@@ -271,11 +323,25 @@
     backgroundToggle.classList.remove('selected');
     backgroundToggle.removeAttribute('aria-current');
     document.querySelector('#mobile-background').removeAttribute('aria-current');
-    libraryToggle.classList.add('active');
     if (!preserveScroll) {
       window.scrollTo({ top: 0, behavior: 'auto' });
-      document.querySelector('#library-query').focus();
+      libraryQuery.focus();
     }
+  }
+
+  function openLibraryHome() {
+    librarySearchGeneration += 1;
+    clearPreview();
+    activeReaderItem = null;
+    currentLibraryQuery = '';
+    lastLibraryScroll = 0;
+    libraryQuery.value = '';
+    libraryResults.replaceChildren();
+    libraryStatus.textContent = '输入关键词开始检索。';
+    librarySuggestions.hidden = false;
+    renderLibrarySuggestions();
+    renderSearchHistory();
+    showLibrary();
   }
 
   function libraryHeaders() {
@@ -302,6 +368,7 @@
     if (libraryReader.hidden) lastLibraryScroll = window.scrollY;
     activeReaderItem = item;
     document.body.dataset.view = 'library-reader';
+    selectNavigation('library');
     libraryView.hidden = true;
     libraryReader.hidden = false;
     historyPanel.hidden = true;
@@ -473,14 +540,20 @@
   }
 
   async function searchLibrary(query) {
+    const term = query.trim();
+    if (!term) return;
+    const generation = ++librarySearchGeneration;
     clearPreview();
+    libraryQuery.value = term;
+    librarySuggestions.hidden = true;
     libraryResults.replaceChildren();
     libraryStatus.textContent = '正在检索资料…';
     try {
-      const response = await checkedFetch(`/library/search?q=${encodeURIComponent(query)}`);
+      const response = await checkedFetch(`/library/search?q=${encodeURIComponent(term)}`);
       const payload = await response.json();
-      currentLibraryQuery = query;
-      savedSearches = searchHistoryStore.save(storage, savedSearches, query);
+      if (generation !== librarySearchGeneration) return;
+      currentLibraryQuery = term;
+      savedSearches = searchHistoryStore.save(storage, savedSearches, term);
       renderSearchHistory();
       libraryStatus.textContent = payload.results.length ? `找到 ${payload.results.length} 条匹配资料，按相关度排序` : '没有找到匹配的资料，请更换关键词。';
       for (const item of payload.results) {
@@ -502,7 +575,7 @@
         libraryResults.append(card);
       }
     } catch (error) {
-      libraryStatus.textContent = error.message;
+      if (generation === librarySearchGeneration) libraryStatus.textContent = error.message;
     }
   }
 
@@ -616,13 +689,14 @@
     questionInput.focus();
     conversation.scrollTop = 0;
   }
-  document.querySelector('#new-chat').addEventListener('click', resetChat);
+  newChatToggle.addEventListener('click', resetChat);
   document.querySelector('#mobile-new-chat').addEventListener('click', resetChat);
-  libraryToggle.addEventListener('click', () => showLibrary());
-  document.querySelector('#mobile-library').addEventListener('click', () => showLibrary());
+  libraryToggle.addEventListener('click', openLibraryHome);
+  document.querySelector('#mobile-library').addEventListener('click', openLibraryHome);
+  document.querySelector('#refresh-library-suggestions').addEventListener('click', renderLibrarySuggestions);
   document.querySelector('#library-search-form').addEventListener('submit', event => {
     event.preventDefault();
-    searchLibrary(document.querySelector('#library-query').value.trim());
+    searchLibrary(libraryQuery.value);
   });
   document.querySelector('#reader-back').addEventListener('click', closeReader);
   readerPageSelect.addEventListener('change', () => jumpToPage(readerPageSelect.value));

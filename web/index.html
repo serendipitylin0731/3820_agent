@@ -6,10 +6,10 @@
   <meta name="theme-color" content="#18342c">
   <title>3820 · 战略知识助手</title>
   <link rel="icon" type="image/svg+xml" href="/assets/logo.svg">
-  <link rel="stylesheet" href="/assets/style.css?v=7">
+  <link rel="stylesheet" href="/assets/style.css?v=8">
   <script src="/assets/history_store.js" defer></script>
   <script src="/assets/search_history.js" defer></script>
-  <script src="/assets/app.js?v=6" defer></script>
+  <script src="/assets/app.js?v=7" defer></script>
 </head>
 <body data-view="chat">
   <div class="shell">
@@ -81,6 +81,10 @@
           <input id="library-query" type="search" maxlength="120" placeholder="例如：福州市20年经济社会发展战略设想" required>
           <button type="submit">检索</button>
         </form>
+        <section class="library-suggestions" id="library-suggestions" aria-labelledby="library-suggestion-title">
+          <div class="suggestion-heading"><span id="library-suggestion-title">推荐检索</span><button type="button" id="refresh-library-suggestions">换一批 ↻</button></div>
+          <div class="library-suggestion-list" id="library-suggestion-list"></div>
+        </section>
         <p class="library-status" id="library-status" role="status">输入关键词开始检索。</p>
         <div class="library-results" id="library-results"></div>
       </section>
