@@ -20,13 +20,22 @@ def run_planning(question, kb_text):
     if not kb_text or '暂无充分依据' in kb_text:
         return None
     if '[3820 战略工程三阶段目标' in kb_text and any(term in question for term in (
-            '三个阶段', '三阶段', '各阶段', '三步目标', '第一阶段', '第二阶段', '第三阶段')):
+            '三个阶段', '三个时期', '三阶段', '各阶段', '三步目标', '分几步',
+            '第一阶段', '第二阶段', '第三阶段')):
+        comparison = None
+        if any(term in question for term in ('相比', '区别', '不同')):
+            if '第二阶段' in question and '第一阶段' in question:
+                comparison = ('第一阶段着重到1995年使主要指标在1990年基础上再翻一番；'
+                              '第二阶段着重到2000年使城乡主要人均指标达到国内先进城市水平。')
+            elif '第三阶段' in question and '第二阶段' in question:
+                comparison = ('第二阶段着重到2000年达到国内先进城市水平；'
+                              '第三阶段着重到2010年达到或接近亚洲中等发达国家或地区当时的平均水平。')
         return PlanningReport(
             background='1992年形成的“3820”战略工程按三年、八年、二十年安排发展。',
             stage_goals=('1995年：以1990年为比较基期，主要指标再翻一番，提前实现小康目标；'
                          '2000年：力争城乡各项人均水平等主要指标达到国内先进城市水平；'
                          '2010年：力争达到或接近亚洲中等发达国家或地区当时的平均发展水平。'),
-            implementation_paths='三个阶段衔接推进，并以产业、基础设施和社会事业建设支撑目标。',
+            implementation_paths=comparison or '三个阶段衔接推进，并以产业、基础设施和社会事业建设支撑目标。',
             evidence='福州市人民政府“3820”战略工程解读；项目背景导读第03节。',
             risks='回答中的年份为阶段目标年份。',
             suggestions='分析建议：对比完成情况时采用相同指标与年份。',

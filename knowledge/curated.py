@@ -14,6 +14,14 @@ from contracts import KnowledgeHit, SourceRef
 
 BACKGROUND = Path(__file__).resolve().parents[1] / 'docs' / '3820背景.md'
 JIANG_HAI_TERMS = ('沿江向海', '东进南下')
+OVERVIEW_CUES = ('具体内容', '主要内容', '核心内容', '总体内容', '整体内容',
+                 '有什么内容', '哪些内容', '包含什么', '包含哪些',
+                 '包括什么', '包括哪些', '有哪些方面', '讲了什么',
+                 '讲的是什么', '讲了哪些', '核心安排', '主要安排',
+                 '主要做什么', '是做什么的', '概述', '概况', '简介',
+                 '介绍一下')
+OVERVIEW_SECTIONS = ('02 规划如何形成', '03 三步目标', '04 江海布局',
+                     '05 重点工程', '06 城市与生活')
 SECTIONS = {
     '01 起点与问题': ('https://slj.fuzhou.gov.cn/zwgk/ztxx/djgz/3820zlgcsxjs/202402/t20240219_4778720.htm', '背景导读·01 起点与问题'),
     '02 规划如何形成': ('https://zygh.fuzhou.gov.cn/zwgk/ztzl/xjpxsdzgtsshzysxxxzt/202105/t20210511_4096820.htm', '背景导读·02 规划如何形成'),
@@ -31,11 +39,11 @@ TOPIC_CUES = (
     ('09 指标名称与统计口径', ('GDP和GNP', 'GDP与GNP', 'GDP、GNP', '指标口径', '目标值与完成值', '目标与完成值')),
     ('08 原始规划与后来的理论视角', ('理论', '思想', '马克思', '新时代', '新发展理念', '人民至上', '视角', '原始依据', '原文', '史料', '后来', '后续表述', '启示')),
     ('07 阶段回看', ('成效', '达成', '完成情况', '实现了吗', '回顾', '第一阶段实现', '发展成果')),
-    ('01 起点与问题', ('为什么制定', '为何制定', '背景', '起点', '发展问题', '南方谈话', '发展条件')),
-    ('02 规划如何形成', ('调查', '调研', '问卷', '论证', '形成', '编制', '制定', '历时', '审议通过', '三个数字', '数字', '跨度', '提出的过程', '算起', '起算')),
-    ('03 三步目标', ('阶段', '目标', '三年', '八年', '二十年', '3年', '8年', '20年', '三步', '1995', '2000', '2010', '翻一番', '小康', '完成值')),
+    ('01 起点与问题', ('为什么制定', '为何制定', '为什么需要', '为何需要', '为什么要搞', '为何要搞', '长期规划', '背景', '起点', '发展问题', '南方谈话', '发展条件')),
+    ('02 规划如何形成', ('调查', '调研', '问卷', '论证', '形成', '编制', '制定', '历时', '审议通过', '三个数字', '数字', '跨度', '3、8、20', '3/8/20', '分别代表', '提出的过程', '算起', '起算')),
+    ('03 三步目标', ('阶段', '目标', '三个时期', '三年', '八年', '二十年', '3年', '8年', '20年', '三步', '分几步', '1995', '2000', '2010', '翻一番', '小康', '完成值')),
     ('04 江海布局', ('布局', '空间', '闽江口', '金三角', '沿江', '向海', '东进', '南下', '开发区', '老市区', '老城区', '南北两翼', '沿海县', '山区县', '后卫', '腹地', '福马线', '福厦线', '闽江流域', '港口')),
-    ('05 重点工程', ('机场', '通航', '海上福州', '招商', '侨资', '侨商', '以侨引侨', '园区为基', '海洋经济', '重点工程', '具体项目', '产业项目', '防洪')),
+    ('05 重点工程', ('机场', '通航', '海上福州', '招商', '侨资', '侨商', '以侨引侨', '园区为基', '海洋经济', '重点工程', '重点项目', '具体项目', '核心举措', '主要举措', '实施措施', '实现路径', '产业项目', '防洪')),
     ('06 城市与生活', ('民生', '百姓', '人民生活', '菜篮子', '苍霞', '环保', '内河', '文化保护', '生活环境')),
 )
 
@@ -49,8 +57,12 @@ def _section(title: str) -> str:
 
 
 def section_titles(question: str) -> list[str]:
-    """Select up to three source sections for the topic, with no fuzzy OCR match."""
+    """Select reviewed source sections for the topic, with no fuzzy OCR match."""
     query = question.strip()
+    if (any(cue in query for cue in OVERVIEW_CUES) and
+            any(cue in query for cue in ('3820', '战略工程', '二十年发展战略')) and
+            not re.search(r'(?<!\d)(?:19|20)\d{2}(?!\d)', query)):
+        return list(OVERVIEW_SECTIONS)
     titles = [title for title, cues in TOPIC_CUES if any(cue in query for cue in cues)]
     if (any(term in query for term in ('为什么', '为何')) and
             any(term in query for term in ('制定', '提出', '形成')) and
@@ -63,7 +75,7 @@ def section_titles(question: str) -> list[str]:
     if any(term in query for term in ('3820', '20年经济社会发展战略', '二十年发展战略')):
         if not titles and any(term in query for term in ('是什么', '什么是', '含义', '概况', '简介', '介绍')):
             titles = ['02 规划如何形成', '03 三步目标']
-        elif any(term in query for term in ('是什么', '什么是', '三个数字')):
+        elif any(term in query for term in ('是什么', '什么是', '三个数字', '3、8、20', '3/8/20', '分别代表')):
             for title in ('02 规划如何形成', '03 三步目标'):
                 if title not in titles:
                     titles.append(title)
@@ -109,12 +121,31 @@ def answer_passage(question: str) -> str | None:
     titles = section_titles(question)
     if not titles:
         return None
+    if titles == list(OVERVIEW_SECTIONS):
+        formation = _section('02 规划如何形成').split('\n\n')
+        stages = _section('03 三步目标').split('\n\n')
+        layout = _section('04 江海布局').split('\n\n')
+        projects = _section('05 重点工程').split('\n\n')
+        livelihood = _section('06 城市与生活').split('\n\n')
+        selected = [
+            '“3820”战略工程以三年、八年、二十年为规划跨度，把阶段目标、江海布局、重点工程和民生安排纳入福州长期发展蓝图。',
+            '规划形成：' + formation[0],
+            '阶段目标：' + ' '.join(item.replace('**', '') for item in stages[:3]),
+            '空间布局：' + layout[0],
+            '重点工程：' + projects[0],
+            '民生与城市生活：' + livelihood[0],
+        ]
+        return '\n\n'.join(selected)[:2600]
     passages = []
     for title in titles:
         paragraphs = [paragraph.strip() for paragraph in _section(title).split('\n\n') if paragraph.strip()]
         if not paragraphs:
             continue
         if title.startswith('05'):
+            if any(term in question for term in ('核心举措', '主要举措', '实施措施', '实现路径')):
+                passage = '\n\n'.join((paragraphs[0], paragraphs[-1]))
+                passages.append(re.sub(r'\*\*(.*?)\*\*', r'\1', passage))
+                continue
             subjects = [term for term in ('机场', '海上福州', '招商', '侨资', '侨商', '港口', '产业')
                         if term in question]
             selected = [paragraph for paragraph in paragraphs if paragraph.startswith('**')
@@ -130,8 +161,8 @@ def answer_passage(question: str) -> str | None:
             passage = '\n\n'.join(selected[:2] if years and selected else paragraphs[:3])
         elif title.startswith('07') and any(term in question for term in ('达成', '评估', '完成')):
             passage = paragraphs[-1]
-        elif title.startswith('02') and any(term in question for term in ('数字', '跨度', '算起', '起算', '是什么', '什么是')):
-            passage = paragraphs[-1] if any(term in question for term in ('数字', '跨度', '算起', '起算')) else '\n\n'.join((paragraphs[1], paragraphs[-1]))
+        elif title.startswith('02') and any(term in question for term in ('数字', '跨度', '算起', '起算', '3、8、20', '3/8/20', '分别代表', '是什么', '什么是')):
+            passage = paragraphs[-1] if any(term in question for term in ('数字', '跨度', '算起', '起算', '3、8、20', '3/8/20', '分别代表')) else '\n\n'.join((paragraphs[1], paragraphs[-1]))
         elif title.startswith('02') and any(term in question for term in ('调查', '调研', '问卷', '论证')):
             passage = paragraphs[0]
         elif title.startswith('08') and any(term in question for term in ('马克思', '新时代', '新发展理念', '人民至上')) and not any(

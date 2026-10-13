@@ -6,7 +6,7 @@ import re
 from pydantic import ValidationError
 from config import ConfigurationError, get_settings
 from contracts import SubTask
-from knowledge.curated import JIANG_HAI_TERMS
+from knowledge.curated import JIANG_HAI_TERMS, OVERVIEW_CUES
 from llm_client import chat
 
 SPLIT_SYSTEM = '''将问题拆成 JSON 数组。每个对象必须包含 type 和 question，question 是对应子问题；禁止使用 content 字段。type 仅为 planning、indicator、spatial、evaluation。
@@ -31,7 +31,8 @@ def _local_split(question):
     if any(term in question for term in ('三次产业结构', '三大产业结构', '三次产业构成')):
         tasks.extend({'type': 'indicator', 'question': question, 'key': key, 'years': years or None}
                      for key in ('industry_primary', 'industry_secondary', 'industry_tertiary'))
-    if '评估' in question or '达成率' in question or '翻一番' in question or '完成率' in question:
+    if (any(term in question for term in ('评估', '达成率', '翻一番', '完成率',
+                                         '实现了吗', '实现没有', '完成了吗', '兑现了吗'))):
         tasks.append({'type':'evaluation','question':question})
     remaining = question
     found = set()
@@ -51,6 +52,13 @@ def _local_split(question):
 
 def _normalize_tasks(tasks, question):
     """对模型拆分做领域校验，防止无关问题被误映射为某项指标。"""
+    if ('3820' in question and any(cue in question for cue in OVERVIEW_CUES) and
+            not re.search(r'(?:19|20)\d{2}|GDP|GNP|多少', question, re.I)):
+        return [{'type': 'planning', 'question': question}]
+    if ('3820' in question and
+            re.search(r'三个阶段|三个时期|三阶段|三步目标|第[一二三123]阶段|分几步', question) and
+            not any(label.lower() in question.lower() for _, label in KEYWORDS)):
+        return [{'type': 'planning', 'question': question}]
     if ('GDP' in question.upper() and 'GNP' in question.upper() and
             not re.search(r'(?:19|20)\d{2}', question) and '目标' not in question and
             any(term in question for term in ('区别', '差别', '概念', '定义'))):
@@ -59,7 +67,8 @@ def _normalize_tasks(tasks, question):
     tasks = [task for task in tasks if task['type'] != 'indicator']
     conceptual = any(cue in question for cue in ('为什么要区分', '如何区分', '怎样区分'))
     evaluating = not conceptual and (any(cue in question for cue in
-                                         ('评估', '达成率', '完成率', '翻一番', '判定'))
+                                         ('评估', '达成率', '完成率', '翻一番', '判定',
+                                          '实现了吗', '实现没有', '完成了吗', '兑现了吗'))
                                      or bool(re.search(r'(?:是否|能否|有没有)[^？?。]*达成|目标[^？?。]*达成',
                                                        question)))
     if not evaluating:

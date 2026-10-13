@@ -17,11 +17,14 @@ from agents.agent_evaluation import eval_1995_phase
 from knowledge.knowledge_base import EXACT_ENTITIES, format_context, search
 from knowledge.curated import direct_hits
 from knowledge.model_fallback import answer_from_model, needs_model
+from knowledge.query_understanding import resolve_question
 from resilience import find_checkpoint, log_event, timeout_error, transient_error
 
 
 class TaskState(TypedDict, total=False):
     question: str
+    previous_question: str
+    resolved_question: str
     request_id: str
     thread_id: str
     sub_tasks: list
@@ -34,10 +37,16 @@ class TaskState(TypedDict, total=False):
     answer: str
 
 
+def _query(state):
+    return state.get('resolved_question') or state['question']
+
+
 def parse_node(state):
     started = time.monotonic()
     try:
-        raw = split_task(state['question'])
+        resolved = resolve_question(state['question'], state.get('previous_question', ''),
+                                    settings=get_settings())
+        raw = split_task(resolved)
         if not isinstance(raw, list) or not raw:
             raise ValueError('未生成有效子任务')
         tasks = [SubTask.model_validate(item).model_dump(exclude_none=True) for item in raw]
@@ -48,7 +57,7 @@ def parse_node(state):
         raise
     log_event('tasks_parsed', state.get('request_id', ''), state.get('thread_id', ''),
               node='parse_node', duration_ms=round((time.monotonic() - started) * 1000, 1))
-    return {'sub_tasks': tasks}
+    return {'sub_tasks': tasks, 'resolved_question': resolved}
 
 
 def route_node(state):
@@ -57,9 +66,10 @@ def route_node(state):
 
 def retrieve_node(state):
     started = time.monotonic()
-    direct = direct_hits(state['question'])
+    question = _query(state)
+    direct = direct_hits(question)
     if direct and (direct[0].chunk_id == 'reviewed:investment_map' or
-                   not any(term in state['question'] for term in ('示意图', '地图', '幻灯片', 'PPT', '图片'))):
+                   not any(term in question for term in ('示意图', '地图', '幻灯片', 'PPT', '图片'))):
         found = KnowledgeResult(status='ok', hits=direct)
         log_event('retrieval_finished', state.get('request_id', ''), state.get('thread_id', ''),
                   node='retrieve_node', duration_ms=round((time.monotonic() - started) * 1000, 1))
@@ -67,10 +77,10 @@ def retrieve_node(state):
                 'kb_sources': [hit.source.model_dump() for hit in direct],
                 'kb_error': None, 'kb_error_code': None}
     query = ('福州市20年经济社会发展战略设想 战略布局'
-             if '布局' in state['question'] and any(term in state['question'] for term in ('3820', '战略'))
+             if '布局' in question and any(term in question for term in ('3820', '战略'))
              else '福州市20年经济社会发展战略设想 3820工程 调查研究 战略规划'
-             if any(term in state['question'] for term in ('马克思', '习近平新时代', '方法论', '新发展理念'))
-             else state['question'])
+             if any(term in question for term in ('马克思', '习近平新时代', '方法论', '新发展理念'))
+             else question)
     for attempt in range(2):
         try:
             found = search(query, top_k=get_settings().top_k)
@@ -78,7 +88,7 @@ def retrieve_node(state):
                 found = found.model_copy(update={'status': 'ok',
                     'hits': [*direct, *[hit for hit in found.hits
                                       if hit.chunk_id not in {item.chunk_id for item in direct}]][:get_settings().top_k]})
-            anchors = [term for term in EXACT_ENTITIES if term in state['question']]
+            anchors = [term for term in EXACT_ENTITIES if term in question]
             if anchors and found.hits:
                 relevant = [hit for hit in found.hits if any(term in hit.content for term in anchors)]
                 if relevant:
@@ -195,11 +205,12 @@ def execute_node(state):
 
 def answer_node(state):
     started = time.monotonic()
+    question = _query(state)
     results = dict(state['results'])
-    fallback = natural_fallback(state['question'], results)
-    answer, theory = compose_answer(state['question'], results, fallback, settings=get_settings())
-    if needs_model(state['question'], results, answer):
-        supplement = answer_from_model(state['question'], settings=get_settings())
+    fallback = natural_fallback(question, results)
+    answer, theory = compose_answer(question, results, fallback, settings=get_settings())
+    if needs_model(question, results, answer):
+        supplement = answer_from_model(question, settings=get_settings())
         if supplement:
             answer, model_result = supplement
             for item in results.values():
@@ -247,7 +258,9 @@ def ask(question, thread_id, request_id=None):
         if snapshot.values.get('question') != question:
             raise ValueError('会话有未完成任务，请先恢复该会话')
         return graph.invoke(None, config)
-    return graph.invoke({'question': question, 'thread_id': thread_id,
+    previous = snapshot.values.get('resolved_question') or snapshot.values.get('question', '')
+    return graph.invoke({'question': question, 'previous_question': previous,
+                               'resolved_question': '', 'thread_id': thread_id,
                                'request_id': request_id or thread_id, 'sub_tasks': [],
                                'kb_context': '', 'kb_sources': [], 'kb_error': None,
                                'kb_error_code': None,
