@@ -25,7 +25,7 @@ KEYWORDS = [('gdp_per_capita','人均地区生产总值'),('gdp_per_capita','人
 
 def _local_split(question):
     tasks = []
-    years = sorted({int(y) for y in re.findall(r'(?:1990|1995|2000|2010)', question)})
+    years = sorted({int(y) for y in re.findall(r'(?<!\d)(?:19|20)\d{2}(?!\d)', question)})
     growth = (any(term in question for term in ('增长率', '增幅', '涨幅', '增长了多少', '增长多少'))
               or '增长' in question and any(term in question for term in ('百分之几', '百分比')))
     if any(term in question for term in ('三次产业结构', '三大产业结构', '三次产业构成')):
@@ -52,6 +52,12 @@ def _local_split(question):
 
 def _normalize_tasks(tasks, question):
     """对模型拆分做领域校验，防止无关问题被误映射为某项指标。"""
+    if (any(task['type'] == 'spatial' for task in tasks) and not any(
+            term in question for term in ('3820', '福州', '闽江', '机场', '港口',
+                                         '园区', '马尾', '苍霞', '元洪', '福清',
+                                         '罗源', '平潭', '空间', '布局', '地图'))):
+        tasks = [task for task in tasks if task['type'] != 'spatial']
+        tasks.append({'type': 'planning', 'question': question})
     if ('3820' in question and any(cue in question for cue in OVERVIEW_CUES) and
             not re.search(r'(?:19|20)\d{2}|GDP|GNP|多少', question, re.I)):
         return [{'type': 'planning', 'question': question}]
@@ -113,6 +119,11 @@ def _normalize_tasks(tasks, question):
         tasks = [task for task in tasks if task['type'] not in {'planning', 'spatial'}]
         tasks.append({'type': 'spatial', 'question': question, 'keyword': named[0]})
     if '福州经济技术开发区' in question and '老市区' in question:
+        tasks = [task for task in tasks if task['type'] != 'spatial']
+        if not any(task['type'] == 'planning' for task in tasks):
+            tasks.append({'type': 'planning', 'question': question})
+    if (any(term in question for term in ('老市区', '老城区')) and
+            any(term in question for term in ('布局', '作用', '位置', '定位', '依托'))):
         tasks = [task for task in tasks if task['type'] != 'spatial']
         if not any(task['type'] == 'planning' for task in tasks):
             tasks.append({'type': 'planning', 'question': question})

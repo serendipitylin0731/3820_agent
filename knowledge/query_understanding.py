@@ -28,7 +28,7 @@ TOPIC_QUESTIONS = {
 }
 STAGE_CUE = re.compile(r'三(?:个|大)?阶段|三步(?:走|目标)?|三个时期|阶段划分|第[一二三123]阶段|分几步|(?<!\d)3[、,/· ]+8[、,/· ]+20(?!\d)')
 OVERVIEW_CUE = re.compile(r'具体内容|主要内容|核心内容|总体内容|整体内容|有什么内容|哪些内容|包含什么|包含哪些|包括什么|包括哪些|有哪些方面|讲了什么|讲的是什么|讲了哪些|核心安排|主要安排|主要做什么|是做什么的|概述|概况|简介|介绍一下')
-FOLLOWUP_CUE = re.compile(r'^(?:那|那么|然后|还有|接着|继续|这个|该|它|其|前者|后者|相比|和第|与第|至于|关于)')
+FOLLOWUP_CUE = re.compile(r'^(?:那|那么|然后|还有|接着|继续|这个|这些|该|它|它们|上述|刚才|其|前者|后者|相比|和第|与第|至于|关于)')
 YEAR = re.compile(r'(?<!\d)(?:19|20)\d{2}(?!\d)')
 ENTITY_TERMS = ('长乐国际机场', '福州经济技术开发区', '闽江口金三角经济圈', '海上福州',
                 '老市区', '苍霞', '马尾', PROJECT, '福州')
@@ -47,14 +47,16 @@ def _clean(question: str) -> str:
 
 def _is_elliptical(question: str) -> bool:
     return bool(FOLLOWUP_CUE.search(question) or
-                len(question) <= 18 and question.rstrip('？?。').endswith('呢'))
+                len(question) <= 18 and (question.rstrip('？?。').endswith('呢') or
+                    any(term in question for term in ('目标实现', '目标完成', '目标达成',
+                                                       '数字为什么', '数据为什么', '不同版本'))))
 
 
 def _subject_from_previous(previous: str) -> str:
     return next((term for term in ENTITY_TERMS if term in previous), PROJECT)
 
 
-def _followup(question: str, previous: str) -> str | None:
+def _followup(question: str, previous: str, history: list[str]) -> str | None:
     if not previous or not _is_elliptical(question):
         return None
     # A new explicit subject takes priority over conversation memory.
@@ -64,6 +66,14 @@ def _followup(question: str, previous: str) -> str | None:
     core = re.sub(r'[呢？?。]+$', '', core).strip()
     if not core:
         return None
+    if any(term in core for term in ('这些目标', '上述目标', '刚才的目标')):
+        recent = history[-3:] if history else [previous]
+        years = {year for item in recent for year in YEAR.findall(item)}
+        metrics = {metric for item in recent for metric in ('GDP', 'GNP') if metric in item.upper()}
+        if len(years) == 1 and metrics == {'GDP', 'GNP'}:
+            year = years.pop()
+            action = '实现了吗' if any(term in core for term in ('实现', '完成', '达成')) else '分别是什么'
+            return f'{year}年GDP和GNP目标{action}？'
     comparison = re.search(r'和第[一二三123]阶段相比', core)
     earlier = re.search(r'第[一二三123]阶段', previous)
     if comparison and earlier:
@@ -86,6 +96,11 @@ def _followup(question: str, previous: str) -> str | None:
             return f'{PROJECT}的{earlier.group()}与上一阶段有什么区别？'
     previous_years = YEAR.findall(previous)
     current_years = YEAR.findall(core)
+    previous_metric = next((metric for metric in ('GDP', 'GNP') if metric in previous.upper()), None)
+    if (len(previous_years) == 1 and previous_metric and
+            any(term in core for term in ('这个数字', '这个数据', '不同版本', '统计口径'))):
+        detail = re.sub(r'^(?:这个数字|这个数据)', '', core).strip()
+        return f'{previous_years[0]}年{previous_metric}{detail}？'
     if len(current_years) == 1 and len(previous_years) == 1 and len(core) <= 12:
         return YEAR.sub(current_years[0], previous, count=1)
     if (not current_years and len(previous_years) == 1 and
@@ -95,6 +110,8 @@ def _followup(question: str, previous: str) -> str | None:
         return f'{previous_years[0]}年{core}{qualifier}？'
     if len(previous_years) == 1 and any(term in core for term in ('这个目标', '该目标', '目标实现', '目标达成')):
         core = core.replace('这个目标', f'{previous_years[0]}年目标').replace('该目标', f'{previous_years[0]}年目标')
+        if core.startswith('目标'):
+            core = f'{previous_years[0]}年{core}'
     subject = _subject_from_previous(previous)
     core = re.sub(r'^(?:这个|该|它|其)(?:工程|规划|战略)?', '', core).strip()
     if not core:
@@ -129,13 +146,13 @@ def _model_topic(question: str, previous: str, settings) -> str | None:
         return None
 
 
-def resolve_question(question: str, previous_question: str = '', *, settings=None) -> str:
-    """Resolve a question using only the same thread's preceding question."""
+def resolve_question(question: str, previous_question: str = '', *, history=None, settings=None) -> str:
+    """Resolve a question using recent questions from the same thread only."""
     current = _clean(question)
     previous = _clean(previous_question)
     if not current:
         return current
-    resolved = _followup(current, previous)
+    resolved = _followup(current, previous, [_clean(item) for item in (history or [])])
     if resolved:
         return resolved
     if not any(cue in current for cue in PROJECT_CUES) and (

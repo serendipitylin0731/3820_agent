@@ -1,6 +1,7 @@
 """知识库没有直接依据时，为 3820 相关问题提供豆包模型补充。"""
 
 import logging
+import re
 
 from config import get_settings
 from contracts import AgentResult
@@ -11,18 +12,21 @@ CITY_TERMS = ('福州', '闽江口', '长乐', '马尾', '元洪', '福清', '�
 PROJECT_TERMS = ('南北两翼', '金三角经济圈', '海上福州', '沿江向海',
                  '东进南下', '机场', '港口', '开发区', '规划原文')
 DEVELOPMENT_TERMS = ('发展', '战略', '规划', '建设', '工程', '经济', '机场', '港口',
-                     '开放', '产业', '投资', '招商', '交通', '开发区', '城市', '基础设施')
+                     '开放', '产业', '投资', '招商', '交通', '开发区', '城市', '基础设施',
+                     'GDP', 'GNP', '生产总值', '收入')
 INSUFFICIENT_MARKERS = (
     '无法明确', '无法确定', '暂未查找到', '未查找到', '未找到', '未收录',
     '依据不足', '资料不足', '未提及', '缺乏具体', '无法给出',
 )
+UNSUPPORTED_ABSENCE = ('公开资料中未', '公开数据中未', '公开可查的权威统计数据中未',
+                       '网上查不到', '没有公开资料', '尚未公开披露')
 MODEL_NOTE = '知识库没有找到直接匹配的资料；此回答由豆包模型补充，未附资料来源。'
 
 
 def is_related(question: str) -> bool:
     return ('3820' in question or any(term in question for term in PROJECT_TERMS) or
             any(term in question for term in CITY_TERMS) and
-            any(term in question for term in DEVELOPMENT_TERMS))
+            any(term in question.upper() for term in DEVELOPMENT_TERMS))
 
 
 def needs_model(question: str, results: dict, answer: str) -> bool:
@@ -64,7 +68,11 @@ def answer_from_model(question: str, *, settings=None):
             {'role': 'user', 'content': question},
         ], temperature=0.2, settings=settings)
         body = raw.strip()
-        if not body or any(marker in body for marker in ('无法识别', '无法回答该问题', '无法提供相关信息')):
+        unsupported_external_claim = re.search(
+            r'(?:公开|权威)[^。！？]{0,40}(?:未|没有|无法)[^。！？]{0,20}'
+            r'(?:披露|提供|查到|查找|公布|公开)', body)
+        if not body or unsupported_external_claim or any(marker in body for marker in (
+                '无法识别', '无法回答该问题', '无法提供相关信息', *UNSUPPORTED_ABSENCE)):
             return None
         result = AgentResult(role='model', status='ok',
                              data={'kind': 'model_knowledge', 'source_note': MODEL_NOTE},

@@ -1,5 +1,7 @@
 """目标达成率与可比性判断；定性目标没有外部基准时拒绝自动评估。"""
+import json
 import math
+from pathlib import Path
 
 
 def _nonnegative_number(value):
@@ -49,14 +51,17 @@ def evaluate_goal(actual=None, target=None, *, direction='up',
 
 def eval_1995_phase(data):
     rows = []
+    original = json.loads((Path(__file__).parents[1] / 'knowledge' / 'original_targets.json').read_text(encoding='utf-8'))
     for key in ('gnp', 'gdp', 'gdp_per_capita', 'urban_income', 'rural_income', 'industry_output'):
         info = data[key]
         base = info['values'][1990]
         actual = info['values'][1995]
-        target = round(base * 2, 2)
+        target = original['gnp']['1995'] if key == 'gnp' else round(base * 2, 2)
+        basis = '原始规划目标表列值' if key == 'gnp' else '指南表4阶段目标算法（1990年基数翻番）'
         rows.append({'指标':info['name'], '单位':info['unit'],
                      '基准':base, '目标':target, '实际':actual,
                      '达成率':compute_achievement(actual, target),
-                     '公式':'1995实际值/(1990基准值×2)×100%',
-                     '来源':info['source_ref']})
+                     '公式':'1995实际值/所列目标值×100%',
+                     '目标依据':basis, '来源':info['source_ref'],
+                     '目标来源':original['source_ref'] if key == 'gnp' else info['source_ref']})
     return rows

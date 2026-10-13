@@ -187,7 +187,12 @@
   }
 
   function modelNotice(payload) {
-    return payload.notice || payload.results?.model?.data?.source_note || '';
+    const model = payload.notice || payload.results?.model?.data?.source_note;
+    if (model) return model;
+    const missing = Object.values(payload.results || {}).find(result =>
+      result.status === 'insufficient_evidence' && typeof result.data === 'string'
+      && result.data.startsWith('已收录指标表未包含'));
+    return missing?.data || '';
   }
 
   function renderAnswer(container, payload, error, scroll = true) {
@@ -478,7 +483,7 @@
       currentLibraryQuery = query;
       savedSearches = searchHistoryStore.save(storage, savedSearches, query);
       renderSearchHistory();
-      libraryStatus.textContent = payload.results.length ? `找到 ${payload.results.length} 条匹配资料` : '没有找到匹配的资料，请更换关键词。';
+      libraryStatus.textContent = payload.results.length ? `找到 ${payload.results.length} 条匹配资料，按相关度排序` : '没有找到匹配的资料，请更换关键词。';
       for (const item of payload.results) {
         const card = make('article', 'library-card');
         const label = { documents: '文字文档', papers: '本地论文', literature: '文献', pdf: 'PDF', media: '图片与视频' }[item.category];

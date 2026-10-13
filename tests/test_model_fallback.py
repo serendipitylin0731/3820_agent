@@ -9,6 +9,7 @@ def test_model_scope_and_evidence_boundary():
     assert fallback.needs_model('为什么强调沿江向海？', missing, '依据不足')
     assert not fallback.needs_model('量子芯片制程是多少？', missing, '依据不足')
     assert not fallback.needs_model('福州明天天气如何？', missing, '依据不足')
+    assert fallback.needs_model('福州1997年GDP是多少？', missing, '依据不足')
     disputed = {'indicator': {'role': 'indicator', 'status': 'insufficient_evidence',
                               'data': {'values': {1990: 102.4, 2010: 3123.41},
                                        'incomparable': [{'year': 2010, 'value': 3242.65}]}}}
@@ -29,6 +30,14 @@ def test_model_unavailable_keeps_insufficient_evidence(monkeypatch):
     monkeypatch.setattr(fallback, 'chat', lambda *args, **kwargs: '抱歉，无法回答该问题。')
     assert fallback.answer_from_model('3820工程的问题',
                                        settings=Settings(ark_api_key='test', llm_model='test')) is None
+    monkeypatch.setattr(fallback, 'chat',
+                        lambda *args, **kwargs: '现有公开可查的权威统计数据中未明确披露。')
+    assert fallback.answer_from_model('福州1997年GDP是多少？',
+                                      settings=Settings(ark_api_key='test', llm_model='test')) is None
+    monkeypatch.setattr(fallback, 'chat', lambda *args, **kwargs:
+                        '现有公开可查的权威统计资料中未明确披露准确数据。')
+    assert fallback.answer_from_model('福州1997年GDP是多少？',
+                                      settings=Settings(ark_api_key='test', llm_model='test')) is None
 
 
 def test_graph_places_model_provenance_outside_answer(monkeypatch):

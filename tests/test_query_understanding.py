@@ -49,6 +49,12 @@ def test_other_implicit_project_paraphrases(question, section):
     assert any(hit.source.section == section for hit in direct_hits(resolved))
 
 
+def test_ecology_question_uses_environment_source():
+    resolved = resolve_question('3820的生态建设如何安排？', settings=Settings())
+    assert any(hit.source.section == '背景导读·06 城市与生活'
+               for hit in direct_hits(resolved))
+
+
 def test_followups_reuse_the_previous_question_without_leaking_other_topics():
     settings = Settings()
     assert resolve_question('那第二阶段呢？', '3820战略工程的三个阶段是什么？',
@@ -61,9 +67,16 @@ def test_followups_reuse_the_previous_question_without_leaking_other_topics():
                             settings=settings) == '1995年GNP？'
     assert resolve_question('那GNP呢？', '1995年GDP目标是多少？',
                             settings=settings) == '1995年GNP目标？'
+    assert resolve_question('这些目标都实现了吗？', '1995年GNP目标？',
+                            history=['1995年GDP目标是多少？', '1995年GNP目标？'],
+                            settings=settings) == '1995年GDP和GNP目标实现了吗？'
     assert '2000年目标实现了吗' in resolve_question('这个目标实现了吗？',
                                                '3820战略工程2000年目标是什么？',
                                                settings=settings)
+    assert '2000年目标实现了吗' in resolve_question('目标实现了吗？',
+                                               '2000年阶段的目标是什么？', settings=settings)
+    assert resolve_question('这个数字为什么有不同版本？', '2010年福州GDP是多少？',
+                            settings=settings) == '2010年GDP为什么有不同版本？'
     assert '长乐国际机场' in resolve_question('它有什么作用？',
                                           '长乐国际机场建设与3820工程有什么关系？',
                                           settings=settings)
@@ -120,6 +133,14 @@ def test_full_graph_keeps_followup_inside_its_thread(monkeypatch, tmp_path):
         goal_followup = graph.ask('这个目标实现了吗？', 'conversation-c')
         assert goal_followup['results']['evaluation_1']['status'] == 'insufficient_evidence'
         assert '不能' in goal_followup['answer']
+        graph.ask('1995年GDP目标是多少？', 'conversation-d')
+        graph.ask('那GNP呢？', 'conversation-d')
+        both = graph.ask('这些目标都实现了吗？', 'conversation-d')
+        assert both['resolved_question'] == '1995年GDP和GNP目标实现了吗？'
+        evaluation = next(result for result in both['results'].values()
+                          if result['role'] == 'evaluation')
+        assert evaluation['status'] == 'ok'
+        assert {row['目标'] for row in evaluation['data']} == {204.8, 221}
     finally:
         graph.get_graph.cache_clear()
 
@@ -149,5 +170,13 @@ def test_chat_api_uses_saved_thread_for_short_followup(monkeypatch, tmp_path):
                 'thread_id': 'topic-b', 'question': '三个结算是什么？'})
             assert independent.status_code == 200
             assert '1995' in independent.json()['answer']
+            for question in ('1995年GDP目标是多少？', '那GNP呢？'):
+                assert client.post('/chat', json={
+                    'thread_id': 'metric-followup', 'question': question}).status_code == 200
+            combined = client.post('/chat', json={
+                'thread_id': 'metric-followup', 'question': '这些目标都实现了吗？'})
+            assert combined.status_code == 200
+            assert '224.2%' in combined.json()['answer']
+            assert '226.6%' in combined.json()['answer']
     finally:
         graph.get_graph.cache_clear()

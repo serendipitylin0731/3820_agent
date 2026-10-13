@@ -39,8 +39,13 @@ def query_indicator(key, years=None, *, growth=False):
     if info is None:
         return {'error': f'未找到指标 {key}，可查：{list(indicators())}'}
     years = list(YEARS) if years is None else years
-    if not years or any(y not in YEARS for y in years):
-        return {'error': f'未收录年份，可查年份：{list(YEARS)}'}
+    if not years:
+        return {'insufficient_evidence': f'请指定{info["name"]}的查询年份；可查年份：{list(YEARS)}。'}
+    if any(y not in YEARS for y in years):
+        missing = [year for year in years if year not in YEARS]
+        return {'insufficient_evidence':
+                f'已收录指标表未包含{",".join(map(str, missing))}年的{info["name"]}数据。'
+                f'可查年份：{list(YEARS)}。'}
     comparison = compare_sources(key, years, info)
     values = {year: info['values'][year] for year in years}
     result = {'key': key, 'name': info['name'], 'unit': info['unit'], 'values': values,

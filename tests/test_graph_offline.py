@@ -38,6 +38,38 @@ def test_online_split_accepts_content_alias_and_falls_back_on_invalid(monkeypatc
     assert agent_main.split_task('2010年GDP是多少？')[0]['key'] == 'gdp'
 
 
+def test_unrelated_question_cannot_be_sent_to_spatial_tool(monkeypatch):
+    from agents import agent_main
+    monkeypatch.setattr(agent_main, 'get_settings',
+                        lambda: Settings(ark_api_key='test-only-key', llm_model='fake-model'))
+    monkeypatch.setattr(agent_main, 'chat',
+                        lambda *_args, **_kwargs: '[{"type":"spatial","question":"今天北京天气如何？","keyword":"北京"}]')
+    tasks = agent_main.split_task('今天北京天气如何？')
+    assert len(tasks) == 1
+    assert tasks[0]['type'] == 'planning'
+
+
+def test_unrecorded_year_is_not_silently_replaced_by_all_years(monkeypatch):
+    from agents import agent_main
+    monkeypatch.setattr(agent_main, 'get_settings', lambda: Settings())
+    tasks = agent_main.split_task('福州1997年GDP是多少？')
+    indicator = next(item for item in tasks if item['type'] == 'indicator')
+    assert indicator['years'] == [1997]
+    from agents.agent_indicator import query_indicator
+    assert '未包含1997年' in query_indicator('gdp', [1997])['insufficient_evidence']
+    from agents.answer_writer import natural_fallback
+    assert '指标表' not in natural_fallback('福州1997年GDP是多少？', {
+        'indicator': {'role': 'indicator', 'status': 'insufficient_evidence',
+                      'data': query_indicator('gdp', [1997])['insufficient_evidence']}})
+
+
+def test_old_city_layout_question_uses_planning_source(monkeypatch):
+    from agents import agent_main
+    monkeypatch.setattr(agent_main, 'get_settings', lambda: Settings())
+    tasks = agent_main.split_task('福州的老市区在布局中处于什么位置？')
+    assert {item['type'] for item in tasks} == {'planning'}
+
+
 def test_mixed_metrics_and_qualitative_goal(monkeypatch):
     from agents import agent_main
     import graph

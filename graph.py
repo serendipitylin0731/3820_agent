@@ -24,6 +24,7 @@ from resilience import find_checkpoint, log_event, timeout_error, transient_erro
 class TaskState(TypedDict, total=False):
     question: str
     previous_question: str
+    question_history: list[str]
     resolved_question: str
     request_id: str
     thread_id: str
@@ -45,6 +46,7 @@ def parse_node(state):
     started = time.monotonic()
     try:
         resolved = resolve_question(state['question'], state.get('previous_question', ''),
+                                    history=state.get('question_history', []),
                                     settings=get_settings())
         raw = split_task(resolved)
         if not isinstance(raw, list) or not raw:
@@ -57,7 +59,8 @@ def parse_node(state):
         raise
     log_event('tasks_parsed', state.get('request_id', ''), state.get('thread_id', ''),
               node='parse_node', duration_ms=round((time.monotonic() - started) * 1000, 1))
-    return {'sub_tasks': tasks, 'resolved_question': resolved}
+    return {'sub_tasks': tasks, 'resolved_question': resolved,
+            'question_history': [*state.get('question_history', []), resolved][-4:]}
 
 
 def route_node(state):
@@ -147,10 +150,8 @@ def execute_node(state):
                     if indicator_keys:
                         names = {INDICATOR_DATA[key]['name'] for key in indicator_keys}
                         value = [row for row in value if row['指标'] in names]
-                    sources = [INDICATOR_DATA[key]['source_ref'] for key in ('gnp','gdp','gdp_per_capita','urban_income','rural_income','industry_output')]
-                    if indicator_keys:
-                        sources = [INDICATOR_DATA[key]['source_ref'] for key in indicator_keys
-                                   if INDICATOR_DATA[key]['name'] in {row['指标'] for row in value}]
+                    sources = list({source['source_file']: source for row in value
+                                    for source in (row['来源'], row['目标来源'])}.values())
             else:
                 if state.get('kb_error'):
                     result = AgentResult(role=role, status='error',
@@ -258,9 +259,13 @@ def ask(question, thread_id, request_id=None):
         if snapshot.values.get('question') != question:
             raise ValueError('会话有未完成任务，请先恢复该会话')
         return graph.invoke(None, config)
+    history = snapshot.values.get('question_history', [])
     previous = snapshot.values.get('resolved_question') or snapshot.values.get('question', '')
+    if previous and (not history or history[-1] != previous):
+        history = [*history, previous][-4:]
     return graph.invoke({'question': question, 'previous_question': previous,
-                               'resolved_question': '', 'thread_id': thread_id,
+                               'question_history': history, 'resolved_question': '',
+                               'thread_id': thread_id,
                                'request_id': request_id or thread_id, 'sub_tasks': [],
                                'kb_context': '', 'kb_sources': [], 'kb_error': None,
                                'kb_error_code': None,

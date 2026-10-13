@@ -14,7 +14,7 @@ def test_guide_baseline_and_provenance():
 def test_queries_and_growth():
     assert query_indicator('GDP', [1990, 1995], growth=True)['growth_percent'] == 353.3
     assert 'error' in query_indicator('unknown')
-    assert 'error' in query_indicator('gdp', [2020])
+    assert '未包含2020年' in query_indicator('gdp', [2020])['insufficient_evidence']
     assert industry_structure(1995)['shares']['industry_primary'] == 21.23
     assert query_spatial('元洪')[0]['source_ref']['verified'] is True
     assert 'error' in query_spatial('不存在')
@@ -22,7 +22,9 @@ def test_queries_and_growth():
 
 def test_evaluation_and_conflict():
     rows = eval_1995_phase(INDICATOR_DATA)
-    assert [row['达成率'] for row in rows] == [223.4, 226.6, 212.3, 159.3, 133.3, 184.6]
+    assert [row['达成率'] for row in rows] == [224.2, 226.6, 212.3, 159.3, 133.3, 184.6]
+    assert rows[0]['目标'] == 221
+    assert rows[0]['目标来源']['source_file'].startswith('https://article.xuexi.cn/')
     records = [{'key':'gdp','year':1995,'basis':'a','value':1},
                {'key':'gdp','year':1995,'basis':'a','value':2}]
     assert record_conflicts(records) == [records]

@@ -98,6 +98,16 @@ def natural_fallback(question: str, results: dict) -> str:
                                  for entry in alternatives)
                 sentences.append(f'指南表1记录{data["name"]}：{baseline}；另一个统计版本记录{other}。'
                                  '这些数值各有来源，跨期增长率需要先选定同一统计版本。')
+            elif role == 'indicator' and isinstance(data, str):
+                if data.startswith('已收录指标表未包含'):
+                    match = re.search(r'未包含(\d{4})年的(.+?)数据', data)
+                    if match:
+                        city = '福州' if '福州' in question else ''
+                        sentences.append(f'目前无法确认{city}{match.group(1)}年{match.group(2)}的准确数值。')
+                    else:
+                        sentences.append('目前无法确认该年份这项指标的准确数值。')
+                else:
+                    sentences.append(data)
             elif role == 'evaluation' and isinstance(data, str) and '无法评估' in data:
                 sentence = '现有资料' + data
                 if sentence not in sentences:
@@ -121,7 +131,7 @@ def natural_fallback(question: str, results: dict) -> str:
                 sentences.append(sentence)
         elif role == 'evaluation' and isinstance(data, list):
             for row in data:
-                sentences.append(f"按指南表4的阶段目标算法，{row['指标']}的目标达成率为{row['达成率']}%。")
+                sentences.append(f"按{row.get('目标依据', '所列目标值')}，{row['指标']}的目标达成率为{row['达成率']}%。")
         elif role == 'spatial' and isinstance(data, list):
             if len(data) == 1 and data[0]['name'] in question:
                 entry = data[0]
