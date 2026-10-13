@@ -8,6 +8,7 @@ from config import ConfigurationError, get_settings
 from contracts import SubTask
 from knowledge.curated import JIANG_HAI_TERMS, OVERVIEW_CUES, cangxia_case, paper_city_question
 from llm_client import chat
+from knowledge.query_understanding import specific_document_question
 
 SPLIT_SYSTEM = '''将问题拆成 JSON 数组。每个对象必须包含 type 和 question，question 是对应子问题；禁止使用 content 字段。type 仅为 planning、indicator、spatial、evaluation。
 indicator 必须有 key，可用 gdp、gdp_per_capita、gnp、gnp_per_capita、industry_primary、industry_secondary、industry_tertiary、gross_ia、agriculture_output、industry_output、export_total、urban_income、rural_income；spatial 必须有 keyword，仅用于查询具体空间要素。询问战略空间布局、规划或作用等概括性问题时使用 planning。只输出 JSON，不要 Markdown 围栏。'''
@@ -153,6 +154,8 @@ def _normalize_tasks(tasks, question):
 
 
 def split_task(question):
+    if specific_document_question(question):
+        return [{'type': 'planning', 'question': question}]
     settings = get_settings()
     if settings.ark_api_key and settings.llm_model:
         try:

@@ -1,3 +1,4 @@
 # Optional, for extracting text from the 276-page scan and PPT pictures.
 # Install after requirements.lock; OCR is not needed to serve an existing index.
 rapidocr-onnxruntime==1.4.4
+PyMuPDF==1.26.7

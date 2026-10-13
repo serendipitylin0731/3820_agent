@@ -4,6 +4,7 @@ import re
 from pathlib import Path
 from pydantic import BaseModel, ConfigDict, Field
 from knowledge.curated import answer_passage, source_sections
+from knowledge.query_understanding import specific_document_question
 
 
 class PlanningReport(BaseModel):
@@ -20,6 +21,11 @@ class PlanningReport(BaseModel):
 def run_planning(question, kb_text):
     if not kb_text or '暂无充分依据' in kb_text:
         return None
+    if specific_document_question(question):
+        # These questions ask about the supplied book/interview itself. Pass
+        # the retrieved text to the answer writer instead of applying the
+        # fixed 3820 background report to an unrelated source.
+        return {'source_excerpt': kb_text[:5500]}
     if ('[3820 战略工程三阶段目标' in kb_text and
             not any(term in question for term in ('提前完成', '提前实现', '是否完成', '完成情况')) and
             any(term in question for term in (

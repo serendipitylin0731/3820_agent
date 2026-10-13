@@ -15,6 +15,23 @@ RESULTS = {'planning': {'role': 'planning', 'status': 'ok',
 ONLINE_SETTINGS = Settings(ark_api_key='test-only-key', llm_model='fake-model')
 
 
+def test_named_document_answer_uses_its_excerpt_and_recovers_from_model_refusal(monkeypatch):
+    excerpt = '[资料 第 200 页] 木兰溪治理需要科学论证。专家提出改道不改水的方案。'
+    results = {'planning': {'role': 'planning', 'status': 'ok',
+                            'data': {'source_excerpt': excerpt}, 'sources': [SOURCE]}}
+    seen = []
+    def fake_chat(messages, **_kwargs):
+        seen.append(messages[1]['content'])
+        return ('抱歉，您的问题我无法识别。' if len(seen) == 1 else
+                '材料记载，木兰溪治理先经过科学论证，再采用改道不改水的方案。')
+    monkeypatch.setattr(answer_writer, 'chat', fake_chat)
+    answer, theory = answer_writer.compose_answer('福建足迹下册第200页讲了什么？',
+                                                  results, 'fallback', settings=ONLINE_SETTINGS)
+    assert '科学论证' in answer and '改道不改水' in answer
+    assert '3820' not in answer and theory is None
+    assert len(seen) == 2
+
+
 def test_theory_is_selective_and_historically_labeled():
     assert select_theory('1995年GDP是多少？', RESULTS) == {}
     assert select_theory('3820体现了哪些马克思主义方法论？', RESULTS)

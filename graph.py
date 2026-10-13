@@ -17,7 +17,7 @@ from agents.agent_evaluation import eval_1995_phase
 from knowledge.knowledge_base import EXACT_ENTITIES, format_context, search
 from knowledge.curated import direct_hits
 from knowledge.model_fallback import answer_from_model, needs_model
-from knowledge.query_understanding import resolve_question
+from knowledge.query_understanding import resolve_question, specific_document_question
 from resilience import find_checkpoint, log_event, timeout_error, transient_error
 
 
@@ -72,7 +72,7 @@ def retrieve_node(state):
     question = _query(state)
     media_request = any(term in question for term in
                         ('示意图', '地图', '幻灯片', 'PPT', '课件', '图片', '图像', '照片', '扫描件', '视频', '录像', '画面'))
-    direct = direct_hits(question)
+    direct = [] if specific_document_question(question) else direct_hits(question)
     if direct and (direct[0].chunk_id in {'reviewed:investment_map', 'reviewed:presentation:2'} or
                    not media_request):
         found = KnowledgeResult(status='ok', hits=direct)
@@ -89,6 +89,12 @@ def retrieve_node(state):
     for attempt in range(2):
         try:
             found = search(query, top_k=get_settings().top_k)
+            if specific_document_question(question) and found.hits:
+                # A named interview or book should not acquire citations from
+                # another work simply because the works share broad terms.
+                source_file = found.hits[0].source.source_file
+                found = found.model_copy(update={'hits': [hit for hit in found.hits
+                    if hit.source.source_file == source_file]})
             if direct and not media_request:
                 found = found.model_copy(update={'status': 'ok',
                     'hits': [*direct, *[hit for hit in found.hits

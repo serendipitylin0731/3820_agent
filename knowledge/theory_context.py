@@ -36,6 +36,9 @@ THEORY_CONTEXT = {
 
 def select_theory(question: str, results: dict) -> dict:
     """仅在问题需要理论分析且已有 3820 来源时提供候选背景。"""
+    from knowledge.query_understanding import specific_document_question
+    if specific_document_question(question):
+        return {}
     if not any(item.get('status') == 'ok' and item.get('sources') for item in results.values()):
         return {}
     explicit = ('理论', '思想', '马克思', '方法论', '哲学', '人民至上', '新发展理念',

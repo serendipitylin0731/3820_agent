@@ -6,6 +6,16 @@ from knowledge.query_understanding import resolve_question
 
 
 @pytest.mark.parametrize('question', [
+    '《习近平生态文明思想概论》第100页主要讲什么？',
+    '党的十九大报告提出的新时代中国特色社会主义思想核心内容是什么？',
+    '习近平在福建推动林权制度改革的背景和做法是什么？',
+])
+def test_named_documents_are_not_rewritten_as_the_3820_background(question):
+    resolved = resolve_question(question, '3820战略工程是什么？', settings=Settings())
+    assert resolved == question.replace('？', '?')
+
+
+@pytest.mark.parametrize('question', [
     '3820战略工程具体内容',
     '3820工程主要内容是什么？',
     '3820战略工程都包括哪些方面？',

@@ -8,6 +8,32 @@ from config import Settings
 from knowledge import knowledge_base as kb
 
 
+def test_library_transcript_keeps_pdf_page_for_chat_citations(tmp_path):
+    path = tmp_path / 'book.md'
+    path.write_text('# 福建足迹\n\n---\n\n## 第 7 页\n\n林权制度改革。\n\n'
+                    '---\n\n## 第 8 页\n\n苍霞棚屋区改造。\n', encoding='utf-8')
+    hits = kb.load_library_markdown_chunks(path)
+    assert any('林权制度改革' in hit.content and hit.source.page_or_slide == '第 7 页'
+               for hit in hits)
+    assert any('苍霞棚屋区改造' in hit.content and hit.source.page_or_slide == '第 8 页'
+               for hit in hits)
+    assert not any('林权制度改革' in hit.content and '苍霞棚屋区改造' in hit.content
+                   for hit in hits)
+
+
+def test_chat_retrieval_keeps_named_book_and_requested_page(tmp_path):
+    book = tmp_path / '闽山闽水物华新·习近平福建足迹（下）.md'
+    book.write_text('# 福建足迹下册\n\n## 第 199 页\n\n其他内容。\n\n'
+                    '## 第 200 页\n\n木兰溪治理，需要科学论证。', encoding='utf-8')
+    unrelated = tmp_path / '原件扫描_page_0200.md'
+    unrelated.write_text('# 原件扫描\n\n## 第 200 页\n\n3820 的主要目标。', encoding='utf-8')
+    hits = kb.load_library_markdown_chunks(book) + kb.load_library_markdown_chunks(unrelated)
+    result = kb.search('福建足迹下册第200页讲了什么？', chunks=hits)
+    assert result.status == 'ok'
+    assert all(hit.source.source_file.endswith(book.name) and hit.source.page_or_slide == '第 200 页'
+               for hit in result.hits)
+
+
 def test_ppt_keeps_actual_slide_number(tmp_path):
     path = tmp_path / 'slides.ppt'
     prs = Presentation()

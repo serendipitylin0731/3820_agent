@@ -41,13 +41,14 @@ EMBED_MODEL=你的向量模型ID
 
 浏览器打开 <http://127.0.0.1:8000/>。`GET /health` 可用于检查服务状态。若 `.env` 设置了 `SERVICE_API_KEY`，提问前还需在页面填写对应的网站访问密码。浏览器版的历史记录保存在当前浏览器的本地存储中。
 
-要让资料检索显示完整结果，服务所在机器还需有 `knowledge/library/` 中的资料文件。原始压缩包在本机 `new_things/` 时，运行以下命令整理、按 SHA-256 去重，并生成 Markdown 对应的 Word 下载文件：
+要让资料检索显示完整结果，服务所在机器还需有 `knowledge/library/` 中的资料文件。原始压缩包在本机 `new_things/` 时，先安装 `requirements/ocr.txt` 和系统命令 `bsdtar`，再运行以下命令整理、按 SHA-256 去重，并生成 Markdown 对应的 Word 下载文件：
 
 ```bash
 .venv/bin/python scripts/organize_library.py
+.venv/bin/python -m scripts.import_supplemental_materials
 ```
 
-`knowledge/library/catalog.json` 随代码提交，约 1.7 GiB 的资料正文和影像、`new_things/` 原始压缩包、`knowledge/data/` 中的 OCR/网页抓取缓存均不入 Git。**仅拉取代码无法在服务器上预览或下载这些资料**；部署时需另外把本机的 `knowledge/library/` 整目录复制到服务器项目同名路径。聊天还使用 `knowledge/data/public_sources/` 和 `knowledge/data/original_3820/` 的文字缓存，也应一并复制。复制后重启服务即可读取新清单。目录分类、去重结果和访问范围见[资料清单](docs/资料清单.md)。
+`knowledge/library/catalog.json` 随代码提交；资料正文、PDF、影像、`new_things/` 原始压缩包、`knowledge/data/` 中的 OCR/网页抓取缓存均不入 Git。**仅拉取代码无法在服务器上预览或下载这些资料**；部署时需另外把本机的 `knowledge/library/` 整目录复制到服务器项目同名路径。聊天还使用 `knowledge/data/public_sources/` 和 `knowledge/data/original_3820/` 的文字缓存，也应一并复制。新增电子书的 OCR 缓存在 `knowledge/data/supplemental_text/`，仅在重新入库时需要；服务器已有完整 `knowledge/library/` 时无须上传。复制后重启服务即可读取新清单。目录分类、去重结果和访问范围见[资料清单](docs/资料清单.md)。
 
 首次在资料齐全的本机建立图片、视频和 PPT 索引时，先安装可选依赖及 `ffmpeg`、`ffprobe`，再运行：
 
@@ -102,10 +103,10 @@ flowchart LR;
 
 一次提问按以下步骤处理：
 
-1. **理解、拆分与路由**：`knowledge/query_understanding.py` 将常见同义说法、阶段问句笔误和同一会话最近四轮的追问整理成独立问句；遇到规则无法识别的简短主题问法时，可用已配置的豆包模型从限定主题中分类，分类结果只用于选择资料，不充当事实依据。`agents/agent_main.py` 再将问题拆成规划、指标、空间、评估子任务并校验。`graph.py` 用 LangGraph 串联检索、执行和答案合成，并用 SQLite 保存可恢复的会话快照及最近问句。不同会话的上下文不混用。
-2. **准备与检索资料**：`scripts/organize_library.py` 从本地压缩包和既有资料生成分类目录及去重清单；`scripts/index_multimedia.py` 为图片、视频和 PPT 生成带位置的提取文字。`knowledge/knowledge_base.py` 读取指南、文献、公开网页、图片 OCR、视频转写和 PPT 逐页文字，切成带原件文件名与页码或时间戳的片段。课程文档不进入问答；PPT 只进入问答。资料库目录存在时使用本地文本检索，避免继续使用旧向量索引。
+1. **理解、拆分与路由**：`knowledge/query_understanding.py` 将常见同义说法、阶段问句笔误和同一会话最近四轮的追问整理成独立问句；具名书籍、报告和采访的提问保留原题，避免误改写成“3820”背景问题。遇到规则无法识别的简短主题问法时，可用已配置的豆包模型从限定主题中分类，分类结果只用于选择资料，不充当事实依据。`agents/agent_main.py` 再将问题拆成规划、指标、空间、评估子任务并校验。`graph.py` 用 LangGraph 串联检索、执行和答案合成，并用 SQLite 保存可恢复的会话快照及最近问句。不同会话的上下文不混用。
+2. **准备与检索资料**：`scripts/organize_library.py` 从最初的压缩包和既有资料生成分类目录；随后运行 `scripts/import_supplemental_materials.py` 把新上传的电子书逐页转写、去重并与原 PDF 配对。`scripts/index_multimedia.py` 为图片、视频和 PPT 生成带位置的提取文字。`knowledge/knowledge_base.py` 读取指南、文献、公开网页、图片 OCR、视频转写和 PPT 逐页文字，切成带原件文件名与页码或时间戳的片段。课程文档不进入问答；PPT 只进入问答。资料库目录存在时使用本地文本检索，避免继续使用旧向量索引。
 3. **执行领域子任务**：指标模块从 `knowledge/indicators.json` 读取实际值，从指南表 4 和原件扫描目标表读取各自的规划目标；空间模块读取结构化空间资料；规划模块根据检索到的直接片段形成结构化报告；评估模块仅在比较年份、指标口径和判据足够明确时计算。不同来源的 GDP、GNP 或统计版本保留各自口径，不直接混算。
-4. **合成与标注答案**：`agents/answer_writer.py` 汇总子任务结果和来源，优先生成有资料支撑的回答。仅当“3820”或福州发展相关问题缺少直接依据、且用户配置了对话模型时，才可能由豆包补充；这种回答标为模型参考内容，不伪造资料引用。依据不足或子任务失败会在结果中保留对应状态。
+4. **合成与标注答案**：`agents/answer_writer.py` 汇总子任务结果和来源，优先生成有资料支撑的回答；具名文献问题按检索到的原文片段概括，引用对应书名与 PDF 页序号。仅当“3820”或福州发展相关问题缺少直接依据、且用户配置了对话模型时，才可能由豆包补充；这种回答标为模型参考内容，不伪造资料引用。依据不足或子任务失败会在结果中保留对应状态。
 
 `app.py` 使用 FastAPI 提供静态页面、`/chat` 以及 `/library/search`、`/library/{id}/preview`、`/library/{id}/text`、`/library/{id}/download` 接口。`/sources/preview`、`/sources/text`、`/sources/open` 仅按目录清单中的引用路径预览和下载来源：公开资料和问答引用的 PPT 可访问，课程文件不可访问；PPT 仍不进入资料检索结果。对话历史保存在当前浏览器的本地存储中。
 
@@ -119,6 +120,7 @@ flowchart LR;
 | `knowledge/library/` | 分类后的资料本体与目录清单；大文件不入 Git |
 | `new_things/` | 用户提供的原始压缩包；仅用于本机重建，不入 Git |
 | `scripts/organize_library.py` | 解包、分类、去重并生成 Word 下载文件 |
+| `scripts/import_supplemental_materials.py` | 增量导入新增电子书、逐页 OCR 并生成 PDF 对应的阅读稿和 Word |
 | `docs/` | 原始指南、背景导读、资料清单与核对记录；`docs/project/` 保存项目过程文档 |
 | `requirements/` | OCR 的可选依赖清单 |
 | `tests/` | 离线功能、回答与界面检查 |

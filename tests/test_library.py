@@ -165,3 +165,32 @@ def test_search_picks_matching_page_and_does_not_repeat_paired_pdf(tmp_path, mon
     finally:
         library._read_catalog.cache_clear()
         library._text.cache_clear()
+
+
+def test_abbreviated_congress_titles_find_the_original_documents(tmp_path, monkeypatch):
+    root = tmp_path
+    folder = root / 'knowledge' / 'library' / 'literature'
+    folder.mkdir(parents=True)
+    titles = [
+        '中国共产党第十九届中央委员会第六次全体会议公报',
+        '中国共产党第十九次全国代表大会报告',
+    ]
+    entries = []
+    for index, title in enumerate(titles):
+        path = folder / f'{index}.md'
+        path.write_text(f'# {title}\n\n报告正文。', encoding='utf-8')
+        entries.append({'id': str(index), 'title': title, 'path': path.relative_to(root).as_posix(),
+                        'category': 'literature', 'bytes': path.stat().st_size,
+                        'searchable': True})
+    catalog = root / 'knowledge' / 'library' / 'catalog.json'
+    catalog.write_text(json.dumps({'entries': entries}), encoding='utf-8')
+    monkeypatch.setattr(library, 'ROOT', root)
+    monkeypatch.setattr(library, 'CATALOG', catalog)
+    library._read_catalog.cache_clear()
+    library._text.cache_clear()
+    try:
+        assert library.search_documents('十九届六中全会公报')[0]['title'] == titles[0]
+        assert library.search_documents('党的十九大报告')[0]['title'] == titles[1]
+    finally:
+        library._read_catalog.cache_clear()
+        library._text.cache_clear()

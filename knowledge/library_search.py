@@ -12,6 +12,10 @@ ROOT = Path(__file__).resolve().parents[1]
 CATALOG = ROOT / 'knowledge' / 'library' / 'catalog.json'
 PUBLIC_CATEGORIES = frozenset({'documents', 'papers', 'literature', 'pdf', 'media'})
 TEXT_SUFFIXES = frozenset({'.md', '.txt'})
+TITLE_ALIASES = {
+    '中国共产党第十九届中央委员会第六次全体会议公报': ('十九届六中全会公报', '十九届六中全会'),
+    '中国共产党第十九次全国代表大会报告': ('党的十九大报告', '十九大报告'),
+}
 
 
 @lru_cache(maxsize=4)
@@ -240,6 +244,10 @@ def search_documents(query: str, limit: int = 30) -> list[dict]:
                 ratio = SequenceMatcher(None, normalized_query, title, autojunk=False).ratio()
                 if ratio >= 0.35:
                     title_score = 75.0 + coverage * 85.0 + ratio * 20.0
+        for alias in TITLE_ALIASES.get(item['title'], ()):
+            normalized_alias = _normalize(alias)
+            if normalized_alias in normalized_query or normalized_query == normalized_alias:
+                title_score = max(title_score, 210.0 + min(20, len(normalized_alias)))
         if normalized_query == '3年8年20年' and '3820' in title:
             title_score = max(title_score, 160.0)
         if normalized_query == '二十大报告' and '第二十次全国代表大会' in title and '报告' in title:

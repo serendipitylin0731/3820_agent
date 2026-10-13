@@ -34,6 +34,15 @@ ENTITY_TERMS = ('长乐国际机场', '福州经济技术开发区', '闽江口�
                 '老市区', '纸褙城', '苍霞', '马尾', PROJECT, '福州')
 PROJECT_CUES = ('3820', '福州', '闽江口', '长乐', '马尾', '苍霞', '纸褙城', '海上福州', '金三角经济圈')
 PAPER_CITY_CUES = ('纸褙城', '纸褙福州城', '纸褙屋', '纸糊墙')
+DOCUMENT_CUES = ('习近平谈治国理政', '习近平生态文明思想概论',
+                 '福建足迹', '闽山闽水物华新', '十九届六中全会', '六中全会公报',
+                 '第十九届中央委员会第六次全体会议', '十九大报告',
+                 '第十九次全国代表大会报告', '林权制度改革')
+
+
+def specific_document_question(question: str) -> bool:
+    """Preserve a named text instead of rewriting it as a generic 3820 topic."""
+    return any(cue in question for cue in DOCUMENT_CUES)
 
 
 def _clean(question: str) -> str:
@@ -154,6 +163,8 @@ def resolve_question(question: str, previous_question: str = '', *, history=None
     current = _clean(question)
     previous = _clean(previous_question)
     if not current:
+        return current
+    if specific_document_question(current):
         return current
     if any(term in current for term in PAPER_CITY_CUES):
         return current

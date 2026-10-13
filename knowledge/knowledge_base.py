@@ -345,31 +345,78 @@ def load_derived_chunks(path, item):
 def load_library_markdown_chunks(path):
     """Split long Markdown transcriptions into bounded searchable passages."""
     content = Path(path).read_text(encoding='utf-8-sig', errors='replace')
-    sections = re.split(r'\n\s*\n', content)
+    page_headers = list(re.finditer(r'(?m)^## 第 (\d+) 页(?:\s*·[^\n]*)?\s*$', content))
     hits, block, offset = [], '', 1
     version = _version(path)
 
-    def append(text, number):
+    def append(text, number, page=None):
         if text.strip():
             hits.append(KnowledgeHit(chunk_id=f'{Path(path).name}:block:{number}', content=text.strip(),
                                      source=SourceRef(source_file=_display_path(path),
-                                                      page_or_slide=f'片段{number}',
+                                                      page_or_slide=(f'第 {page} 页' if page else f'片段{number}'),
                                                       data_version=version, verified=False)))
 
-    for section in sections:
-        for piece in (section[i:i + 1200] for i in range(0, len(section), 1200)):
-            if len(block) + len(piece) > 1200 and block:
-                append(block, offset)
-                offset += 1
-                block = ''
-            block += ('\n\n' if block else '') + piece
-    append(block, offset)
+    def add_sections(text, page=None):
+        nonlocal block, offset
+        text = re.sub(r'(?m)^[ \t]*---[ \t]*$', '', text)
+        for section in re.split(r'\n\s*\n', text):
+            for piece in (section[i:i + 1200] for i in range(0, len(section), 1200)):
+                if len(block) + len(piece) > 1200 and block:
+                    append(block, offset, page)
+                    offset += 1
+                    block = ''
+                block += ('\n\n' if block else '') + piece
+        append(block, offset, page)
+        offset += bool(block.strip())
+        block = ''
+
+    if page_headers:
+        # Never blend adjacent pages: the chat citation must open the PDF on
+        # the page from which the answer was retrieved.
+        add_sections(content[:page_headers[0].start()])
+        for index, header in enumerate(page_headers):
+            end = page_headers[index + 1].start() if index + 1 < len(page_headers) else len(content)
+            add_sections(content[header.end():end], int(header.group(1)))
+    else:
+        add_sections(content)
     return hits
 
 
 def _tokens(text):
     chars = re.findall(r'[\u4e00-\u9fff]|[A-Za-z0-9]+', text.lower())
     return set(chars + [chars[i] + chars[i+1] for i in range(len(chars)-1)])
+
+
+def _named_document(query):
+    """Resolve a book named by the user before ranking its individual passages."""
+    compact = re.sub(r'[\s《》“”·（）()]', '', query)
+    if '生态文明思想概论' in compact:
+        return '习近平生态文明思想概论.md'
+    if '福建足迹' in compact or '闽山闽水物华新' in compact:
+        if re.search(r'(?:下册|下卷|足迹下|物华新下)', compact):
+            return '闽山闽水物华新·习近平福建足迹（下）.md'
+        if re.search(r'(?:上册|上卷|足迹上|物华新上)', compact):
+            return '闽山闽水物华新·习近平福建足迹（上）.md'
+    if '谈治国理政' in compact:
+        for volume in ('第一', '第二', '第三', '第四', '第五'):
+            if volume + '卷' in compact:
+                return f'习近平谈治国理政·{volume}卷.md'
+    if '六中全会公报' in compact or '第十九届中央委员会第六次全体会议公报' in compact:
+        return '中国共产党第十九届中央委员会第六次全体会议公报.md'
+    if '十九大报告' in compact or '第十九次全国代表大会报告' in compact:
+        return '中国共产党第十九次全国代表大会报告.md'
+    return None
+
+
+def _source_page(hit):
+    position = hit.source.page_or_slide
+    if isinstance(position, int):
+        return position
+    if isinstance(position, str):
+        match = re.search(r'第\s*(\d+)\s*页', position)
+        if match:
+            return int(match.group(1))
+    return None
 
 
 def _exact_entity_hits(query, chunks):
@@ -441,6 +488,20 @@ def search(query, *, chunks=None, top_k=5, min_score=0.35):
             _record_retrieval(result.status)
             return result
     chunks = get_knowledge_base() if chunks is None else chunks
+    target_name = _named_document(query)
+    if target_name:
+        named_chunks = [hit for hit in chunks if Path(hit.source.source_file).name == target_name]
+        if named_chunks:
+            chunks = named_chunks
+            page_match = re.search(r'第\s*(\d+)\s*页', query)
+            if page_match:
+                requested = int(page_match.group(1))
+                page_hits = [hit.model_copy(update={'score': 1.0, 'score_kind': 'similarity'})
+                             for hit in chunks if _source_page(hit) == requested]
+                result = KnowledgeResult(status='ok', hits=page_hits[:top_k]) if page_hits else \
+                    KnowledgeResult(status='insufficient_evidence')
+                _record_retrieval(result.status)
+                return result
     query_tokens = _tokens(query)
     media_request = any(term in query for term in
                         ('示意图', '地图', '幻灯片', 'PPT', '课件', '图片', '图像', '照片', '扫描件', '视频', '录像', '画面'))
@@ -469,7 +530,7 @@ def search(query, *, chunks=None, top_k=5, min_score=0.35):
             else:
                 score += 0.2
             if requested_page is not None:
-                score += 2.0 if hit.source.page_or_slide == requested_page else -0.8
+                score += 2.0 if _source_page(hit) == requested_page else -0.8
             title = hit.content.split('\n', 1)[0]
             deck = re.search(r'《([^》]+)》内嵌视频', title)
             name = deck.group(1) if deck else Path(hit.source.source_file).stem
@@ -480,8 +541,8 @@ def search(query, *, chunks=None, top_k=5, min_score=0.35):
     ranked.sort(key=lambda x: x[0], reverse=True)
     if requested_section and any(hit.source.section == requested_section for _, hit in ranked):
         ranked = [(score, hit) for score, hit in ranked if hit.source.section == requested_section]
-    if requested_page is not None and any(hit.source.page_or_slide == requested_page for _, hit in ranked):
-        ranked = [(score, hit) for score, hit in ranked if hit.source.page_or_slide == requested_page]
+    if requested_page is not None and any(_source_page(hit) == requested_page for _, hit in ranked):
+        ranked = [(score, hit) for score, hit in ranked if _source_page(hit) == requested_page]
     if requested_section and ranked:
         def named_source(hit):
             title = hit.content.split('\n', 1)[0]
