@@ -39,10 +39,12 @@ body[data-view="background"] .timeline-wrap{flex:1 1 auto}
 
 /* Keep chat history in its own scroll area so the entire composer stays visible. */
 body[data-view="chat"] .main{height:100dvh;min-height:0;overflow:hidden}
-body[data-view="chat"] .conversation{overflow-y:auto;overscroll-behavior:contain;scrollbar-gutter:stable}
+body[data-view="chat"] .conversation{width:100%;margin:0;overflow-y:auto;overscroll-behavior:contain;scrollbar-gutter:stable both-edges}
+body[data-view="chat"] .conversation>.welcome,body[data-view="chat"] .conversation>#messages{width:min(860px,calc(100% - 72px));margin-left:auto;margin-right:auto}
 body[data-view="chat"] .composer-wrap{position:relative;bottom:auto;flex:0 0 auto;z-index:1}
 body[data-view="library"] #search-history-panel,body[data-view="library-reader"] #search-history-panel{display:flex;flex:1 1 auto;max-height:none;min-height:0}
 @media(max-width:760px){
+  body[data-view="chat"] .conversation>.welcome,body[data-view="chat"] .conversation>#messages{width:calc(100% - 32px)}
   body[data-view="chat"] .shell{display:flex;flex-direction:column;height:100dvh;min-height:0}
   body[data-view="chat"] .sidebar{position:relative;top:auto;height:auto;max-height:min(28dvh,185px);flex:0 0 auto}
   body[data-view="chat"] .timeline-wrap{display:none}
