@@ -31,8 +31,9 @@ OVERVIEW_CUE = re.compile(r'具体内容|主要内容|核心内容|总体内容|
 FOLLOWUP_CUE = re.compile(r'^(?:那|那么|然后|还有|接着|继续|这个|这些|该|它|它们|上述|刚才|其|前者|后者|相比|和第|与第|至于|关于)')
 YEAR = re.compile(r'(?<!\d)(?:19|20)\d{2}(?!\d)')
 ENTITY_TERMS = ('长乐国际机场', '福州经济技术开发区', '闽江口金三角经济圈', '海上福州',
-                '老市区', '苍霞', '马尾', PROJECT, '福州')
-PROJECT_CUES = ('3820', '福州', '闽江口', '长乐', '马尾', '苍霞', '海上福州', '金三角经济圈')
+                '老市区', '纸褙城', '苍霞', '马尾', PROJECT, '福州')
+PROJECT_CUES = ('3820', '福州', '闽江口', '长乐', '马尾', '苍霞', '纸褙城', '海上福州', '金三角经济圈')
+PAPER_CITY_CUES = ('纸褙城', '纸褙福州城', '纸褙屋', '纸糊墙')
 
 
 def _clean(question: str) -> str:
@@ -121,6 +122,8 @@ def _followup(question: str, previous: str, history: list[str]) -> str | None:
         return f'{PROJECT}{connector}{core}？'
     if core.startswith(('和3820', '与3820')):
         return f'{subject}{core}？'
+    if subject == '纸褙城':
+        return f'{subject}{core}？'
     return f'{subject}在{PROJECT}中{core}？'
 
 
@@ -151,6 +154,8 @@ def resolve_question(question: str, previous_question: str = '', *, history=None
     current = _clean(question)
     previous = _clean(previous_question)
     if not current:
+        return current
+    if any(term in current for term in PAPER_CITY_CUES):
         return current
     resolved = _followup(current, previous, [_clean(item) for item in (history or [])])
     if resolved:

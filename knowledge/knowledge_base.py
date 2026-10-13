@@ -443,10 +443,10 @@ def search(query, *, chunks=None, top_k=5, min_score=0.35):
     chunks = get_knowledge_base() if chunks is None else chunks
     query_tokens = _tokens(query)
     media_request = any(term in query for term in
-                        ('示意图', '地图', '幻灯片', 'PPT', '图片', '图像', '照片', '扫描件', '视频', '录像', '画面'))
+                        ('示意图', '地图', '幻灯片', 'PPT', '课件', '图片', '图像', '照片', '扫描件', '视频', '录像', '画面'))
     # Explicit format and page references are more reliable than character overlap
     # with lengthy OCR/transcripts.  In particular, "第40页" must retrieve page 40.
-    if re.search(r'PPT|ppt|幻灯片|演示文稿', query):
+    if re.search(r'PPT|ppt|幻灯片|演示文稿|课件', query):
         requested_section = '演示文稿'
     elif any(word in query for word in ('视频', '录像', '影片')):
         requested_section = '视频语音与画面文字'

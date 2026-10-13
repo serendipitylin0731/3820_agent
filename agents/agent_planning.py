@@ -20,9 +20,11 @@ class PlanningReport(BaseModel):
 def run_planning(question, kb_text):
     if not kb_text or '暂无充分依据' in kb_text:
         return None
-    if '[3820 战略工程三阶段目标' in kb_text and any(term in question for term in (
-            '三个阶段', '三个时期', '三阶段', '各阶段', '三步目标', '分几步',
-            '第一阶段', '第二阶段', '第三阶段')):
+    if ('[3820 战略工程三阶段目标' in kb_text and
+            not any(term in question for term in ('提前完成', '提前实现', '是否完成', '完成情况')) and
+            any(term in question for term in (
+                '三个阶段', '三个时期', '三阶段', '各阶段', '三步目标', '分几步',
+                '第一阶段', '第二阶段', '第三阶段'))):
         comparison = None
         if any(term in question for term in ('相比', '区别', '不同')):
             if '第二阶段' in question and '第一阶段' in question:
@@ -57,15 +59,16 @@ def run_planning(question, kb_text):
         ).model_dump()
     if ('正式通航' in question or '实际通航' in question) and '1997' not in kb_text:
         return {'insufficient_evidence': '知识库资料只找到机场建设规划，没有正式通航日期。'}
-    if '示意图' in question and '福州市闽江口金三角经济圈投资示意图' in kb_text:
+    if (any(term in question for term in ('示意图', '第27页', '投资区')) and
+            '福州市闽江口金三角经济圈投资示意图' in kb_text):
         map_data = json.loads((Path(__file__).parents[1] / 'knowledge' / 'map_labels.json').read_text(encoding='utf-8'))
         return PlanningReport(
             background='闽江口金三角经济圈投资布局示意图。',
-            stage_goals='该图未列三阶段目标。',
+            stage_goals='资料未提及',
             implementation_paths='图中主要标注：' + '、'.join(map_data['labels']) + '。',
             evidence='扫描出版物预览第27页地图人工转录；PPT第19页可对照。',
-            risks='地图名称和 OCR 未完成独立史料核验；位置与比例应回看原图。',
-            suggestions='分析建议：按地图原图复核地名和空间位置后再用于正式展示。',
+            risks='地图标注的是历史投资区名称；具体位置与比例以原图为准。',
+            suggestions='阅读时结合扫描页查看地名和空间位置。',
             source_sections=['福州市闽江口金三角经济圈投资示意图'],
         ).model_dump()
     sections = source_sections(question)
@@ -81,7 +84,7 @@ def run_planning(question, kb_text):
             source_sections=sections,
         ).model_dump()
     if any(term in question for term in ('图片', '图像', '照片', '扫描件', '视频', '录像',
-                                         '画面', '幻灯片', 'PPT')):
+                                         '画面', '幻灯片', 'PPT', '课件')):
         media_sections = ('图片文字识别', '视频语音与画面文字', '演示文稿')
         passages = []
         used_sections = []

@@ -30,6 +30,14 @@ SITE_BANNER = ('学习贯彻习近平新时代中国特色社会主义思想', '
                '学习贯彻全国组织工作会议精神')
 WEB_FOOTER = re.compile(r'^(?:发布时间：.*?编辑：.*|(?:京|闽)ICP备\d+号(?:-\d+)?|责任编辑：.*)$')
 MIRROR_SUFFIX = re.compile(r'\s*[（(](?:z-library|1lib|z-lib)[^）)]*[）)]', re.I)
+WEB_ARTICLE_BOUNDARIES = {
+    '福州市政府-3820战略工程解读': ('“3820”战略工程解读', '市自然资源和规划局'),
+    '福州市发改委-有福之州大步迈向现代化国际城市':
+        ('有福之州大步迈向现代化国际城市——“3820”战略工程引领福州高质量发展',
+         '扫一扫在手机上查看当前页面'),
+    '福建省民政厅-把宏伟蓝图变成美好现实':
+        ('牢记嘱托 感恩奋进', '扫一扫在手机上查看当前页面'),
+}
 
 
 def category(name: str) -> str:
@@ -108,6 +116,17 @@ def sanitize_markdown(raw: str) -> tuple[str, str, str | None, list[int]]:
         body.append(line)
     while body and not body[0]:
         body.pop(0)
+
+    # Three source-site exports contain navigation and footer text around the
+    # article. Keep the article title/date/body while dropping only those page
+    # wrappers; the download Word is generated from this same clean text.
+    if heading in WEB_ARTICLE_BOUNDARIES:
+        first, last = WEB_ARTICLE_BOUNDARIES[heading]
+        start = next((i for i, line in enumerate(body) if line == first), None)
+        end = next((i for i, line in enumerate(body) if line == last), None)
+        if start is not None and end is not None and start < end:
+            body = [line for line in body[start:end]
+                    if not line.startswith('0" style="display: none')]
 
     has_pages = any(PAGE_MARKER.match(line) for line in body)
     if not has_pages:

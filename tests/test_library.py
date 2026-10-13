@@ -119,6 +119,18 @@ def test_importer_metadata_is_not_exposed_and_real_pages_are_retained():
     assert clean_title('文献 (z-library.sk)') == '文献'
 
 
+def test_site_navigation_and_footer_are_removed_from_imported_article():
+    raw = ('# 福州市发改委-有福之州大步迈向现代化国际城市\n\n'
+           '网站支持IPv6\n12345便民服务平台\n'
+           '有福之州大步迈向现代化国际城市——“3820”战略工程引领福州高质量发展\n'
+           '2024-03-28 09:52\n苍霞居民搬进新楼房。\n'
+           '扫一扫在手机上查看当前页面\n网站标识码：3501000008\n')
+    clean, _, _, _ = sanitize_markdown(raw)
+    assert '苍霞居民搬进新楼房' in clean
+    assert '2024-03-28' in clean
+    assert '网站支持IPv6' not in clean and '网站标识码' not in clean
+
+
 def test_search_picks_matching_page_and_does_not_repeat_paired_pdf(tmp_path, monkeypatch):
     root = tmp_path
     folder = root / 'knowledge' / 'library' / 'literature'

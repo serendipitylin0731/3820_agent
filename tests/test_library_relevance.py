@@ -60,9 +60,26 @@ def test_compound_keywords_can_find_document_without_same_sentence(tmp_path, mon
     assert all(item['id'] != 'one' for item in results)
 
 
+def test_unseparated_two_concept_keyword_finds_document(tmp_path, monkeypatch):
+    _catalog(tmp_path, monkeypatch, [
+        ('both', '福州发展记录', '# 记录\n\n港口建设与对外开放相互衔接。'),
+        ('one', '航运介绍', '# 介绍\n\n只记载港口建设。'),
+    ])
+    results = library.search_documents('港口开放')
+    assert [item['id'] for item in results] == ['both']
+
+
 def test_fuzzy_matching_does_not_change_numeric_identifiers(tmp_path, monkeypatch):
     _catalog(tmp_path, monkeypatch, [
         ('plan', '3820战略工程30年回顾', '# 回顾\n\n3820战略工程。'),
     ])
     assert library.search_documents('3830') == []
     assert library.search_documents('382O')[0]['id'] == 'plan'
+
+
+def test_paper_city_keyword_also_finds_documents_using_historical_name(tmp_path, monkeypatch):
+    _catalog(tmp_path, monkeypatch, [
+        ('interview', '福州旧居访谈', '# 访谈\n\n居民住在纸褙屋，木板开裂后用纸糊墙。'),
+        ('article', '城市发展纪实', '# 纪实\n\n福州从纸褙福州城变为宜居城市。'),
+    ])
+    assert {item['id'] for item in library.search_documents('纸褙城')} == {'interview', 'article'}

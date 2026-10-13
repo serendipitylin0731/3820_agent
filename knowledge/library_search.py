@@ -220,6 +220,7 @@ def search_documents(query: str, limit: int = 30) -> list[dict]:
     terms = _terms(query)
     components = [_normalize(part) for part in re.split(r'[\s,，、;；]+|(?<=[\u4e00-\u9fff])[和与及](?=[\u4e00-\u9fff])', query)]
     components = list(dict.fromkeys(part for part in components if len(part) >= 2))
+    aliases = ('纸褙福州城', '纸褙屋', '纸褙苍霞') if normalized_query == '纸褙城' else ()
     ranked = []
     for item in _catalog():
         if item.get('category') == 'pdf' and item.get('text_path'):
@@ -245,11 +246,23 @@ def search_documents(query: str, limit: int = 30) -> list[dict]:
             title_score = max(title_score, 210.0)
         passage_score, match_page, snippet, exact, matched_text = (
             _best_passage(content, normalized_query) if content else (0.0, None, '', False, ''))
+        if not title_score and not passage_score and aliases and content:
+            for alias in aliases:
+                alias_score, alias_page, alias_snippet, alias_exact, alias_match = _best_passage(
+                    content, _normalize(alias))
+                if alias_score * 0.85 > passage_score:
+                    passage_score, match_page, snippet, exact, matched_text = (
+                        alias_score * 0.85, alias_page, alias_snippet, alias_exact, alias_match)
         normalized_content = _normalize(content) if content else ''
-        if (not title_score and not passage_score and len(components) > 1 and
-                all(part in normalized_content for part in components)):
-            passage_score = 20.0 + sum(min(10, normalized_content.count(part)) for part in components)
-            _, match_page, snippet, _, matched_text = _best_passage(content, max(components, key=len))
+        # Four-character searches often join two concepts without a separator,
+        # e.g. 港口开放. Require both words in one document as a weaker fallback.
+        component_set = ([normalized_query[:2], normalized_query[2:]]
+                         if len(normalized_query) == 4 and re.fullmatch(r'[\u4e00-\u9fff]{4}', normalized_query)
+                         else components)
+        if (not title_score and not passage_score and len(component_set) > 1 and
+                all(part in normalized_content for part in component_set)):
+            passage_score = 20.0 + sum(min(10, normalized_content.count(part)) for part in component_set)
+            _, match_page, snippet, _, matched_text = _best_passage(content, max(component_set, key=len))
         if title_score or passage_score:
             # One strong local hit outweighs a long document's repeated weak hits.
             # Repeated exact mentions can break ties without dominating the ranking.

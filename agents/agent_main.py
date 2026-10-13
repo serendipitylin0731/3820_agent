@@ -6,7 +6,7 @@ import re
 from pydantic import ValidationError
 from config import ConfigurationError, get_settings
 from contracts import SubTask
-from knowledge.curated import JIANG_HAI_TERMS, OVERVIEW_CUES, cangxia_case
+from knowledge.curated import JIANG_HAI_TERMS, OVERVIEW_CUES, cangxia_case, paper_city_question
 from llm_client import chat
 
 SPLIT_SYSTEM = '''将问题拆成 JSON 数组。每个对象必须包含 type 和 question，question 是对应子问题；禁止使用 content 字段。type 仅为 planning、indicator、spatial、evaluation。
@@ -52,13 +52,16 @@ def _local_split(question):
 
 def _normalize_tasks(tasks, question):
     """对模型拆分做领域校验，防止无关问题被误映射为某项指标。"""
-    if cangxia_case(question):
+    if paper_city_question(question) or cangxia_case(question):
+        return [{'type': 'planning', 'question': question}]
+    if (any(term in question for term in ('侨商', '侨资')) and
+            any(term in question for term in ('作用', '如何', '为什么', '联系', '招商', '引资'))):
         return [{'type': 'planning', 'question': question}]
     # The economic circle is a strategic layout, not a single spatial feature.
     # Model-generated spatial lookups for broad area questions otherwise fail and
     # turn an otherwise complete answer into a misleading partial response.
     if ('闽江口金三角' in question and
-            any(term in question for term in ('为什么', '为何', '涉及', '哪些区域', '范围', '布局', '建设')) and
+            any(term in question for term in ('为什么', '为何', '涉及', '哪些区域', '投资区', '范围', '布局', '建设')) and
             not any(label.lower() in question.lower() for _, label in KEYWORDS)):
         return [{'type': 'planning', 'question': question}]
     if (any(task['type'] == 'spatial' for task in tasks) and not any(
@@ -75,8 +78,8 @@ def _normalize_tasks(tasks, question):
             not any(label.lower() in question.lower() for _, label in KEYWORDS)):
         return [{'type': 'planning', 'question': question}]
     if ('GDP' in question.upper() and 'GNP' in question.upper() and
-            not re.search(r'(?:19|20)\d{2}', question) and '目标' not in question and
-            any(term in question for term in ('区别', '差别', '概念', '定义'))):
+            not re.search(r'(?:19|20)\d{2}', question) and
+            any(term in question for term in ('区别', '差别', '概念', '定义', '混用', '等同', '一样'))):
         return [{'type': 'planning', 'question': question}]
     local_indicators = [task for task in _local_split(question) if task['type'] == 'indicator']
     tasks = [task for task in tasks if task['type'] != 'indicator']

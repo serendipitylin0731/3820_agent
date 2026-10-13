@@ -150,6 +150,88 @@ def test_cangxia_housing_question_uses_relevant_article_instead_of_spatial_looku
     assert '漏水' in answer and '住房' in answer
 
 
+def test_paper_city_two_part_question_answers_both_parts_with_two_sources(monkeypatch):
+    import graph
+    from agents import agent_main
+    from knowledge.query_understanding import resolve_question
+    question = '“纸褙城”指什么？改造前后发生了什么变化？'
+    resolved = resolve_question(question, settings=Settings())
+    assert '纸褙城' in resolved and '改造前后' in resolved
+    monkeypatch.setattr(agent_main, 'get_settings',
+                        lambda: Settings(ark_api_key='fake', llm_model='fake'))
+    monkeypatch.setattr(agent_main, 'chat',
+                        lambda *_args, **_kwargs: '[{"type":"spatial","question":"纸褙城",'
+                                                 '"keyword":"苍霞"}]')
+    tasks = agent_main.split_task(resolved)
+    assert [task['type'] for task in tasks] == ['planning']
+    fetched = graph.retrieve_node({'question': question, 'resolved_question': resolved})
+    executed = graph.execute_node({'question': question, 'resolved_question': resolved,
+                                   'sub_tasks': tasks, **fetched})
+    answer = graph.answer_node({'question': question, 'resolved_question': resolved,
+                                **executed})['answer']
+    assert all(term in answer for term in ('纸糊墙', '苍霞', '回迁新居'))
+    assert len(executed['results']['planning']['sources']) == 2
+
+
+def test_port_cultural_and_livelihood_questions_reach_relevant_sections():
+    import graph
+    from agents import agent_main
+    from knowledge.curated import answer_passage
+    for question, expected in (
+        ('福州港在对外开放中起什么作用？', '福州港'),
+        ('三坊七巷保护在城市发展中有什么意义？', '历史文脉'),
+        ('红庙岭垃圾处理场什么时候投入使用？', '1995 年'),
+        ('海外侨商在3820工程中起了什么作用？', '侨商网络'),
+    ):
+        assert expected in answer_passage(question)
+        tasks = agent_main._normalize_tasks(agent_main._local_split(question), question)
+        assert [task['type'] for task in tasks] == ['planning']
+        fetched = graph.retrieve_node({'question': question})
+        assert fetched['kb_sources']
+
+
+def test_reviewed_sources_cover_short_formation_and_achievement_questions():
+    from knowledge.curated import answer_passage
+    cases = (
+        ('1992年规划谁主持？', '习近平同志'),
+        ('1992年11月通过了什么？', '福州市20年经济社会发展战略设想'),
+        ('万人问卷千人调研百人论证是什么？', '调查研究'),
+        ('第一阶段是否提前完成？', '1994 年'),
+        ('为什么要保护林觉民故居？', '三坊七巷'),
+        ('目标值和完成值有什么区别？', '预期指标'),
+    )
+    for question, expected in cases:
+        assert expected in answer_passage(question)
+
+
+def test_conceptual_gdp_gnp_targets_and_scan_page_use_source_backed_planning():
+    import graph
+    from agents.agent_main import _local_split, _normalize_tasks
+    conceptual = 'GDP与GNP目标能否混用？'
+    assert [task['type'] for task in _normalize_tasks(_local_split(conceptual), conceptual)] == ['planning']
+    for question, expected in (('GDP与GNP目标能否混用？', '不能互相替代'),
+                               ('原件扫描第27页有什么？', '罗源湾投资区')):
+        tasks = _normalize_tasks(_local_split(question), question)
+        fetched = graph.retrieve_node({'question': question})
+        result = graph.execute_node({'question': question, 'sub_tasks': tasks, **fetched})
+        answer = graph.answer_node({'question': question, **result})['answer']
+        assert expected in answer
+
+
+def test_paper_city_presentation_overview_uses_content_slides_not_reference_pages():
+    import graph
+    from agents.agent_main import _local_split, _normalize_tasks
+    question = '纸褙城专题课件讲了什么？'
+    tasks = _normalize_tasks(_local_split(question), question)
+    fetched = graph.retrieve_node({'question': question})
+    pages = [source['page_or_slide'] for source in fetched['kb_sources']]
+    assert pages == [2, 9, 10, 16, 21]
+    executed = graph.execute_node({'question': question, 'sub_tasks': tasks, **fetched})
+    answer = graph.answer_node({'question': question, **executed})['answer']
+    assert '苍霞棚屋区' in answer and '长期规划' in answer
+    assert '教学难点：为什么要提出马克思主义中国化时代化' not in answer
+
+
 def test_airport_history_uses_planning_instead_of_spatial_lookup(monkeypatch):
     from agents import agent_main
     monkeypatch.setattr(agent_main, 'get_settings', lambda: Settings())

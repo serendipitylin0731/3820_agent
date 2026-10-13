@@ -71,9 +71,9 @@ def retrieve_node(state):
     started = time.monotonic()
     question = _query(state)
     media_request = any(term in question for term in
-                        ('示意图', '地图', '幻灯片', 'PPT', '图片', '图像', '照片', '扫描件', '视频', '录像', '画面'))
+                        ('示意图', '地图', '幻灯片', 'PPT', '课件', '图片', '图像', '照片', '扫描件', '视频', '录像', '画面'))
     direct = direct_hits(question)
-    if direct and (direct[0].chunk_id == 'reviewed:investment_map' or
+    if direct and (direct[0].chunk_id in {'reviewed:investment_map', 'reviewed:presentation:2'} or
                    not media_request):
         found = KnowledgeResult(status='ok', hits=direct)
         log_event('retrieval_finished', state.get('request_id', ''), state.get('thread_id', ''),
@@ -93,11 +93,17 @@ def retrieve_node(state):
                 found = found.model_copy(update={'status': 'ok',
                     'hits': [*direct, *[hit for hit in found.hits
                                       if hit.chunk_id not in {item.chunk_id for item in direct}]][:get_settings().top_k]})
-            anchors = [term for term in EXACT_ENTITIES if term in question]
+            anchors = [term for term in (*EXACT_ENTITIES, '苍霞') if term in question]
             if anchors and found.hits:
                 relevant = [hit for hit in found.hits if any(term in hit.content for term in anchors)]
                 if relevant:
                     found = found.model_copy(update={'hits': relevant[:3]})
+                elif media_request:
+                    # A matching file type alone does not show that the media
+                    # depicts the named place. Fall back to reviewed text only
+                    # when it exists; never describe an unrelated transcript.
+                    found = KnowledgeResult(status='ok', hits=direct) if direct else \
+                            KnowledgeResult(status='insufficient_evidence')
             log_event('retrieval_finished', state.get('request_id', ''), state.get('thread_id', ''),
                       node='retrieve_node', duration_ms=round((time.monotonic() - started) * 1000, 1))
             return {'kb_context': format_context(found),
