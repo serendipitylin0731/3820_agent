@@ -48,8 +48,13 @@
   const readerContent = document.querySelector('#library-reader-content');
   const readerPages = document.querySelector('#reader-pages');
   const readerPageSelect = document.querySelector('#reader-page-select');
+  const readerSlideNav = document.querySelector('#reader-slide-nav');
+  const readerPrevSlide = document.querySelector('#reader-prev-slide');
+  const readerNextSlide = document.querySelector('#reader-next-slide');
+  const readerSlideCount = document.querySelector('#reader-slide-count');
   const searchHistoryStore = window.LibrarySearchHistory;
   let previewBlobUrl = null;
+  let slideRequestGeneration = 0;
   let storage;
   try { storage = window.localStorage; } catch (_) { storage = null; }
   let savedTurns = historyStore.load(storage);
@@ -204,7 +209,7 @@
         previewDocument({ title: file.split('/').pop().replace(/\.[^.]+$/, ''),
           category: ['ppt', 'pptx'].includes(originalFormat) ? 'presentations'
             : ['png', 'jpg', 'jpeg', 'webp', 'mp4', 'mov', 'm4v'].includes(originalFormat) ? 'media' : 'documents',
-          format: ['ppt', 'pptx'].includes(originalFormat) ? 'md' : originalFormat,
+          format: ['ppt', 'pptx'].includes(originalFormat) ? 'slides' : originalFormat,
           download_format: originalFormat === 'md' && file !== 'docs/3820背景.md' ? 'docx' : originalFormat,
           source_file: file, match_page: page, highlight_terms: [], collection: '问答引用资料' });
       });
@@ -379,9 +384,11 @@
   }
 
   function clearPreview() {
+    slideRequestGeneration += 1;
     if (previewBlobUrl) URL.revokeObjectURL(previewBlobUrl);
     previewBlobUrl = null;
     readerContent.replaceChildren();
+    readerContent.classList.remove('slide-document');
   }
 
   function showReader(item) {
@@ -511,16 +518,70 @@
     if (element) element.scrollIntoView({ block: 'start', behavior: 'auto' });
   }
 
+  async function displaySlide(item, page) {
+    const count = item.page_count || 0;
+    if (!Number.isInteger(page) || page < 1 || page > count) return;
+    const generation = ++slideRequestGeneration;
+    item.slide_page = page;
+    readerPageSelect.value = String(page);
+    readerSlideCount.textContent = `${page} / ${count}`;
+    readerPrevSlide.disabled = page === 1;
+    readerNextSlide.disabled = page === count;
+    document.querySelector('#reader-match').textContent = `第 ${page} 页`;
+    let slide = readerContent.querySelector('.library-slide');
+    if (!slide) {
+      slide = make('img', 'library-slide');
+      readerContent.replaceChildren(slide);
+      readerContent.classList.add('slide-document');
+    }
+    try {
+      const response = await checkedFetch(`/sources/slide?file=${encodeURIComponent(item.source_file)}&page=${page}`);
+      const nextUrl = URL.createObjectURL(await response.blob());
+      if (generation !== slideRequestGeneration || activeReaderItem !== item) {
+        URL.revokeObjectURL(nextUrl);
+        return;
+      }
+      const previousUrl = previewBlobUrl;
+      slide.onload = () => { if (previousUrl) URL.revokeObjectURL(previousUrl); };
+      slide.alt = `${item.title}，第 ${page} 页，共 ${count} 页`;
+      slide.src = nextUrl;
+      previewBlobUrl = nextUrl;
+    } catch (error) {
+      if (generation === slideRequestGeneration) {
+        readerContent.append(make('p', 'library-status', error.message));
+      }
+    }
+  }
+
   async function previewDocument(item) {
     clearPreview();
     showReader(item);
-    readerContent.append(make('p', 'library-status', '正在加载预览…'));
+    if (item.format !== 'slides') readerContent.append(make('p', 'library-status', '正在加载预览…'));
     readerPages.hidden = true;
+    readerSlideNav.hidden = true;
     try {
       const sourceQuery = item.source_file ? `?file=${encodeURIComponent(item.source_file)}` : '';
       const response = await checkedFetch(item.source_file ? `/sources/preview${sourceQuery}`
         : `/library/${encodeURIComponent(item.id)}/preview`);
       readerContent.replaceChildren();
+      if (item.format === 'slides') {
+        const payload = await response.json();
+        item.title = payload.title || item.title;
+        item.page_count = payload.page_count;
+        document.querySelector('#library-reader-title').textContent = item.title;
+        document.querySelector('#reader-location').textContent = `原件共 ${item.page_count} 页`;
+        readerPageSelect.replaceChildren();
+        for (let page = 1; page <= item.page_count; page += 1) {
+          const option = make('option', '', `第 ${page} 页`);
+          option.value = String(page);
+          readerPageSelect.append(option);
+        }
+        readerPages.hidden = false;
+        readerSlideNav.hidden = false;
+        await displaySlide(item, item.match_page >= 1 && item.match_page <= item.page_count
+          ? item.match_page : 1);
+        return;
+      }
       if (['md', 'txt', 'docx'].includes(item.format)) {
         const payload = await response.json();
         if (payload.title) {
@@ -759,7 +820,16 @@
     searchLibrary(libraryQuery.value);
   });
   document.querySelector('#reader-back').addEventListener('click', closeReader);
-  readerPageSelect.addEventListener('change', () => jumpToPage(readerPageSelect.value));
+  readerPageSelect.addEventListener('change', () => {
+    if (activeReaderItem?.format === 'slides') displaySlide(activeReaderItem, Number(readerPageSelect.value));
+    else jumpToPage(readerPageSelect.value);
+  });
+  readerPrevSlide.addEventListener('click', () => {
+    if (activeReaderItem?.format === 'slides') displaySlide(activeReaderItem, activeReaderItem.slide_page - 1);
+  });
+  readerNextSlide.addEventListener('click', () => {
+    if (activeReaderItem?.format === 'slides') displaySlide(activeReaderItem, activeReaderItem.slide_page + 1);
+  });
   document.querySelector('#reader-download').addEventListener('click', () => {
     if (activeReaderItem) downloadDocument(activeReaderItem);
   });

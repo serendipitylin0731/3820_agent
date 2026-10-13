@@ -20,7 +20,7 @@ from config import ConfigurationError, get_settings
 from contracts import AgentResult, ChatError, ChatRequest, ChatResponse, ErrorInfo
 from graph import ask
 from knowledge.knowledge_base import retrieval_metrics
-from knowledge.library_search import cited_record, download_file, media_text, preview_text, public_record, search_documents
+from knowledge.library_search import cited_record, cited_slide, download_file, media_text, preview_text, public_record, search_documents
 from resilience import timeout_error
 
 logger = logging.getLogger('3820_agent')
@@ -248,16 +248,10 @@ def preview_cited_source(file: str):
         return _error(404, 'not_found', '该来源没有可预览的原件')
     item, path = found
     if item.get('category') == 'presentations':
-        text_path = item.get('text_path')
-        if not text_path:
-            return _error(404, 'not_found', '演示文稿尚未生成预览文字')
-        from knowledge.library_search import _safe_path
-        derived = _safe_path(text_path)
-        if not derived.is_file():
-            return _error(404, 'not_found', '演示文稿尚未生成预览文字')
-        content = derived.read_text(encoding='utf-8-sig', errors='replace')
-        pages = [int(number) for number in re.findall(r'(?m)^## 第\s*(\d+)\s*页', content)]
-        return {'title': item['title'], 'format': 'md', 'content': content, 'pages': pages}
+        count = item.get('preview_page_count', 0)
+        if not count or cited_slide(file, 1) is None:
+            return _error(404, 'not_found', '演示文稿尚未生成逐页预览图')
+        return {'title': item['title'], 'format': 'slides', 'page_count': count}
     content = preview_text(item, path)
     if content is not None:
         return {'title': item['title'], 'format': path.suffix.lower().lstrip('.'),
@@ -267,6 +261,14 @@ def preview_cited_source(file: str):
         return FileResponse(path, filename=path.name, content_disposition_type='inline',
                             headers={'X-Source-Title': quote(item['title'])})
     return _error(415, 'unsupported_preview', '该格式暂不支持在线预览')
+
+
+@app.get('/sources/slide')
+def preview_cited_slide(file: str, page: int):
+    path = cited_slide(file, page)
+    if path is None:
+        return _error(404, 'not_found', '该页不存在')
+    return FileResponse(path, media_type='image/webp', content_disposition_type='inline')
 
 
 @app.get('/sources/text')

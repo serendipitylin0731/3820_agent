@@ -5891,7 +5891,9 @@
       "bytes": 128681592,
       "source": "3820资料库_2_视频课件与研修成果.zip/3820视频.pptx-含4段内嵌视频与图片",
       "searchable": false,
-      "text_path": "knowledge/library/derived/ac52dbac038cbc8ac000.txt"
+      "text_path": "knowledge/library/derived/ac52dbac038cbc8ac000.txt",
+      "preview_dir": "knowledge/library/slide_previews/ac52dbac038cbc8ac000",
+      "preview_page_count": 30
     },
     {
       "id": "a9eed323a88f9a70eef1",
@@ -5902,7 +5904,9 @@
       "bytes": 137484331,
       "source": "knowledge/data/PPT    张玲2024年“造‘福’纸褙城”专题研修成果.pptx",
       "searchable": false,
-      "text_path": "knowledge/library/derived/a9eed323a88f9a70eef1.txt"
+      "text_path": "knowledge/library/derived/a9eed323a88f9a70eef1.txt",
+      "preview_dir": "knowledge/library/slide_previews/a9eed323a88f9a70eef1",
+      "preview_page_count": 21
     },
     {
       "id": "022063f43c1095581133",
@@ -5913,7 +5917,9 @@
       "bytes": 160549582,
       "source": "3820资料库_2_视频课件与研修成果.zip/张玲2024_造福纸褙城研修成果.pptx",
       "searchable": false,
-      "text_path": "knowledge/library/derived/022063f43c1095581133.txt"
+      "text_path": "knowledge/library/derived/022063f43c1095581133.txt",
+      "preview_dir": "knowledge/library/slide_previews/022063f43c1095581133",
+      "preview_page_count": 27
     },
     {
       "id": "e27bff8ba8449733e9ef",
@@ -5924,7 +5930,9 @@
       "bytes": 342965458,
       "source": "3820资料库_3_第四讲课件.zip/第四讲_坚持以人民为中心.ppt",
       "searchable": false,
-      "text_path": "knowledge/library/derived/e27bff8ba8449733e9ef.txt"
+      "text_path": "knowledge/library/derived/e27bff8ba8449733e9ef.txt",
+      "preview_dir": "knowledge/library/slide_previews/e27bff8ba8449733e9ef",
+      "preview_page_count": 115
     }
   ],
   "duplicates": [

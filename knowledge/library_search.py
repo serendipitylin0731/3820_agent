@@ -71,6 +71,19 @@ def cited_record(source_file: str) -> tuple[dict, Path] | None:
     return None
 
 
+def cited_slide(source_file: str, page: int) -> Path | None:
+    found = cited_record(source_file)
+    if found is None or found[0].get('category') != 'presentations':
+        return None
+    item, _ = found
+    count = item.get('preview_page_count')
+    folder = item.get('preview_dir')
+    if not isinstance(count, int) or not isinstance(folder, str) or not 1 <= page <= count:
+        return None
+    path = _safe_path(folder) / f'slide_{page:04d}.webp'
+    return path if path.is_file() else None
+
+
 @lru_cache(maxsize=512)
 def _text(path: Path) -> str:
     if path.suffix.lower() in TEXT_SUFFIXES:

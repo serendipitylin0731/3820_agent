@@ -46,6 +46,13 @@ def test_public_search_preview_download_and_private_exclusions(tmp_path, monkeyp
     video_item['text_path'] = 'knowledge/library/derived/video.txt'
     ppt_item = item(ppt, 'presentations', 'ppt', False)
     ppt_item['text_path'] = 'knowledge/library/derived/ppt.txt'
+    slide_folder = root / 'knowledge' / 'library' / 'slide_previews' / 'ppt'
+    slide_folder.mkdir(parents=True)
+    (slide_folder / 'slide_0001.webp').write_bytes(b'page-one')
+    (slide_folder / 'slide_0002.webp').write_bytes(b'page-two')
+    (slide_folder / 'slide_0003.webp').write_bytes(b'page-three')
+    ppt_item['preview_dir'] = 'knowledge/library/slide_previews/ppt'
+    ppt_item['preview_page_count'] = 3
     catalog.write_text(json.dumps({'entries': [item(paper, 'papers', 'paper', True),
                                                 item(course, 'courses', 'course', False),
                                                 ppt_item,
@@ -75,7 +82,9 @@ def test_public_search_preview_download_and_private_exclusions(tmp_path, monkeyp
             assert client.get('/sources/open', params={'file': item(paper, 'papers', 'paper', True)['path']}).content == b'word-download'
             assert client.get('/sources/open', params={'file': item(ppt, 'presentations', 'ppt', False)['path']}).content == b'ppt-file'
             citation = client.get('/sources/preview', params={'file': ppt_item['path']}).json()
-            assert citation['pages'] == [3] and '闽江口规划' in citation['content']
+            assert citation['format'] == 'slides' and citation['page_count'] == 3
+            assert client.get('/sources/slide', params={'file': ppt_item['path'], 'page': 3}).content == b'page-three'
+            assert client.get('/sources/slide', params={'file': ppt_item['path'], 'page': 4}).status_code == 404
             assert '金三角' in client.get('/sources/preview', params={'file': item(paper, 'papers', 'paper', True)['path']}).json()['content']
             assert client.get('/sources/preview', params={'file': image_item['path']}).content == b'png-file'
             assert '沿江布局' in client.get('/sources/text', params={'file': image_item['path']}).json()['content']
