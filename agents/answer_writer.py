@@ -184,7 +184,9 @@ def _parse_draft(raw: str) -> AnswerDraft:
         if cleaned.startswith(('{', '[')):
             raise
         # 个别模型即使收到 JSON 指令也会返回可用的正文和一行来源 ID。
-        match = re.search(r'(?m)^\s*used_theory_ids\s*:\s*(\[[^\n]*\])\s*$', cleaned)
+        match = re.search(
+            r'(?m)(?:^|\n|(?<=[。！？]))\s*used_theory_ids\s*:\s*(\[[^\n]*\])\s*$',
+            cleaned)
         ids = json.loads(match.group(1)) if match else []
         answer = cleaned[:match.start()].strip() if match else cleaned
         if answer.startswith('answer:'):

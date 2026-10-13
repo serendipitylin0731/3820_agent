@@ -56,6 +56,15 @@ def test_plain_model_answer_with_theory_ids_is_accepted(monkeypatch):
     assert list(theory) == ['new_era_method']
 
 
+def test_inline_model_metadata_is_not_shown_in_answer(monkeypatch):
+    monkeypatch.setattr(answer_writer, 'chat', lambda *_args, **_kwargs: (
+        '视频展示了福州与印尼的渔业合作。used_theory_ids: []'))
+    answer, theory = answer_writer.compose_answer('视频展示了什么？', RESULTS, 'fallback',
+                                                  settings=ONLINE_SETTINGS)
+    assert answer == '视频展示了福州与印尼的渔业合作。'
+    assert theory is None
+
+
 def test_unsubstantiated_quantity_falls_back_to_sourced_theory(monkeypatch):
     monkeypatch.setattr(answer_writer, 'chat', lambda *_args, **_kwargs: (
         '从今天的理论视角看，规划设置了十二个战略重点。\n'
