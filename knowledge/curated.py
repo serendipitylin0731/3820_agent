@@ -13,6 +13,14 @@ from contracts import KnowledgeHit, SourceRef
 
 
 BACKGROUND = Path(__file__).resolve().parents[1] / 'docs' / '3820背景.md'
+CANGXIA_SOURCE = 'knowledge/library/literature/3820_网文_04.md'
+CANGXIA_SECTION = '苍霞棚屋区改造'
+CANGXIA_PASSAGE = (
+    '苍霞棚屋区原有住房多由杉木板拼接，年久失修，下雨漏水、刮风作响，'
+    '木屋连片也有火灾隐患。2000年启动改造后，一年内3441户9511人回迁新居，'
+    '居民从棚屋搬进楼房，住房安全与居住条件得到改善。'
+    '近年的苍霞新城提升还完善了绿化、公共活动空间、养老服务和停车位等配套。'
+)
 JIANG_HAI_TERMS = ('沿江向海', '东进南下')
 OVERVIEW_CUES = ('具体内容', '主要内容', '核心内容', '总体内容', '整体内容',
                  '有什么内容', '哪些内容', '包含什么', '包含哪些',
@@ -56,6 +64,12 @@ def _section(title: str) -> str:
     return match.group(1).split('\n来源：', 1)[0].strip()
 
 
+def cangxia_case(question: str) -> bool:
+    return ('苍霞' in question and
+            any(term in question for term in ('改造', '棚屋', '棚户', '居民', '生活', '住房', '安居', '纸褙')) and
+            not any(term in question for term in ('在哪里', '位于哪里', '位置', '坐标')))
+
+
 def section_titles(question: str) -> list[str]:
     """Select reviewed source sections for the topic, with no fuzzy OCR match."""
     query = question.strip()
@@ -95,6 +109,15 @@ def section_titles(question: str) -> list[str]:
 
 
 def direct_hits(question: str) -> list[KnowledgeHit]:
+    if cangxia_case(question):
+        source_path = BACKGROUND.parents[1] / CANGXIA_SOURCE
+        return [KnowledgeHit(
+            chunk_id='reviewed:cangxia_housing', content=CANGXIA_PASSAGE,
+            source=SourceRef(source_file=CANGXIA_SOURCE, section=CANGXIA_SECTION,
+                             data_version=hashlib.sha256(source_path.read_bytes()).hexdigest()[:16],
+                             verified=True),
+            score=1.0, score_kind='similarity',
+        )]
     if '示意图' in question and any(term in question for term in ('闽江口', '金三角', '投资')):
         map_data = json.loads((BACKGROUND.parents[1] / 'knowledge' / 'map_labels.json').read_text(encoding='utf-8'))
         return [KnowledgeHit(
@@ -123,6 +146,8 @@ def direct_hits(question: str) -> list[KnowledgeHit]:
 
 
 def source_sections(question: str) -> list[str]:
+    if cangxia_case(question):
+        return [CANGXIA_SECTION]
     sections = [SECTIONS[title][1] for title in section_titles(question)]
     if ('闽江口金三角' in question and
             any(term in question for term in ('涉及', '哪些区域', '范围', '分布', '包括'))):
@@ -132,6 +157,8 @@ def source_sections(question: str) -> list[str]:
 
 def answer_passage(question: str) -> str | None:
     """Use the reviewed prose as an offline, source-backed answer outline."""
+    if cangxia_case(question):
+        return CANGXIA_PASSAGE
     titles = section_titles(question)
     if not titles:
         return None

@@ -6,7 +6,7 @@ import re
 from pydantic import ValidationError
 from config import ConfigurationError, get_settings
 from contracts import SubTask
-from knowledge.curated import JIANG_HAI_TERMS, OVERVIEW_CUES
+from knowledge.curated import JIANG_HAI_TERMS, OVERVIEW_CUES, cangxia_case
 from llm_client import chat
 
 SPLIT_SYSTEM = '''将问题拆成 JSON 数组。每个对象必须包含 type 和 question，question 是对应子问题；禁止使用 content 字段。type 仅为 planning、indicator、spatial、evaluation。
@@ -52,6 +52,8 @@ def _local_split(question):
 
 def _normalize_tasks(tasks, question):
     """对模型拆分做领域校验，防止无关问题被误映射为某项指标。"""
+    if cangxia_case(question):
+        return [{'type': 'planning', 'question': question}]
     # The economic circle is a strategic layout, not a single spatial feature.
     # Model-generated spatial lookups for broad area questions otherwise fail and
     # turn an otherwise complete answer into a misleading partial response.

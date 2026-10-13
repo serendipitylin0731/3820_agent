@@ -130,6 +130,26 @@ def test_economic_circle_question_uses_local_scans_without_partial_failure(monke
     }
 
 
+def test_cangxia_housing_question_uses_relevant_article_instead_of_spatial_lookup(monkeypatch):
+    import graph
+    from agents import agent_main
+    question = '苍霞棚屋区改造解决了居民哪些生活问题？'
+    monkeypatch.setattr(agent_main, 'get_settings',
+                        lambda: Settings(ark_api_key='fake', llm_model='fake'))
+    monkeypatch.setattr(agent_main, 'chat',
+                        lambda *_args, **_kwargs: '[{"type":"spatial","question":"苍霞",'
+                                                 '"keyword":"苍霞"}]')
+    tasks = agent_main.split_task(question)
+    assert [task['type'] for task in tasks] == ['planning']
+    fetched = graph.retrieve_node({'question': question})
+    assert [source['source_file'] for source in fetched['kb_sources']] == [
+        'knowledge/library/literature/3820_网文_04.md']
+    executed = graph.execute_node({'question': question, 'sub_tasks': tasks, **fetched})
+    assert executed['results']['planning']['status'] == 'ok'
+    answer = graph.answer_node({'question': question, **executed})['answer']
+    assert '漏水' in answer and '住房' in answer
+
+
 def test_airport_history_uses_planning_instead_of_spatial_lookup(monkeypatch):
     from agents import agent_main
     monkeypatch.setattr(agent_main, 'get_settings', lambda: Settings())
