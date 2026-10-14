@@ -1,6 +1,7 @@
 .env
 .env.*
 !.env.example
+*.zip
 knowledge/data/*
 !knowledge/data/.gitkeep
 knowledge/library/*
