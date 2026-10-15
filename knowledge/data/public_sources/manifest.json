@@ -1,0 +1,79 @@
+[
+  {
+    "id": "3820_fuzhou_explainer",
+    "url": "https://www.fuzhou.gov.cn/gzdt/rcyw/202205/t20220519_4364544.htm",
+    "kind": "official_interpretation",
+    "retrieved": "2026-10-10",
+    "title": "“3820”战略工程解读 _ 榕城要闻 _ 福州市人民政府门户网站",
+    "html_sha256": "a36cd217b925bde7211a267c3c8c9420eeaa42c123c3974be7071db9c332393d",
+    "text_sha256": "dce29e04bc4c617ba68b25ca398bbe6c12f91348f73dd386bf0ef25859f3524b",
+    "characters": 1097,
+    "note": "非1992年《战略设想》原件"
+  },
+  {
+    "id": "fuzhou_interview_14",
+    "url": "https://www.fuzhou.gov.cn/zfxxgkzl/sjcj/zz/xjpzfz/xjpzfzcfsl/202012/t20201203_3698098.htm",
+    "kind": "book_serialized_interview",
+    "retrieved": "2026-10-10",
+    "title": "习近平在福州（十四）丨“近平同志强调要敢做时代的弄潮人”_《习近平在福州》采访实录_福州市纪委监委",
+    "html_sha256": "8531a81184adef7139058eed21a16a7b811eb0ca62e2b79c820840da365a235d",
+    "text_sha256": "0682f5b6bc0fe8ac1e6d616841a5c4b94cc793d2425be15626b8c5571520fa41",
+    "characters": 9889,
+    "note": ""
+  },
+  {
+    "id": "fuzhou_interview_18",
+    "url": "https://jcj.fuzhou.gov.cn/zz/xjpzfz/zxbd_49574/202001/t20200120_3185437.htm",
+    "kind": "book_serialized_interview",
+    "retrieved": "2026-10-10",
+    "title": "习近平在福州（十八）丨“‘3820’工程就是习书记给我们提出的‘福州梦’”_最新报道_福州市纪委监委",
+    "html_sha256": "5e1ee86bed04b96a405dc65e119efdf85fe0c5d01c7838c7f7d72eb880ba756d",
+    "text_sha256": "55bdf583cc9bbb987e5474971aa47ed90f06e0337198f938cdcaba93c3489cb0",
+    "characters": 5761,
+    "note": ""
+  },
+  {
+    "id": "fujian_interview_28",
+    "url": "https://jcj.fuzhou.gov.cn/zz/xjpzfz/xjpzfjcfsl/202012/t20201221_3881801.htm",
+    "kind": "book_serialized_interview",
+    "retrieved": "2026-10-10",
+    "title": "只要是老百姓关心的事情，习近平同志就不遗余力地去做”——习近平在福建（二十八）_《习近平在福建》采访实录_福州市纪委监委",
+    "html_sha256": "54b5e7eab89146654a9a5e64d08ef8fbfd6a807419e5c7a8d6b984d9765eb9e2",
+    "text_sha256": "eea865afd9ae16ceb64944b4f81226a5086139a4f2788fd5d89e0a29b1e01d05",
+    "characters": 5563,
+    "note": ""
+  },
+  {
+    "id": "fujian_footprints_excerpt",
+    "url": "https://mksxy.fzgsxy.com/index.php?a=show&c=index&catid=513&id=111&m=content",
+    "kind": "book_excerpt",
+    "retrieved": "2026-10-10",
+    "title": "闽山闽水物华新 | 《闽山闽水物华新——习近平福建足迹》选编之一 - 经典阅读 - 福州工商学院-马克思主义学院",
+    "html_sha256": "de708cde6034f972a84a8ecba1e2f373a095a78cae18c277bd6efec34abb33e8",
+    "text_sha256": "25118cb0bfd941079179c0b8357e011c755d0e31635b8776735f92428a619180",
+    "characters": 1664,
+    "note": ""
+  },
+  {
+    "id": "twentieth_congress_report",
+    "url": "https://www.news.cn/politics/leaders/2022-10/25/c_1129079429.htm",
+    "kind": "authorized_full_report",
+    "retrieved": "2026-10-10",
+    "title": "（受权发布）习近平：高举中国特色社会主义伟大旗帜 为全面建设社会主义现代化国家而团结奋斗——在中国共产党第二十次全国代表大会上的报告-新华网",
+    "html_sha256": "afb054d9fb762dbb1bca99b1aaba93f47bd9a611633fdc834e05d4d1651f0193",
+    "text_sha256": "6833a801c68e752e2b8d23c3b4f194ddf8f68e80bd822120c0349496486ac0ca",
+    "characters": 32983,
+    "note": ""
+  },
+  {
+    "id": "fujian_yearbook_2011_fuzhou_gdp",
+    "url": "https://tjj.fujian.gov.cn/tongjinianjian/dz2011/cn/html/2201.htm",
+    "kind": "official_statistics",
+    "retrieved": "2026-10-10",
+    "title": "福建统计年鉴2011 表22-1 地区生产总值（2010年）",
+    "html_sha256": "43efb61da06ac06841a748690fdb70f2de578a2fbbb742bd4725e3b114095aec",
+    "text_sha256": "6cb719c5c0fdc3c641d671e816c6bc027c8187dd557156ae434126d86e3061b8",
+    "characters": 138,
+    "note": "仅提取福州市2010年一行，非1992年《战略设想》原件"
+  }
+]

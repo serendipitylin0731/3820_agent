@@ -1,0 +1,7 @@
+knowledge/library/**/*.pdf filter=lfs diff=lfs merge=lfs -text
+knowledge/library/**/*.pptx filter=lfs diff=lfs merge=lfs -text
+knowledge/library/**/*.mp4 filter=lfs diff=lfs merge=lfs -text
+knowledge/library/**/*.png filter=lfs diff=lfs merge=lfs -text
+knowledge/library/**/*.webp filter=lfs diff=lfs merge=lfs -text
+knowledge/library/**/*.docx filter=lfs diff=lfs merge=lfs -text
+knowledge/data/original_3820/**/*.png filter=lfs diff=lfs merge=lfs -text

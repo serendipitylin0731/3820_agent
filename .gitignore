@@ -4,8 +4,10 @@
 *.zip
 knowledge/data/*
 !knowledge/data/.gitkeep
-knowledge/library/*
-!knowledge/library/catalog.json
+!knowledge/data/original_3820/
+!knowledge/data/public_sources/
+!knowledge/data/ppt_ocr/
+!knowledge/data/supplemental_text/
 new_things/
 var/
 dist/

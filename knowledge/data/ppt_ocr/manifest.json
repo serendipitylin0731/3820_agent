@@ -1,0 +1,246 @@
+{
+  "retrieved": "2026-10-10",
+  "ocr_engine": "rapidocr-onnxruntime 1.4.4",
+  "decks": [
+    {
+      "source_file": "3820视频.pptx",
+      "source_sha256": "ac52dbac038cbc8ac0002da504feb73b54dcdd42f9378c7506b88667c8a14f6b",
+      "image_shapes": 4,
+      "unreadable_images": 0,
+      "slides": [
+        {
+          "page": 19,
+          "text_file": "7f5cdf80b2d0/slide_0019.txt",
+          "text_sha256": "2c905d68b75c91b9087a142e0713200ed4073b1343d4a357313a785ae091158a",
+          "characters": 203
+        },
+        {
+          "page": 26,
+          "text_file": "7f5cdf80b2d0/slide_0026.txt",
+          "text_sha256": "56c1fd868f039399682a63e87a30cb15a5626fbad2e741353295fdc2530c3560",
+          "characters": 23
+        }
+      ]
+    },
+    {
+      "source_file": "PPT    张玲2024年“造‘福’纸褙城”专题研修成果.pptx",
+      "source_sha256": "a9eed323a88f9a70eef13c6898078b9b4938ab2da05093f4bd5bf0016884ba93",
+      "image_shapes": 22,
+      "unreadable_images": 0,
+      "slides": [
+        {
+          "page": 5,
+          "text_file": "6e71fa1b1213/slide_0005.txt",
+          "text_sha256": "8bd24b463473fbec9761e1d63f31a527c36f0087fa6e9312fd38cd8ef4288271",
+          "characters": 18
+        },
+        {
+          "page": 8,
+          "text_file": "6e71fa1b1213/slide_0008.txt",
+          "text_sha256": "22d7eeb43a284c2f6b8e18e80b266bff63a71148b26ad07e1ad34fb51d99fd35",
+          "characters": 31
+        },
+        {
+          "page": 9,
+          "text_file": "6e71fa1b1213/slide_0009.txt",
+          "text_sha256": "7ecab55453918ad9de6e5ea8aa2a0518c2dd1f17fda4c658bdca473d2bb3841d",
+          "characters": 17
+        },
+        {
+          "page": 10,
+          "text_file": "6e71fa1b1213/slide_0010.txt",
+          "text_sha256": "201d75d2987c017d61feeff2c0880737069ef61af3946fb99b58b9f3d285a687",
+          "characters": 43
+        },
+        {
+          "page": 11,
+          "text_file": "6e71fa1b1213/slide_0011.txt",
+          "text_sha256": "2cd621c13080fcf7b35526c1fbeb820f8ef20a492563c69457e734a60b7985de",
+          "characters": 90
+        },
+        {
+          "page": 13,
+          "text_file": "6e71fa1b1213/slide_0013.txt",
+          "text_sha256": "f29d76e4ca917a5a6bc4c572b6d9a6904809f795af8978a76710ae03921f7e55",
+          "characters": 954
+        },
+        {
+          "page": 14,
+          "text_file": "6e71fa1b1213/slide_0014.txt",
+          "text_sha256": "671086fdd3f5397470a3bd967dd3652974b0a285b6e61cf359a6d6e006e682ac",
+          "characters": 21
+        },
+        {
+          "page": 16,
+          "text_file": "6e71fa1b1213/slide_0016.txt",
+          "text_sha256": "3e91671f864a14fb5f20c4a9d66c2430a1b3332481564848e792b3c319aeb9d3",
+          "characters": 1437
+        }
+      ]
+    },
+    {
+      "source_file": "第四讲 坚持以人民为中心（2026）.ppt",
+      "source_sha256": "e27bff8ba8449733e9ef2d3b9b284d18c05c7238967bc02178fbc5e7328c408f",
+      "image_shapes": 114,
+      "unreadable_images": 0,
+      "slides": [
+        {
+          "page": 3,
+          "text_file": "ccef35f0c4ff/slide_0003.txt",
+          "text_sha256": "365c2ba5f54ba2c39be6e13c6299398c1acae5edcc8493ed917cae8fd4866f1f",
+          "characters": 17
+        },
+        {
+          "page": 5,
+          "text_file": "ccef35f0c4ff/slide_0005.txt",
+          "text_sha256": "365c2ba5f54ba2c39be6e13c6299398c1acae5edcc8493ed917cae8fd4866f1f",
+          "characters": 17
+        },
+        {
+          "page": 9,
+          "text_file": "ccef35f0c4ff/slide_0009.txt",
+          "text_sha256": "5fd3a7c56b0817fc91e8c5ef6eab250d74a9c7c59a24cfead6ceee55768743a3",
+          "characters": 136
+        },
+        {
+          "page": 17,
+          "text_file": "ccef35f0c4ff/slide_0017.txt",
+          "text_sha256": "6ea57fd47a25e213cd33864380923415cd449a4f6493d4828c9d1bc65b677912",
+          "characters": 233
+        },
+        {
+          "page": 21,
+          "text_file": "ccef35f0c4ff/slide_0021.txt",
+          "text_sha256": "19ac06fdf85ca73e5923efddedc1f49b555da12dfc166fe876593f55f4735a58",
+          "characters": 39
+        },
+        {
+          "page": 24,
+          "text_file": "ccef35f0c4ff/slide_0024.txt",
+          "text_sha256": "910454de1bfe90cf6667175412d303f48a26d546dfb98ebc836edab3cf8c4521",
+          "characters": 20
+        },
+        {
+          "page": 25,
+          "text_file": "ccef35f0c4ff/slide_0025.txt",
+          "text_sha256": "1e0b08a3b3b620763c0a23d2d0f851c8052d83db59edd2ae6a49b4ae38997e92",
+          "characters": 123
+        },
+        {
+          "page": 34,
+          "text_file": "ccef35f0c4ff/slide_0034.txt",
+          "text_sha256": "675577cb3356f2cf3f297725772978472c5fec53d32da8e8f76868a3cffac6f6",
+          "characters": 21
+        },
+        {
+          "page": 50,
+          "text_file": "ccef35f0c4ff/slide_0050.txt",
+          "text_sha256": "de90181f7efe5160adeb16a18808234e99ceeb26e1dcf7bc3b884c9ca2db8e5e",
+          "characters": 82
+        },
+        {
+          "page": 55,
+          "text_file": "ccef35f0c4ff/slide_0055.txt",
+          "text_sha256": "62b7956b914804105418b3a456e1e5377ad53090975c53f4fd85fc54adf2da4e",
+          "characters": 65
+        },
+        {
+          "page": 56,
+          "text_file": "ccef35f0c4ff/slide_0056.txt",
+          "text_sha256": "17854095489595f86da7dded48a8bca1b7ed21b7b160dfa7e383865d896a1e4a",
+          "characters": 137
+        },
+        {
+          "page": 57,
+          "text_file": "ccef35f0c4ff/slide_0057.txt",
+          "text_sha256": "f0937683f68b90240f8698362e59881f994171dcc7598b6fb01d30f4f6543116",
+          "characters": 58
+        },
+        {
+          "page": 61,
+          "text_file": "ccef35f0c4ff/slide_0061.txt",
+          "text_sha256": "de2ccd9324e53c5590d41fd598703d2dcb28b937788f17468f015a796db75ef9",
+          "characters": 1427
+        },
+        {
+          "page": 67,
+          "text_file": "ccef35f0c4ff/slide_0067.txt",
+          "text_sha256": "22d7eeb43a284c2f6b8e18e80b266bff63a71148b26ad07e1ad34fb51d99fd35",
+          "characters": 31
+        },
+        {
+          "page": 68,
+          "text_file": "ccef35f0c4ff/slide_0068.txt",
+          "text_sha256": "7ecab55453918ad9de6e5ea8aa2a0518c2dd1f17fda4c658bdca473d2bb3841d",
+          "characters": 17
+        },
+        {
+          "page": 69,
+          "text_file": "ccef35f0c4ff/slide_0069.txt",
+          "text_sha256": "3d910ad8919a4305a8943ccfd1cfa4d9e0daeb15c294527b394261512d209948",
+          "characters": 629
+        },
+        {
+          "page": 70,
+          "text_file": "ccef35f0c4ff/slide_0070.txt",
+          "text_sha256": "75f2ce6ed0d8ce04c6b906ecb07b5a5ef94dddaa008b5a2e4d8a7dc4c4b99289",
+          "characters": 155
+        },
+        {
+          "page": 71,
+          "text_file": "ccef35f0c4ff/slide_0071.txt",
+          "text_sha256": "c5b2b676c735cc39fa21e5ee900708a3eaabc6f16c3f3f73b2933a8291ed9c52",
+          "characters": 123
+        },
+        {
+          "page": 72,
+          "text_file": "ccef35f0c4ff/slide_0072.txt",
+          "text_sha256": "cbf4d4b728df58a278a74a2fd593f428d6bc3f0449776a2f91bb7e650c021256",
+          "characters": 38
+        },
+        {
+          "page": 73,
+          "text_file": "ccef35f0c4ff/slide_0073.txt",
+          "text_sha256": "7887a2ed2e5af55aa18518aa9eb89bda9f54dfe3d1d0b8f134a83166af4834da",
+          "characters": 30
+        },
+        {
+          "page": 79,
+          "text_file": "ccef35f0c4ff/slide_0079.txt",
+          "text_sha256": "d37a83e07c13d75f4be3753dbc8c0811fb4621a0db60b74c0dbf3b3d088d75b4",
+          "characters": 74
+        },
+        {
+          "page": 82,
+          "text_file": "ccef35f0c4ff/slide_0082.txt",
+          "text_sha256": "39ffdf2bb597b8872a770d51cb63a9c60bf952a911e8e520802b6b08c21d7616",
+          "characters": 2218
+        },
+        {
+          "page": 85,
+          "text_file": "ccef35f0c4ff/slide_0085.txt",
+          "text_sha256": "05efc7dda086538f41183ec672c6948a9121026c6900fc60cf678408746095b4",
+          "characters": 53
+        },
+        {
+          "page": 89,
+          "text_file": "ccef35f0c4ff/slide_0089.txt",
+          "text_sha256": "6f4f5ca439be3b152b96f07dcf5988c5ad50e0daa89b7a322be9ea6e2ef44083",
+          "characters": 33
+        },
+        {
+          "page": 90,
+          "text_file": "ccef35f0c4ff/slide_0090.txt",
+          "text_sha256": "93f19c9d90a6d10c490dcfc404f540b407165b679812021945938a6d8ecccec4",
+          "characters": 13
+        },
+        {
+          "page": 101,
+          "text_file": "ccef35f0c4ff/slide_0101.txt",
+          "text_sha256": "d34129433920387de33ce841f80e0e2e791d026304bdf1b7a62edb104189d10f",
+          "characters": 57
+        }
+      ]
+    }
+  ]
+}

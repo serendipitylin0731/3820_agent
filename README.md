@@ -48,7 +48,7 @@ EMBED_MODEL=你的向量模型ID
 .venv/bin/python -m scripts.import_supplemental_materials
 ```
 
-`knowledge/library/catalog.json` 随代码提交；资料正文、PDF、影像、`new_things/` 原始压缩包、`knowledge/data/` 中的 OCR/网页抓取缓存均不入 Git。**仅拉取代码无法在服务器上预览或下载这些资料**；部署时需另外把本机的 `knowledge/library/` 整目录复制到服务器项目同名路径。聊天还使用 `knowledge/data/public_sources/` 和 `knowledge/data/original_3820/` 的文字缓存，也应一并复制。新增电子书的 OCR 缓存在 `knowledge/data/supplemental_text/`，仅在重新入库时需要；服务器已有完整 `knowledge/library/` 时无须上传。复制后重启服务即可读取新清单。目录分类、去重结果和访问范围见[资料清单](docs/资料清单.md)。
+分类后的 `knowledge/library/`、原件扫描与公开网页缓存已纳入 Git；PDF、PPT、图片、视频和 Word 等二进制资料由 Git LFS 管理。首次克隆前请安装 Git LFS，并执行 `git lfs install`；已克隆的工作区执行 `git lfs pull` 下载资料本体。`new_things/` 原始压缩包、`knowledge/data/` 中重复的原始 PPT/视频和 `var/` 运行数据仍不入 Git。资料目录、去重结果和访问范围见[资料清单](docs/资料清单.md)。
 
 首次在资料齐全的本机建立图片、视频和 PPT 索引时，先安装可选依赖及 `ffmpeg`、`ffprobe`，再运行：
 
@@ -57,7 +57,7 @@ EMBED_MODEL=你的向量模型ID
 .venv/bin/python scripts/index_multimedia.py --model base --frame-interval 30
 ```
 
-这一步从 PPT 提取内嵌视频，生成 `knowledge/library/derived/` 中的 OCR、语音转写和逐页文字，并更新目录清单。视频首次转写需要本机可用的 faster-whisper `base` 模型；运行中的服务器只读取生成结果，不必安装这些转写依赖。更新服务器时必须同时复制新的 `knowledge/library/` 整目录和目录清单；只有代码更新不会带来影像本体及提取文字。语音和 OCR 可能有识别错误，回答应结合原件核对。
+这一步从 PPT 提取内嵌视频，生成 `knowledge/library/derived/` 中的 OCR、语音转写和逐页文字，并更新目录清单。视频首次转写需要本机可用的 faster-whisper `base` 模型；运行中的服务器只读取生成结果，不必安装这些转写依赖。资料更新提交并推送后，服务器执行 `git pull` 和 `git lfs pull` 即可取得新的目录与资料本体。语音和 OCR 可能有识别错误，回答应结合原件核对。
 
 PPT 的可视化逐页预览在资料齐全的本机生成一次。安装 LibreOffice Impress 和构建用 Python 依赖后运行：
 
@@ -70,16 +70,18 @@ PPT 的可视化逐页预览在资料齐全的本机生成一次。安装 LibreO
 
 Windows PowerShell 的环境创建和启动命令分别使用 `py -3.11 -m venv .venv`、`.venv\Scripts\python.exe -m pip install -r requirements.lock` 和 `.venv\Scripts\python.exe -m uvicorn app:app --host 127.0.0.1 --port 8000`。
 
-公网服务器部署时先更新代码，并将本机 `knowledge/library/`、`knowledge/data/public_sources/`、`knowledge/data/original_3820/` 复制到服务器项目中的同名位置。服务器只需要当前项目代码和这些资料目录；`new_things/` 压缩包、`.venv/`、`var/`、旧桌面安装文件都不需要上传。随后在服务器执行：
+公网服务器部署时，先安装 Git LFS，再拉取代码和资料。服务器不需要 `new_things/` 原始压缩包、旧虚拟环境或本机 `var/` 运行数据。随后在服务器执行：
 
 ```bash
 python3.11 -m venv .venv
 .venv/bin/python -m pip install -r requirements.lock
+git lfs install
+git lfs pull
 test -f .env || cp .env.example .env  # 首次部署后编辑豆包配置
 .venv/bin/python -m uvicorn app:app --host 0.0.0.0 --port 8000
 ```
 
-如要直接监听 80 端口，将最后一行的 `--port 8000` 改为 `--port 80`，并确保运行用户有绑定低端口的权限；也可在反向代理上把公网 80 端口转发到本机 8000。Docker 镜像仅包含目录清单，需要把 `knowledge/library/` 和 `knowledge/data/` 挂载到容器中的同名路径。
+如要直接监听 80 端口，将最后一行的 `--port 8000` 改为 `--port 80`，并确保运行用户有绑定低端口的权限；也可在反向代理上把公网 80 端口转发到本机 8000。Docker 镜像默认仍只包含目录清单，需要把下载后的 `knowledge/library/` 和 `knowledge/data/` 挂载到容器中的同名路径。
 
 ## 实现方式
 
@@ -117,7 +119,7 @@ flowchart LR;
 | `app.py`、`web/` | 浏览器版服务与界面 |
 | `graph.py`、`agents/` | 多智能体编排、领域处理和答案合成 |
 | `knowledge/` | 资料解析、检索、指标和来源数据 |
-| `knowledge/library/` | 分类后的资料本体与目录清单；大文件不入 Git |
+| `knowledge/library/` | 分类后的资料本体与目录清单；二进制大文件使用 Git LFS |
 | `new_things/` | 用户提供的原始压缩包；仅用于本机重建，不入 Git |
 | `scripts/organize_library.py` | 解包、分类、去重并生成 Word 下载文件 |
 | `scripts/import_supplemental_materials.py` | 增量导入新增电子书、逐页 OCR 并生成 PDF 对应的阅读稿和 Word |
