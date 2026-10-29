@@ -37,6 +37,25 @@ def test_missing_and_invalid_configuration_has_safe_error(tmp_path):
         Settings(ark_api_key="test-only-key", llm_model="fake-chat").require_service_ready()
 
 
+def test_voice_service_settings_are_separate_and_private(tmp_path):
+    path = tmp_path / '.env'
+    path.write_text('VOICE_API_KEY=填写语音服务API_Key\n', encoding='utf-8')
+    missing = load_settings(environ={}, dotenv_path=path)
+    with pytest.raises(ConfigurationError, match='VOICE_API_KEY'):
+        missing.require_voice_api_key()
+
+    settings = load_settings(environ={'VOICE_API_KEY': 'private-voice-key'}, dotenv_path=path)
+    assert settings.require_voice_api_key() == 'private-voice-key'
+    assert settings.voice_asr_resource_id == 'volc.seedasr.sauc.duration'
+    assert settings.voice_tts_resource_id == 'seed-tts-2.0'
+    assert 'private-voice-key' not in repr(settings)
+
+    with pytest.raises(ConfigurationError, match='VOICE_ASR_WS_URL'):
+        load_settings(environ={'VOICE_ASR_WS_URL': 'http://example.com'}, dotenv_path=path)
+    with pytest.raises(ConfigurationError, match='VOICE_TTS_URL'):
+        load_settings(environ={'VOICE_TTS_URL': 'http://example.com'}, dotenv_path=path)
+
+
 def test_imports_work_without_key_or_source():
     env = os.environ.copy()
     for name in ("ARK_API_KEY", "LLM_MODEL", "EMBED_MODEL"):

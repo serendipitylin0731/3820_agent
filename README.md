@@ -34,7 +34,20 @@ LLM_MODEL=你的对话模型ID
 EMBED_MODEL=你的向量模型ID
 ```
 
-`EMBED_MODEL` 仅在构建向量索引时使用。不要把真实密钥提交到 Git。启动服务：
+`EMBED_MODEL` 仅在构建向量索引时使用。不要把真实密钥提交到 Git。
+
+如已开通豆包语音合成 2.0 和流式语音识别 2.0，可在服务器 `.env` 中预先配置语音服务接口（模板见 `.env.example`）：
+
+```dotenv
+VOICE_API_KEY=你的语音服务API_Key
+VOICE_ASR_WS_URL=wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_async
+VOICE_ASR_RESOURCE_ID=volc.seedasr.sauc.duration
+VOICE_TTS_URL=https://openspeech.bytedance.com/api/v3/tts/unidirectional
+VOICE_TTS_RESOURCE_ID=seed-tts-2.0
+VOICE_TTS_SPEAKER=zh_female_vv_uranus_bigtts
+```
+
+这组配置与 `ARK_API_KEY` 分开，当前版本已支持读取与校验；在线语音服务调用尚未接入，现有语音按钮仍使用浏览器语音能力。不要将 `VOICE_API_KEY` 提交到 Git。启动服务：
 
 ```bash
 .venv/bin/python -m uvicorn app:app --host 127.0.0.1 --port 8000

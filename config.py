@@ -21,6 +21,12 @@ class Settings(BaseModel):
     ark_base_url: str = "https://ark.cn-beijing.volces.com/api/v3"
     llm_model: str | None = None
     embed_model: str | None = None
+    voice_api_key: SecretStr | None = None
+    voice_asr_ws_url: str = "wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_async"
+    voice_asr_resource_id: str = "volc.seedasr.sauc.duration"
+    voice_tts_url: str = "https://openspeech.bytedance.com/api/v3/tts/unidirectional"
+    voice_tts_resource_id: str = "seed-tts-2.0"
+    voice_tts_speaker: str = "zh_female_vv_uranus_bigtts"
     top_k: int = Field(default=5, ge=1, le=100)
     request_timeout: float = Field(default=30.0, gt=0, le=300)
     checkpoint_path: Path = Path("var/checkpoints.sqlite3")
@@ -32,7 +38,7 @@ class Settings(BaseModel):
     max_body_bytes: int = Field(default=16384, ge=1024, le=1048576)
     rate_limit_per_minute: int = Field(default=60, ge=1, le=10000)
 
-    @field_validator("ark_api_key", "llm_model", "embed_model", "service_api_key", "service_clients_json", mode="before")
+    @field_validator("ark_api_key", "voice_api_key", "llm_model", "embed_model", "service_api_key", "service_clients_json", mode="before")
     @classmethod
     def empty_or_placeholder_is_missing(cls, value):
         if value is None or not str(value).strip():
@@ -48,6 +54,22 @@ class Settings(BaseModel):
         if parts.scheme not in {"http", "https"} or not parts.netloc or parts.username:
             raise ValueError("必须是无用户名的 HTTP(S) 地址")
         return value.rstrip("/")
+
+    @field_validator("voice_asr_ws_url")
+    @classmethod
+    def valid_voice_asr_url(cls, value: str) -> str:
+        parts = urlsplit(value)
+        if parts.scheme != "wss" or not parts.netloc or parts.username or parts.password:
+            raise ValueError("必须是无用户名的 WSS 地址")
+        return value
+
+    @field_validator("voice_tts_url")
+    @classmethod
+    def valid_voice_tts_url(cls, value: str) -> str:
+        parts = urlsplit(value)
+        if parts.scheme != "https" or not parts.netloc or parts.username or parts.password:
+            raise ValueError("必须是无用户名的 HTTPS 地址")
+        return value
 
     @field_validator("log_level")
     @classmethod
@@ -72,6 +94,11 @@ class Settings(BaseModel):
             raise ConfigurationError("缺少 EMBED_MODEL；请填写实际开通的向量模型 ID")
         return self.embed_model
 
+    def require_voice_api_key(self) -> str:
+        if self.voice_api_key is None:
+            raise ConfigurationError("缺少 VOICE_API_KEY；请填写豆包语音服务 API Key")
+        return self.voice_api_key.get_secret_value()
+
     def require_service_ready(self) -> None:
         self.require_api_key()
         self.require_chat_model()
@@ -83,6 +110,12 @@ _ENV_FIELDS = {
     "ARK_BASE_URL": "ark_base_url",
     "LLM_MODEL": "llm_model",
     "EMBED_MODEL": "embed_model",
+    "VOICE_API_KEY": "voice_api_key",
+    "VOICE_ASR_WS_URL": "voice_asr_ws_url",
+    "VOICE_ASR_RESOURCE_ID": "voice_asr_resource_id",
+    "VOICE_TTS_URL": "voice_tts_url",
+    "VOICE_TTS_RESOURCE_ID": "voice_tts_resource_id",
+    "VOICE_TTS_SPEAKER": "voice_tts_speaker",
     "TOP_K": "top_k",
     "REQUEST_TIMEOUT": "request_timeout",
     "CHECKPOINT_PATH": "checkpoint_path",
