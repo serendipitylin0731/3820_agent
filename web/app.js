@@ -70,11 +70,21 @@
   let serviceKey = '';
   let clientId = '';
   let librarySearchGeneration = 0;
-  const voiceMode = window.VoiceMode.createVoiceMode({
-    Recognition: window.SpeechRecognition || window.webkitSpeechRecognition,
-    Utterance: window.SpeechSynthesisUtterance,
-    synthesis: window.speechSynthesis,
+  const voiceMode = window.CloudVoice.createVoiceMode({
     secure: window.isSecureContext,
+    getUserMedia: navigator.mediaDevices?.getUserMedia.bind(navigator.mediaDevices),
+    AudioContext: window.AudioContext || window.webkitAudioContext,
+    WebSocket: window.WebSocket,
+    Audio: window.Audio,
+    fetch: window.fetch.bind(window),
+    location: window.location,
+    createObjectURL: blob => URL.createObjectURL(blob),
+    revokeObjectURL: url => URL.revokeObjectURL(url),
+    getAuth: () => ({
+      ...(serviceKey ? { 'X-API-Key': serviceKey } : {}),
+      ...(clientId ? { 'X-Client-ID': clientId } : {}),
+    }),
+    getAuthPayload: () => ({ service_key: serviceKey, client_id: clientId }),
     onInterim: text => {
       questionInput.value = text;
       questionInput.dispatchEvent(new Event('input'));

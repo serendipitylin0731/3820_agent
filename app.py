@@ -1,5 +1,6 @@
 """HTTP 边界：请求契约、按客户端授权、限流与观测。"""
 import hmac
+import asyncio
 import json
 import logging
 import re
@@ -12,9 +13,12 @@ from pathlib import Path
 from threading import Lock
 
 from fastapi import FastAPI, Request, Response
+from fastapi import WebSocket, WebSocketDisconnect
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel, Field
+import websockets
 
 from config import ConfigurationError, get_settings
 from contracts import AgentResult, ChatError, ChatRequest, ChatResponse, ErrorInfo
@@ -22,6 +26,8 @@ from graph import ask
 from knowledge.knowledge_base import retrieval_metrics
 from knowledge.library_search import cited_record, cited_slide, download_file, media_text, preview_text, public_record, search_documents
 from resilience import timeout_error
+from voice_cloud import (VoiceServiceError, asr_headers, asr_init_packet, asr_packet,
+                         parse_asr_response, synthesize_mp3)
 
 logger = logging.getLogger('3820_agent')
 _counters = defaultdict(int)
@@ -32,7 +38,7 @@ _active = 0
 _peak_active = 0
 _agent_errors = 0
 _timeout_requests = 0
-_SCOPES = {'/chat':'chat', '/metrics':'metrics'}
+_SCOPES = {'/chat':'chat', '/voice/tts':'chat', '/metrics':'metrics'}
 def _error(status, code, message, request_id=None):
     payload = ChatError(request_id=request_id or str(uuid.uuid4()),
                         error=ErrorInfo(code=code, message=message))
@@ -123,7 +129,7 @@ async def protect_and_measure(request: Request, call_next):
                 return finish(_error(413, 'body_too_large', '请求体过大', request_id))
         except ValueError:
             return finish(_error(400, 'invalid_request', '请求头格式无效', request_id))
-    if request.url.path == '/chat':
+    if request.url.path in ('/chat', '/voice/tts'):
         identity = principal if principal != 'anonymous' else (request.client.host if request.client else 'unknown')
         now = time.monotonic()
         with _lock:
@@ -162,6 +168,136 @@ async def invalid_request(request: Request, _exc: RequestValidationError):
 @app.get('/health')
 def health():
     return {'status': 'ok'}
+
+
+class VoiceSynthesisRequest(BaseModel):
+    text: str = Field(min_length=1, max_length=3000)
+
+
+@app.post('/voice/tts')
+def voice_tts(req: VoiceSynthesisRequest, request: Request):
+    settings = get_settings()
+    if not settings.voice_api_key:
+        return _error(503, 'voice_unconfigured', '语音服务尚未配置', request.state.request_id)
+    try:
+        audio = synthesize_mp3(req.text, settings)
+    except VoiceServiceError as exc:
+        return _error(502, 'voice_failed', str(exc), request.state.request_id)
+    return Response(content=audio, media_type='audio/mpeg',
+                    headers={'Cache-Control': 'no-store'})
+
+
+def _voice_authorized(auth: dict, settings) -> bool:
+    clients = _client_registry(settings)
+    if clients:
+        spec = clients.get(auth.get('client_id', ''))
+        return bool(spec and 'chat' in spec['scopes'] and
+                    hmac.compare_digest(auth.get('service_key', ''), spec['api_key']))
+    if settings.service_api_key:
+        return hmac.compare_digest(auth.get('service_key', ''),
+                                   settings.service_api_key.get_secret_value())
+    return True
+
+
+@app.websocket('/voice/asr')
+async def voice_asr(websocket: WebSocket):
+    await websocket.accept()
+    settings = get_settings()
+    if not settings.voice_api_key:
+        await websocket.send_json({'type': 'error', 'message': '语音服务尚未配置'})
+        await websocket.close(code=4403)
+        return
+    try:
+        auth = await asyncio.wait_for(websocket.receive_json(), timeout=8)
+        if not isinstance(auth, dict) or not _voice_authorized(auth, settings):
+            await websocket.send_json({'type': 'error', 'message': '请先填写网站访问密码'})
+            await websocket.close(code=4401)
+            return
+        identity = (auth.get('client_id') if settings.service_clients_json else
+                    websocket.client.host if websocket.client else 'unknown')
+        now = time.monotonic()
+        with _lock:
+            window = _windows[f'voice:{identity}']
+            while window and window[0] <= now - 60:
+                window.popleft()
+            limited = len(window) >= settings.rate_limit_per_minute
+            if not limited:
+                window.append(now)
+        if limited:
+            await websocket.send_json({'type': 'error', 'message': '语音请求过于频繁，请稍后重试'})
+            await websocket.close(code=4429)
+            return
+        async with websockets.connect(settings.voice_asr_ws_url,
+                                      additional_headers=asr_headers(settings),
+                                      open_timeout=12, max_size=2_000_000) as provider:
+            await provider.send(asr_init_packet())
+
+            async def read_results():
+                latest = ''
+                async for frame in provider:
+                    if not isinstance(frame, bytes):
+                        continue
+                    payload, last = parse_asr_response(frame)
+                    text = payload.get('result', {}).get('text', '').strip()
+                    if text and text != latest:
+                        latest = text
+                        await websocket.send_json({'type': 'interim', 'text': text})
+                    if last:
+                        return latest
+                return latest
+
+            results = asyncio.create_task(read_results())
+            sequence = 2
+            pending = None
+            total = 0
+            try:
+                while True:
+                    if results.done():
+                        await results
+                    message = await asyncio.wait_for(websocket.receive(), timeout=40)
+                    if message['type'] == 'websocket.disconnect':
+                        return
+                    chunk = message.get('bytes')
+                    if chunk is not None:
+                        if not chunk or len(chunk) > 32_000 or len(chunk) % 2:
+                            raise VoiceServiceError('音频数据格式无效')
+                        total += len(chunk)
+                        if total > 1_280_000:
+                            raise VoiceServiceError('语音提问不能超过 40 秒')
+                        if pending is not None:
+                            await provider.send(asr_packet(2, 1, sequence, pending,
+                                                           serialization=0))
+                            sequence += 1
+                        pending = chunk
+                        continue
+                    if message.get('text'):
+                        command = json.loads(message['text'])
+                        if command.get('type') == 'finish':
+                            break
+                if pending is None:
+                    raise VoiceServiceError('没有收到语音，请重新提问')
+                await provider.send(asr_packet(2, 3, -sequence, pending,
+                                               serialization=0))
+                final = await asyncio.wait_for(results, timeout=12)
+                if not final:
+                    raise VoiceServiceError('没有识别到清晰的问题')
+                await websocket.send_json({'type': 'final', 'text': final})
+                await websocket.close()
+            finally:
+                if not results.done():
+                    results.cancel()
+    except WebSocketDisconnect:
+        pass
+    except (VoiceServiceError, TimeoutError, websockets.WebSocketException,
+            OSError, ValueError, TypeError) as exc:
+        logger.warning('语音识别失败 error_type=%s', type(exc).__name__)
+        try:
+            await websocket.send_json({'type': 'error', 'message':
+                                       str(exc) if isinstance(exc, VoiceServiceError)
+                                       else '语音识别暂时不可用，请稍后重试'})
+            await websocket.close(code=1011)
+        except RuntimeError:
+            pass
 
 
 @app.get('/', include_in_schema=False)
