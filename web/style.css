@@ -63,3 +63,10 @@ body[data-view="library"] #search-history-panel,body[data-view="library-reader"]
   body[data-view="chat"] .brand{display:none}
   body[data-view="chat"] .history-panel{max-height:74px}
 }
+
+.composer-actions{display:flex;align-items:center;gap:8px;flex:0 0 auto}
+.composer .voice-toggle{background:#edf4eb;color:#276349;border:1px solid #d5e6d5;padding:9px 13px}
+.composer .voice-toggle:hover,.composer .voice-toggle:focus-visible{background:#dcebdd;color:#174e36;outline:none}
+.composer .voice-toggle[aria-pressed="true"]{background:#d7e9da;border-color:#74ab82;box-shadow:0 0 0 2px #9bc6a449}
+.voice-status{margin:9px 2px 0;color:#3d7551;font-size:11px;line-height:1.5}
+@media(max-width:760px){.composer-bottom{flex-wrap:wrap}.composer-bottom>span{flex:1 1 100%}.composer-actions{width:100%;justify-content:flex-end}.composer .voice-toggle{padding:9px 11px}}

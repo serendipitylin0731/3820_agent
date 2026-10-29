@@ -18,6 +18,8 @@
   const form = document.querySelector('#chat-form');
   const questionInput = document.querySelector('#question');
   const sendButton = document.querySelector('#send');
+  const voiceToggle = document.querySelector('#voice-toggle');
+  const voiceStatus = document.querySelector('#voice-status');
   const messages = document.querySelector('#messages');
   const welcome = document.querySelector('#welcome');
   const suggestions = document.querySelector('#suggestions');
@@ -68,6 +70,26 @@
   let serviceKey = '';
   let clientId = '';
   let librarySearchGeneration = 0;
+  const voiceMode = window.VoiceMode.createVoiceMode({
+    Recognition: window.SpeechRecognition || window.webkitSpeechRecognition,
+    Utterance: window.SpeechSynthesisUtterance,
+    synthesis: window.speechSynthesis,
+    secure: window.isSecureContext,
+    onInterim: text => {
+      questionInput.value = text;
+      questionInput.dispatchEvent(new Event('input'));
+    },
+    onRecognized: text => sendQuestion(text, 'voice'),
+    onActiveChange: active => {
+      voiceToggle.setAttribute('aria-pressed', String(active));
+      voiceToggle.setAttribute('aria-label', active ? '结束语音对话' : '开启语音对话');
+      voiceToggle.textContent = active ? '🎙 结束语音' : '🎙 语音对话';
+    },
+    onStatus: message => {
+      voiceStatus.textContent = message;
+      voiceStatus.hidden = !message;
+    },
+  });
 
   const searchSuggestions = [
     '福州市20年经济社会发展战略设想', '3820战略工程编制过程',
@@ -315,6 +337,7 @@
   }
 
   function showBackground() {
+    voiceMode.stop();
     librarySearchGeneration += 1;
     document.body.dataset.view = 'background';
     libraryView.hidden = true;
@@ -334,6 +357,7 @@
   }
 
   function showLibrary(preserveScroll = false) {
+    voiceMode.stop();
     document.body.dataset.view = 'library';
     selectNavigation('library');
     libraryView.hidden = false;
@@ -411,6 +435,7 @@
   }
 
   function showReader(item) {
+    voiceMode.stop();
     if (libraryReader.hidden) {
       readerReturnView = document.body.dataset.view === 'chat' ? 'chat' : 'library';
       if (readerReturnView === 'library') lastLibraryScroll = window.scrollY;
@@ -747,6 +772,7 @@
 
   function restoreConversation(id) {
     if (busy) return;
+    voiceMode.stop();
     const turns = savedTurns.filter(turn => turn.threadId === id);
     if (!turns.length) return;
     threadId = id;
@@ -761,9 +787,10 @@
     scrollToLatest();
   }
 
-  async function sendQuestion(raw) {
+  async function sendQuestion(raw, origin = 'text') {
     const question = raw.trim();
-    if (busy || !question) return;
+    if (busy || !question) return null;
+    if (origin !== 'voice') voiceMode.stop();
     busy = true;
     sendButton.disabled = true;
     welcome.hidden = true;
@@ -793,22 +820,27 @@
           needsAuth = true;
         }
         renderAnswer(answer, payload, message);
+        if (needsAuth) voiceMode.stop('请先填写网站访问密码。');
+        return null;
       } else {
         payload.notice = modelNotice(payload);
         renderAnswer(answer, payload);
+        if (payload.status === 'error') return null;
         savedTurns = historyStore.saveTurn(storage, savedTurns, {
           threadId, question, payload, createdAt: new Date().toISOString(),
         });
         renderHistory();
+        return payload.answer || null;
       }
     } catch (_) {
       answer.article.classList.remove('loading');
       renderAnswer(answer, {}, '无法连接本地服务，请确认服务仍在运行后重试。');
+      return null;
     } finally {
       busy = false;
       sendButton.disabled = false;
       if (needsAuth) settingsDialog.showModal();
-      else questionInput.focus();
+      else if (!voiceMode.active) questionInput.focus();
     }
   }
 
@@ -828,6 +860,7 @@
   });
   function resetChat() {
     if (busy) return;
+    voiceMode.stop();
     threadId = createThreadId();
     messages.replaceChildren();
     welcome.hidden = false;
@@ -839,6 +872,10 @@
     conversation.scrollTop = 0;
   }
   newChatToggle.addEventListener('click', resetChat);
+  voiceToggle.addEventListener('click', () => {
+    if (voiceMode.active) voiceMode.stop();
+    else if (!busy) voiceMode.start();
+  });
   document.querySelector('#mobile-new-chat').addEventListener('click', resetChat);
   libraryToggle.addEventListener('click', openLibraryHome);
   document.querySelector('#mobile-library').addEventListener('click', openLibraryHome);

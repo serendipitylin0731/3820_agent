@@ -6,10 +6,11 @@
   <meta name="theme-color" content="#18342c">
   <title>3820 · 战略知识助手</title>
   <link rel="icon" type="image/svg+xml" href="/assets/logo.svg">
-  <link rel="stylesheet" href="/assets/style.css?v=11">
+  <link rel="stylesheet" href="/assets/style.css?v=12">
   <script src="/assets/history_store.js" defer></script>
   <script src="/assets/search_history.js" defer></script>
-  <script src="/assets/app.js?v=11" defer></script>
+  <script src="/assets/voice_mode.js?v=1" defer></script>
+  <script src="/assets/app.js?v=12" defer></script>
 </head>
 <body data-view="chat">
   <div class="shell">
@@ -194,7 +195,8 @@
         <form class="composer" id="chat-form">
           <label class="sr-only" for="question">输入关于 3820 工程的问题</label>
           <textarea id="question" name="question" rows="1" maxlength="4000" placeholder="输入关于“3820”工程的问题…" required></textarea>
-          <div class="composer-bottom"><span>Enter 发送 · Shift + Enter 换行</span><button type="submit" id="send" aria-label="发送问题">发送 <span aria-hidden="true">↗</span></button></div>
+          <div class="composer-bottom"><span>Enter 发送 · Shift + Enter 换行</span><div class="composer-actions"><button type="button" id="voice-toggle" class="voice-toggle" aria-pressed="false" aria-label="开启语音对话"><span aria-hidden="true">🎙</span> 语音对话</button><button type="submit" id="send" aria-label="发送问题">发送 <span aria-hidden="true">↗</span></button></div></div>
+          <p class="voice-status" id="voice-status" role="status" aria-live="polite" hidden></p>
         </form>
         <p class="footer-note">回答基于当前知识库。目标、完成值和统计口径可能存在差异，请结合资料来源阅读。</p>
       </div>
